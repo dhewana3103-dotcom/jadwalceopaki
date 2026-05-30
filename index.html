@@ -6,6 +6,7 @@
 <title>CEO GTD OS</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script>
 tailwind.config={theme:{extend:{fontFamily:{sans:['"Plus Jakarta Sans"','sans-serif']},boxShadow:{'soft':'0 4px 20px -2px rgba(0,0,0,0.05)','float':'0 10px 25px -5px rgba(0,0,0,0.1)','inner-soft':'inset 0 2px 4px 0 rgba(0,0,0,0.02)','fab':'0 8px 24px -4px rgba(28,25,23,0.35)','nav':'0 -4px 24px -4px rgba(0,0,0,0.06)'}}}}
 </script>
@@ -31,7 +32,34 @@ body{background:#f5f5f4;color:#1c1917;overscroll-behavior-y:none}
 const {useState,useEffect,useRef}=React;
 
 // ── DATA ─────────────────────────────────────────────────────
-const WEEKS=['W1','W2','W3','W4','W5'];
+const GOOGLE_CLIENT_ID='997864582307-j0e494vmkqctqenula33khcjten08asq.apps.googleusercontent.com';
+const SUPABASE_URL='https://najmapvbdwgxraiwnuqc.supabase.co';
+const SUPABASE_KEY='sb_publishable_ZSv_jm6TDvPID47XoEBReA_9YrIQl0_';
+let _sb=null;
+function getSB(){if(!_sb&&window.supabase){_sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);}return _sb;}
+async function sbSave(key,value){try{const sb=getSB();if(!sb)return;await sb.from('app_data').upsert({key,value,updated_at:new Date().toISOString()},{onConflict:'key'});}catch(e){console.warn('Supabase save:',e);}}
+async function sbLoad(key){try{const sb=getSB();if(!sb)return null;const{data}=await sb.from('app_data').select('value').eq('key',key).maybeSingle();return data?.value??null;}catch(e){return null;}}
+let _gTokenClient=null;
+async function loadGSI(){return new Promise(resolve=>{if(window.google?.accounts){resolve();return;}const s=document.createElement('script');s.src='https://accounts.google.com/gsi/client';s.onload=resolve;document.head.appendChild(s);});}
+async function connectGoogleCalendar(onToken){
+  await loadGSI();
+  _gTokenClient=window.google.accounts.oauth2.initTokenClient({client_id:GOOGLE_CLIENT_ID,scope:'https://www.googleapis.com/auth/calendar',callback:(resp)=>{if(resp.access_token)onToken(resp.access_token);}});
+  _gTokenClient.requestAccessToken();
+}
+async function listGCalendars(token){
+  const r=await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList',{headers:{Authorization:'Bearer '+token}});
+  const d=await r.json();return d.items||[];
+}
+async function pushEventToGCal(item,token,calId){
+  const tz='Asia/Jakarta';
+  const kpiLabel=KPI5.find(k=>k.id===item.relateMilestone)?.label||item.relateMilestone||'';
+  const desc=`[${item.jenisKegiatan||''}] ${item.kategori||''}\nKPI: ${kpiLabel}${item.masalahText?'\nMasalah: '+item.masalahText:''}${item.outputKeputusan?'\nOutput: '+item.outputKeputusan:''}`;
+  const body={summary:item.detailKegiatan||'Kegiatan CEO',description:desc,start:{dateTime:`${item.tanggal}T${item.jamMulai||'08:00'}:00`,timeZone:tz},end:{dateTime:`${item.tanggal}T${item.jamSelesai||'09:00'}:00`,timeZone:tz}};
+  const r=await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events`,{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify(body)});
+  return r.json();
+}
+
+
 const GROUPS=[
   {id:'pemasukan',name:'Pemasukan',bobot:35,icon:'💰',div:'Sales · Marketing · Buspro',items:[{id:'booking',name:'Booking',bobot:20,c:true},{id:'ready_stock',name:'Unit Ready Stock',bobot:5},{id:'sp3k',name:'SP3K',bobot:5},{id:'akad',name:'Akad',bobot:5}]},
   {id:'cs',name:'Complaint Sales',bobot:5,icon:'📋',div:'Sales · Marketing',items:[{id:'kecepatan',name:'Temuan Kecepatan',bobot:3},{id:'fraud',name:'Temuan Fraud',bobot:2,c:true}]},
@@ -131,7 +159,7 @@ const SAMPLE_KPT=[
 
 // ── HELPERS ──────────────────────────────────────────────────
 const ld=(k)=>{try{const v=localStorage.getItem('rsp_'+k);return v?JSON.parse(v):null;}catch{return null;}};
-const sv=(k,v)=>{try{localStorage.setItem('rsp_'+k,JSON.stringify(v));}catch(e){}};
+const sv=(k,v)=>{try{localStorage.setItem('rsp_'+k,JSON.stringify(v));}catch(e){}sbSave(k,v);};
 const genId=()=>Math.random().toString(36).slice(2,7).toUpperCase();
 const getApiKey=()=>localStorage.getItem('rsp_apikey')||'';
 async function callAI(messages,maxTokens=1200){
@@ -552,7 +580,7 @@ function Keputusan({keputusan,onUpdate,onDelete,onAddKeputusan}){
 }
 
 // ── SETTINGS ──────────────────────────────────────────────────
-function SettingsModal({onClose}){
+function SettingsModal({onClose,googleToken,googleCalId,googleCals,gcalConnecting,onConnectGCal,onSelectGCal}){
   const [key,setKey]=useState(localStorage.getItem('rsp_apikey')||'');
   const [showKey,setShowKey]=useState(false);
   const [saved,setSaved]=useState(false);
@@ -1739,7 +1767,7 @@ function applyJadwalFilter(items,filter){
   });
 }
 
-function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,onUpdate,onAddKeputusan,filter}){
+function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,onUpdate,onAddKeputusan,filter,onPushItem,onPushDay,gcalReady}){
   const today=todayStr();
   const dayName=new Date().toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long'});
   // Flat array per day, sorted by jamMulai
@@ -1925,6 +1953,7 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
             <button className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold st as ${isExpOut?'bg-stone-800 text-white':'bg-stone-100 text-stone-600 hover:bg-stone-200'}`} onClick={()=>setExpOutput(isExpOut?null:item.id)}>
               {hasOutput?'📝 Edit Output':'✍️ Isi Output'}
             </button>
+            {!fromBacklog&&gcalReady&&<button className="py-1.5 px-2 rounded-lg text-[10px] font-bold bg-blue-50 text-blue-600 border border-blue-100 st as" title="Push ke Google Calendar" onClick={async()=>{const ok=await onPushItem(item);if(ok!==false)alert('✅ Berhasil dipush ke Google Calendar!');else alert('❌ Gagal push. Cek koneksi Google Calendar di ⚙️');}}> 📅</button>}
             {!fromBacklog&&<button className="py-1.5 px-2.5 rounded-lg text-[10px] font-bold bg-red-50 text-red-400 border border-red-100 st as" onClick={()=>{if(confirm('Hapus?'))onRemoveJadwal(today,item.id);}}>🗑</button>}
           </div>
           {/* Edit panel */}
@@ -2063,7 +2092,8 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
           <div className="text-xl font-extrabold text-stone-800 tracking-tight">{dayName}</div>
           <div className="text-[11px] font-medium text-stone-400 mt-0.5">{dayItems.length} kegiatan{hiddenCount>0?` · ${hiddenCount} disembunyikan`:''} · tap ✍️ untuk output · + untuk tambah</div>
         </div>
-        <div className="flex-shrink-0 relative">
+        <div className="flex-shrink-0 flex items-center gap-2 relative">
+          {gcalReady&&<button className="px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-200 text-[10px] font-bold text-blue-600 as st flex items-center gap-1" onClick={()=>onPushDay(today)} title="Push semua kegiatan hari ini ke Google Calendar">📅 Push Semua</button>}
           <button className="px-3 py-1.5 rounded-xl bg-stone-100 border border-stone-200 text-[10px] font-bold text-stone-600 as st flex items-center gap-1" onClick={()=>setShowExport(p=>!p)}>⬇️ Export</button>
           {showExport&&<div className="absolute right-0 mt-1 bg-white border border-stone-200 rounded-2xl shadow-float z-30 overflow-hidden afi" style={{minWidth:160}}>
             <div className="px-3 py-2 text-[9px] font-extrabold text-stone-400 uppercase tracking-wider border-b border-stone-100">Export Jadwal CSV</div>
@@ -2718,7 +2748,33 @@ function App(){
   const [sub,setSub]=useState({jadwal:'harian',backlog:'backlog',resume:'analisa'});
   const [jadwalFilter,setJadwalFilter]=useState({kategori:{RSP:true,BT:true,TKB:true,Personal:true},belumOutput:false,belumSiap:false});
   const toggleKat=(k)=>setJadwalFilter(f=>({...f,kategori:{...f.kategori,[k]:!f.kategori[k]}}));
-  const [kpiCorp,setKpiCorp]=useState(()=>ld('kpi_corp')||{});
+  const [googleToken,setGoogleToken]=useState(null);
+  const [googleCalId,setGoogleCalId]=useState(()=>localStorage.getItem('rsp_gcal_id')||'');
+  const [googleCals,setGoogleCals]=useState([]);
+  const [gcalConnecting,setGcalConnecting]=useState(false);
+  async function connectGCal(){
+    setGcalConnecting(true);
+    try{
+      await connectGoogleCalendar(async(token)=>{
+        setGoogleToken(token);
+        const cals=await listGCalendars(token);
+        setGoogleCals(cals);
+        setGcalConnecting(false);
+      });
+    }catch(e){setGcalConnecting(false);}
+  }
+  function selectGCal(id){setGoogleCalId(id);localStorage.setItem('rsp_gcal_id',id);}
+  async function pushItemToGCal(item){
+    if(!googleToken||!googleCalId){alert('Connect Google Calendar dulu di ⚙️ Pengaturan.');return;}
+    try{await pushEventToGCal(item,googleToken,googleCalId);return true;}catch(e){return false;}
+  }
+  async function pushDayToGCal(date){
+    if(!googleToken||!googleCalId){alert('Connect Google Calendar dulu di ⚙️ Pengaturan.');return;}
+    const items=jadwal[date]||[];
+    let ok=0;
+    for(const item of items){try{await pushEventToGCal(item,googleToken,googleCalId);ok++;}catch(e){}}
+    alert(`${ok}/${items.length} kegiatan berhasil dipush ke Google Calendar.`);
+  }
   const [kpiCeo,setKpiCeo]=useState(()=>ld('kpi_ceo')||{});
   const [dashMonth,setDashMonth]=useState(()=>new Date().toISOString().slice(0,7));
   function saveKpiCorp(month,data){const n={...kpiCorp,[month]:data};setKpiCorp(n);sv('kpi_corp',n);}
@@ -2732,11 +2788,32 @@ function App(){
   const [ready,setReady]=useState(false);
 
   useEffect(()=>{
+    // Load from localStorage first (fast)
     const sb=ld('backlog');const sk=ld('keputusan');const sj=ld('jadwal');
     setBacklog(sb&&sb.length>0?sb:SAMPLE_BL);
     setKeputusan(sk&&sk.length>0?sk:SAMPLE_KPT);
     setJadwal(sj||SJ);
     setReady(true);
+    // Then load from Supabase (sync from other devices)
+    async function loadFromSB(){
+      const keys=[['backlog',(v)=>{if(v&&v.length>0){setBacklog(v);try{localStorage.setItem('rsp_backlog',JSON.stringify(v));}catch(e){}}},],['keputusan',(v)=>{if(v&&v.length>0){setKeputusan(v);try{localStorage.setItem('rsp_keputusan',JSON.stringify(v));}catch(e){}}},],['jadwal',(v)=>{if(v&&Object.keys(v).length>0){setJadwal(v);try{localStorage.setItem('rsp_jadwal',JSON.stringify(v));}catch(e){}}},],['kpi_corp',(v)=>{if(v){setKpiCorp(v);try{localStorage.setItem('rsp_kpi_corp',JSON.stringify(v));}catch(e){}}},],['kpi_ceo',(v)=>{if(v){setKpiCeo(v);try{localStorage.setItem('rsp_kpi_ceo',JSON.stringify(v));}catch(e){}}},],];
+      for(const[key,setter] of keys){const data=await sbLoad(key);if(data)setter(data);}
+    }
+    loadFromSB();
+    // Realtime subscription
+    const sb2=getSB();
+    if(!sb2)return;
+    const channel=sb2.channel('app_realtime').on('postgres_changes',{event:'*',schema:'public',table:'app_data'},(payload)=>{
+      if(!payload.new)return;
+      const{key,value}=payload.new;
+      if(!value)return;
+      if(key==='backlog'&&value.length>0){setBacklog(value);try{localStorage.setItem('rsp_backlog',JSON.stringify(value));}catch(e){}}
+      else if(key==='keputusan'&&value.length>0){setKeputusan(value);try{localStorage.setItem('rsp_keputusan',JSON.stringify(value));}catch(e){}}
+      else if(key==='jadwal'&&Object.keys(value).length>0){setJadwal(value);try{localStorage.setItem('rsp_jadwal',JSON.stringify(value));}catch(e){}}
+      else if(key==='kpi_corp'){setKpiCorp(value);try{localStorage.setItem('rsp_kpi_corp',JSON.stringify(value));}catch(e){}}
+      else if(key==='kpi_ceo'){setKpiCeo(value);try{localStorage.setItem('rsp_kpi_ceo',JSON.stringify(value));}catch(e){}}
+    }).subscribe();
+    return()=>sb2.removeChannel(channel);
   },[]);
 
   const addI=(items)=>{const n=[...backlog,...items];setBacklog(n);sv('backlog',n);};
@@ -2768,7 +2845,7 @@ function App(){
 
   return(
     <div id="ac">
-      {showSettings&&<SettingsModal onClose={()=>setShowSettings(false)}/>}
+      {showSettings&&<SettingsModal onClose={()=>setShowSettings(false)} googleToken={googleToken} googleCalId={googleCalId} googleCals={googleCals} gcalConnecting={gcalConnecting} onConnectGCal={connectGCal} onSelectGCal={selectGCal}/>}
       {/* ── DESKTOP SIDEBAR ── */}
       <aside className="hidden md:flex md:flex-col md:w-56 md:flex-shrink-0 md:sticky md:top-0 md:h-screen md:border-r md:border-stone-200 md:bg-white md:shadow-[2px_0_12px_rgba(0,0,0,0.04)] md:z-50">
         <Sidebar tab={tab} sub={sub} setTab={setTab} setST={setST} nc={nc} belumCount={belumCount}/>
@@ -2824,7 +2901,7 @@ function App(){
         {/* Content */}
         <div className="flex-1 pb-24 md:pb-8 md:max-w-5xl md:w-full md:mx-auto md:px-0">
           {tab==='dashboard'&&<Dashboard weekly={dashWeekly} kpiCorp={kpiCorp} dashMonth={dashMonth} onChangeMonth={setDashMonth}/>}
-          {tab==='jadwal'&&sub.jadwal==='harian'&&<JadwalHarian backlog={backlog} jadwal={jadwal} onAddJadwal={addToJadwal} onRemoveJadwal={removeFromJadwal} onUpdateJadwal={updateJadwal} onUpdate={updI} onAddKeputusan={addK} filter={jadwalFilter}/>}
+          {tab==='jadwal'&&sub.jadwal==='harian'&&<JadwalHarian backlog={backlog} jadwal={jadwal} onAddJadwal={addToJadwal} onRemoveJadwal={removeFromJadwal} onUpdateJadwal={updateJadwal} onUpdate={updI} onAddKeputusan={addK} filter={jadwalFilter} onPushItem={pushItemToGCal} onPushDay={pushDayToGCal} gcalReady={!!googleToken&&!!googleCalId}/>}
           {tab==='jadwal'&&sub.jadwal==='mingguan'&&<JadwalMingguan backlog={backlog} jadwal={jadwal} filter={jadwalFilter}/>}
           {tab==='dump'&&<DumpPage onAdd={addI} onAddKeputusan={addK} onAddJadwal={addToJadwal} onBatchAddJadwal={batchAddToJadwal} onUpdateJadwal={updateJadwal} onResetICSBatch={resetJadwalBatch} onSaveKpiCorp={saveKpiCorp} onSaveKpiCeo={saveKpiCeo} jadwal={jadwal} backlog={backlog} onDone={()=>{setTab('backlog');setST('backlog','backlog');}}/>}
           {tab==='backlog'&&sub.backlog==='backlog'&&<BacklogList backlog={backlog} onUpdate={updI} onDelete={delI} onAddKeputusan={addK}/>}
