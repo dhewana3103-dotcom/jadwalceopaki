@@ -31,10 +31,14 @@ body{background:#f5f5f4;color:#1c1917;overscroll-behavior-y:none}
 const {useState,useEffect,useRef}=React;
 
 // ── DATA ─────────────────────────────────────────────────────
-const GOOGLE_CLIENT_ID='997864582307-j0e494vmkqctqenula33khcjten08asq.apps.googleusercontent.com';
+const SUPABASE_URL='https://najmapvbdwgxraiwnuqc.supabase.co';
+const SUPABASE_KEY='sb_publishable_ZSv_jm6TDvPID47XoEBReA_9YrIQl0_';
+let _sb=null;
+function getSB(){try{if(!_sb&&window.supabase){_sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);}return _sb;}catch(e){return null;}}
+function sbSave(key,value){try{var sb=getSB();if(!sb)return;sb.from('app_data').upsert({key:key,value:value,updated_at:new Date().toISOString()},{onConflict:'key'}).then(function(){}).catch(function(){});}catch(e){}}
+function sbLoad(key){try{var sb=getSB();if(!sb)return Promise.resolve(null);return sb.from('app_data').select('value').eq('key',key).maybeSingle().then(function(res){return(res&&res.data&&res.data.value!==undefined)?res.data.value:null;}).catch(function(){return null;});}catch(e){return Promise.resolve(null);}}
 
-
-
+const WEEKS=['W1','W2','W3','W4','W5'];
 const GROUPS=[
   {id:'pemasukan',name:'Pemasukan',bobot:35,icon:'💰',div:'Sales · Marketing · Buspro',items:[{id:'booking',name:'Booking',bobot:20,c:true},{id:'ready_stock',name:'Unit Ready Stock',bobot:5},{id:'sp3k',name:'SP3K',bobot:5},{id:'akad',name:'Akad',bobot:5}]},
   {id:'cs',name:'Complaint Sales',bobot:5,icon:'📋',div:'Sales · Marketing',items:[{id:'kecepatan',name:'Temuan Kecepatan',bobot:3},{id:'fraud',name:'Temuan Fraud',bobot:2,c:true}]},
@@ -134,7 +138,7 @@ const SAMPLE_KPT=[
 
 // ── HELPERS ──────────────────────────────────────────────────
 const ld=(k)=>{try{const v=localStorage.getItem('rsp_'+k);return v?JSON.parse(v):null;}catch{return null;}};
-const sv=(k,v)=>{try{localStorage.setItem('rsp_'+k,JSON.stringify(v));}catch(e){}};
+const sv=(k,v)=>{try{localStorage.setItem('rsp_'+k,JSON.stringify(v));}catch(e){}sbSave(k,v);};
 const genId=()=>Math.random().toString(36).slice(2,7).toUpperCase();
 const getApiKey=()=>localStorage.getItem('rsp_apikey')||'';
 async function callAI(messages,maxTokens=1200){
@@ -830,7 +834,7 @@ function ImportMoM({onAddBacklog,onAddKeputusan,backlog,jadwal,onUpdateJadwal}){
            ...preview.keputusan.map((kpt,i)=>({...kpt,_orig:'keputusan',_idx:preview.backlog.length+i,_jenis:'Feedback',_action:kpt.deskripsi}))];
   }
   const items=allItems();
-  const getDest=(it)=>destOvr[it._idx]!==undefined?destOvr[it._idx]:it._orig;
+  const getDest=(it)=>destOvr[it._idx]??it._orig;
   const toggleDest=(it)=>setDestOvr(p=>({...p,[it._idx]:getDest(it)==='backlog'?'keputusan':'backlog'}));
 
   function doConfirm(){
@@ -1700,7 +1704,7 @@ function Dashboard({weekly,kpiCorp,dashMonth,onChangeMonth}){
               <div><div className="text-[13px] font-bold text-stone-800 flex items-center gap-1.5">{g.icon} {g.name} <span className="text-[10px] text-stone-400 font-medium">({g.bobot}%)</span></div><div className="text-[10px] text-stone-400 mt-0.5 ml-5">{g.div}</div></div>
               <div className="flex items-center gap-1.5">{active.slice(-2).map(w=>{const d=weekly[w];const gp=d?Math.round(g.items.reduce((s,i)=>{const v=d[i.id];return s+(v?Math.min(v.pct,100)*i.bobot/g.bobot:0);},0)):null;return<Pct key={w} p={gp} sm/>;})}<span className={`text-[10px] text-stone-300 st ${isO?'rotate-180':''}`}>▼</span></div>
             </div>
-            {isO&&<div className="overflow-x-auto bg-stone-50/50"><table className="w-full min-w-[380px]"><thead><tr>{['Sub Indikator',...WEEKS].map((h,i)=><th key={h} className={`text-[9px] font-bold text-stone-400 p-2 ${i===0?'text-left pl-3':'text-center'} bg-stone-100 uppercase tracking-wider border-b border-stone-200`}>{h}</th>)}</tr></thead><tbody>{g.items.map(item=><tr key={item.id} className="border-b border-stone-100 last:border-0"><td className="p-2 pl-3"><div className="text-[11px] font-semibold text-stone-700 leading-tight">{item.name}{item.c?' 🔴':''}</div><div className="text-[9px] text-stone-400 mt-0.5">{item.bobot}% bobot</div></td>{WEEKS.map(w=>{const d=weekly[w]?.[item.id];return<td key={w} className="p-2 text-center">{weekly[w]?<div className="flex flex-col items-center"><Pct p={d&&d.pct!==undefined?d.pct:null} sm/>{d?.aktual!==undefined&&<span className="text-[8px] text-stone-400 mt-0.5">n={d.aktual}</span>}</div>:<span className="text-[11px] text-stone-300">—</span>}</td>;})}</tr>)}</tbody></table></div>}
+            {isO&&<div className="overflow-x-auto bg-stone-50/50"><table className="w-full min-w-[380px]"><thead><tr>{['Sub Indikator',...WEEKS].map((h,i)=><th key={h} className={`text-[9px] font-bold text-stone-400 p-2 ${i===0?'text-left pl-3':'text-center'} bg-stone-100 uppercase tracking-wider border-b border-stone-200`}>{h}</th>)}</tr></thead><tbody>{g.items.map(item=><tr key={item.id} className="border-b border-stone-100 last:border-0"><td className="p-2 pl-3"><div className="text-[11px] font-semibold text-stone-700 leading-tight">{item.name}{item.c?' 🔴':''}</div><div className="text-[9px] text-stone-400 mt-0.5">{item.bobot}% bobot</div></td>{WEEKS.map(w=>{const d=weekly[w]?.[item.id];return<td key={w} className="p-2 text-center">{weekly[w]?<div className="flex flex-col items-center"><Pct p={d?.pct??null} sm/>{d?.aktual!==undefined&&<span className="text-[8px] text-stone-400 mt-0.5">n={d.aktual}</span>}</div>:<span className="text-[11px] text-stone-300">—</span>}</td>;})}</tr>)}</tbody></table></div>}
           </div>
         );})}
       </div>
@@ -1928,7 +1932,6 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
             <button className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold st as ${isExpOut?'bg-stone-800 text-white':'bg-stone-100 text-stone-600 hover:bg-stone-200'}`} onClick={()=>setExpOutput(isExpOut?null:item.id)}>
               {hasOutput?'📝 Edit Output':'✍️ Isi Output'}
             </button>
-            {!fromBacklog&&gcalReady&&<button className="py-1.5 px-2 rounded-lg text-[10px] font-bold bg-blue-50 text-blue-600 border border-blue-100 st as" title="Push ke Google Calendar" onClick={async()=>{const ok=await onPushItem(item);if(ok!==false)alert('✅ Berhasil dipush ke Google Calendar!');else alert('❌ Gagal push. Cek koneksi Google Calendar di ⚙️');}}> 📅</button>}
             {!fromBacklog&&<button className="py-1.5 px-2.5 rounded-lg text-[10px] font-bold bg-red-50 text-red-400 border border-red-100 st as" onClick={()=>{if(confirm('Hapus?'))onRemoveJadwal(today,item.id);}}>🗑</button>}
           </div>
           {/* Edit panel */}
@@ -2067,7 +2070,7 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
           <div className="text-xl font-extrabold text-stone-800 tracking-tight">{dayName}</div>
           <div className="text-[11px] font-medium text-stone-400 mt-0.5">{dayItems.length} kegiatan{hiddenCount>0?` · ${hiddenCount} disembunyikan`:''} · tap ✍️ untuk output · + untuk tambah</div>
         </div>
-        <div className="flex-shrink-0 flex items-center gap-2 relative">
+        <div className="flex-shrink-0 relative">
           <button className="px-3 py-1.5 rounded-xl bg-stone-100 border border-stone-200 text-[10px] font-bold text-stone-600 as st flex items-center gap-1" onClick={()=>setShowExport(p=>!p)}>⬇️ Export</button>
           {showExport&&<div className="absolute right-0 mt-1 bg-white border border-stone-200 rounded-2xl shadow-float z-30 overflow-hidden afi" style={{minWidth:160}}>
             <div className="px-3 py-2 text-[9px] font-extrabold text-stone-400 uppercase tracking-wider border-b border-stone-100">Export Jadwal CSV</div>
@@ -2722,7 +2725,7 @@ function App(){
   const [sub,setSub]=useState({jadwal:'harian',backlog:'backlog',resume:'analisa'});
   const [jadwalFilter,setJadwalFilter]=useState({kategori:{RSP:true,BT:true,TKB:true,Personal:true},belumOutput:false,belumSiap:false});
   const toggleKat=(k)=>setJadwalFilter(f=>({...f,kategori:{...f.kategori,[k]:!f.kategori[k]}}));
-
+  const [kpiCorp,setKpiCorp]=useState(()=>ld('kpi_corp')||{});
   const [kpiCeo,setKpiCeo]=useState(()=>ld('kpi_ceo')||{});
   const [dashMonth,setDashMonth]=useState(()=>new Date().toISOString().slice(0,7));
   function saveKpiCorp(month,data){const n={...kpiCorp,[month]:data};setKpiCorp(n);sv('kpi_corp',n);}
@@ -2736,14 +2739,35 @@ function App(){
   const [ready,setReady]=useState(false);
 
   useEffect(()=>{
-    // Load from localStorage first (fast, synchronous)
     const sb=ld('backlog');const sk=ld('keputusan');const sj=ld('jadwal');
     setBacklog(sb&&sb.length>0?sb:SAMPLE_BL);
     setKeputusan(sk&&sk.length>0?sk:SAMPLE_KPT);
     setJadwal(sj||SJ);
     setReady(true);
-    // Load from Supabase after a delay (waits for CDN to load)
-
+    // Load Supabase JS then sync data
+    var s=document.createElement('script');
+    s.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+    s.onload=function(){
+      window._sbLoaded=true;
+      setTimeout(function(){
+        sbLoad('backlog').then(function(v){if(v&&v.length>0){setBacklog(v);try{localStorage.setItem('rsp_backlog',JSON.stringify(v));}catch(e){}}});
+        sbLoad('keputusan').then(function(v){if(v&&v.length>0){setKeputusan(v);try{localStorage.setItem('rsp_keputusan',JSON.stringify(v));}catch(e){}}});
+        sbLoad('jadwal').then(function(v){if(v&&Object.keys(v).length>0){setJadwal(v);try{localStorage.setItem('rsp_jadwal',JSON.stringify(v));}catch(e){}}});
+        sbLoad('kpi_corp').then(function(v){if(v){setKpiCorp(v);}});
+        sbLoad('kpi_ceo').then(function(v){if(v){setKpiCeo(v);}});
+        var sb2=getSB();
+        if(sb2){sb2.channel('rsp_rt').on('postgres_changes',{event:'*',schema:'public',table:'app_data'},function(pl){
+          try{var k=pl.new.key;var v=pl.new.value;if(!v)return;
+            if(k==='backlog'&&v.length>0){setBacklog(v);try{localStorage.setItem('rsp_backlog',JSON.stringify(v));}catch(e){}}
+            else if(k==='keputusan'&&v.length>0){setKeputusan(v);try{localStorage.setItem('rsp_keputusan',JSON.stringify(v));}catch(e){}}
+            else if(k==='jadwal'){setJadwal(v);try{localStorage.setItem('rsp_jadwal',JSON.stringify(v));}catch(e){}}
+            else if(k==='kpi_corp'){setKpiCorp(v);}
+            else if(k==='kpi_ceo'){setKpiCeo(v);}
+          }catch(e){}
+        }).subscribe();}
+      },500);
+    };
+    document.head.appendChild(s);
   },[]);
 
   const addI=(items)=>{const n=[...backlog,...items];setBacklog(n);sv('backlog',n);};
