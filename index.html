@@ -6,7 +6,15 @@
 <title>CEO GTD OS</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script>
+// Load Supabase lazily to prevent blocking React
+window.addEventListener('load',()=>{
+  const s=document.createElement('script');
+  s.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+  s.onload=()=>{window._sbReady=true;};
+  document.head.appendChild(s);
+});
+</script>
 <script>
 tailwind.config={theme:{extend:{fontFamily:{sans:['"Plus Jakarta Sans"','sans-serif']},boxShadow:{'soft':'0 4px 20px -2px rgba(0,0,0,0.05)','float':'0 10px 25px -5px rgba(0,0,0,0.1)','inner-soft':'inset 0 2px 4px 0 rgba(0,0,0,0.02)','fab':'0 8px 24px -4px rgba(28,25,23,0.35)','nav':'0 -4px 24px -4px rgba(0,0,0,0.06)'}}}}
 </script>
@@ -36,8 +44,8 @@ const GOOGLE_CLIENT_ID='997864582307-j0e494vmkqctqenula33khcjten08asq.apps.googl
 const SUPABASE_URL='https://najmapvbdwgxraiwnuqc.supabase.co';
 const SUPABASE_KEY='sb_publishable_ZSv_jm6TDvPID47XoEBReA_9YrIQl0_';
 let _sb=null;
-function getSB(){if(!_sb&&window.supabase){_sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);}return _sb;}
-async function sbSave(key,value){try{const sb=getSB();if(!sb)return;await sb.from('app_data').upsert({key,value,updated_at:new Date().toISOString()},{onConflict:'key'});}catch(e){console.warn('Supabase save:',e);}}
+function getSB(){try{if(!_sb&&window.supabase&&window._sbReady){_sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);}return _sb;}catch(e){return null;}}
+async function sbSave(key,value){try{const sb=getSB();if(!sb)return;await sb.from('app_data').upsert({key,value,updated_at:new Date().toISOString()},{onConflict:'key'});}catch(e){}}
 async function sbLoad(key){try{const sb=getSB();if(!sb)return null;const{data}=await sb.from('app_data').select('value').eq('key',key).maybeSingle();return data?.value??null;}catch(e){return null;}}
 let _gTokenClient=null;
 async function loadGSI(){return new Promise(resolve=>{if(window.google?.accounts){resolve();return;}const s=document.createElement('script');s.src='https://accounts.google.com/gsi/client';s.onload=resolve;document.head.appendChild(s);});}
@@ -2788,32 +2796,33 @@ function App(){
   const [ready,setReady]=useState(false);
 
   useEffect(()=>{
-    // Load from localStorage first (fast)
+    // Load from localStorage first (fast, synchronous)
     const sb=ld('backlog');const sk=ld('keputusan');const sj=ld('jadwal');
     setBacklog(sb&&sb.length>0?sb:SAMPLE_BL);
     setKeputusan(sk&&sk.length>0?sk:SAMPLE_KPT);
     setJadwal(sj||SJ);
     setReady(true);
-    // Then load from Supabase (sync from other devices)
-    async function loadFromSB(){
-      const keys=[['backlog',(v)=>{if(v&&v.length>0){setBacklog(v);try{localStorage.setItem('rsp_backlog',JSON.stringify(v));}catch(e){}}},],['keputusan',(v)=>{if(v&&v.length>0){setKeputusan(v);try{localStorage.setItem('rsp_keputusan',JSON.stringify(v));}catch(e){}}},],['jadwal',(v)=>{if(v&&Object.keys(v).length>0){setJadwal(v);try{localStorage.setItem('rsp_jadwal',JSON.stringify(v));}catch(e){}}},],['kpi_corp',(v)=>{if(v){setKpiCorp(v);try{localStorage.setItem('rsp_kpi_corp',JSON.stringify(v));}catch(e){}}},],['kpi_ceo',(v)=>{if(v){setKpiCeo(v);try{localStorage.setItem('rsp_kpi_ceo',JSON.stringify(v));}catch(e){}}},],];
-      for(const[key,setter] of keys){const data=await sbLoad(key);if(data)setter(data);}
-    }
-    loadFromSB();
-    // Realtime subscription
-    const sb2=getSB();
-    if(!sb2)return;
-    const channel=sb2.channel('app_realtime').on('postgres_changes',{event:'*',schema:'public',table:'app_data'},(payload)=>{
-      if(!payload.new)return;
-      const{key,value}=payload.new;
-      if(!value)return;
-      if(key==='backlog'&&value.length>0){setBacklog(value);try{localStorage.setItem('rsp_backlog',JSON.stringify(value));}catch(e){}}
-      else if(key==='keputusan'&&value.length>0){setKeputusan(value);try{localStorage.setItem('rsp_keputusan',JSON.stringify(value));}catch(e){}}
-      else if(key==='jadwal'&&Object.keys(value).length>0){setJadwal(value);try{localStorage.setItem('rsp_jadwal',JSON.stringify(value));}catch(e){}}
-      else if(key==='kpi_corp'){setKpiCorp(value);try{localStorage.setItem('rsp_kpi_corp',JSON.stringify(value));}catch(e){}}
-      else if(key==='kpi_ceo'){setKpiCeo(value);try{localStorage.setItem('rsp_kpi_ceo',JSON.stringify(value));}catch(e){}}
-    }).subscribe();
-    return()=>sb2.removeChannel(channel);
+    // Load from Supabase after a delay (waits for CDN to load)
+    const syncFromSB=async()=>{
+      try{
+        const pairs=[['backlog',(v)=>{if(v?.length>0){setBacklog(v);try{localStorage.setItem('rsp_backlog',JSON.stringify(v));}catch(e){}}}],['keputusan',(v)=>{if(v?.length>0){setKeputusan(v);try{localStorage.setItem('rsp_keputusan',JSON.stringify(v));}catch(e){}}}],['jadwal',(v)=>{if(v&&Object.keys(v).length>0){setJadwal(v);try{localStorage.setItem('rsp_jadwal',JSON.stringify(v));}catch(e){}}}],['kpi_corp',(v)=>{if(v){setKpiCorp(v);try{localStorage.setItem('rsp_kpi_corp',JSON.stringify(v));}catch(e){}}}],['kpi_ceo',(v)=>{if(v){setKpiCeo(v);try{localStorage.setItem('rsp_kpi_ceo',JSON.stringify(v));}catch(e){}}}]];
+        for(const[key,setter] of pairs){const data=await sbLoad(key);if(data)setter(data);}
+        // Realtime subscription
+        const sb2=getSB();
+        if(!sb2)return;
+        sb2.channel('app_realtime').on('postgres_changes',{event:'*',schema:'public',table:'app_data'},(payload)=>{
+          try{
+            const{key,value}=payload.new||{};if(!value)return;
+            if(key==='backlog'&&value.length>0){setBacklog(value);try{localStorage.setItem('rsp_backlog',JSON.stringify(value));}catch(e){}}
+            else if(key==='keputusan'&&value.length>0){setKeputusan(value);try{localStorage.setItem('rsp_keputusan',JSON.stringify(value));}catch(e){}}
+            else if(key==='jadwal'&&Object.keys(value).length>0){setJadwal(value);try{localStorage.setItem('rsp_jadwal',JSON.stringify(value));}catch(e){}}
+            else if(key==='kpi_corp'){setKpiCorp(value);try{localStorage.setItem('rsp_kpi_corp',JSON.stringify(value));}catch(e){}}
+            else if(key==='kpi_ceo'){setKpiCeo(value);try{localStorage.setItem('rsp_kpi_ceo',JSON.stringify(value));}catch(e){}}
+          }catch(e){}
+        }).subscribe();
+      }catch(e){}
+    };
+    setTimeout(syncFromSB,2000);
   },[]);
 
   const addI=(items)=>{const n=[...backlog,...items];setBacklog(n);sv('backlog',n);};
