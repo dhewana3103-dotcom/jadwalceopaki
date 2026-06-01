@@ -2799,15 +2799,15 @@ function App(){
         var localBL=ld('backlog')||[];
         var localKE=ld('keputusan')||[];
         var localJA=ld('jadwal')||{};
-        sbLoad('backlog').then(function(v){if(v&&v.length>0){setBacklog(v);try{localStorage.setItem('rsp_backlog',JSON.stringify(v));}catch(e){}}else if(localBL.length>0){sbSave('backlog',localBL);}});
-        sbLoad('keputusan').then(function(v){if(v&&v.length>0){setKeputusan(v);try{localStorage.setItem('rsp_keputusan',JSON.stringify(v));}catch(e){}}else if(localKE.length>0){sbSave('keputusan',localKE);}});
-        sbLoad('jadwal').then(function(v){if(v&&Object.keys(v).length>0){setJadwal(v);try{localStorage.setItem('rsp_jadwal',JSON.stringify(v));}catch(e){}}else if(Object.keys(localJA).length>0){sbSave('jadwal',localJA);}});
+        sbLoad('backlog').then(function(v){if(v!==null){setBacklog(v);try{localStorage.setItem('rsp_backlog',JSON.stringify(v));}catch(e){}}else if(localBL.length>0){sbSave('backlog',localBL);}});
+        sbLoad('keputusan').then(function(v){if(v!==null){setKeputusan(v);try{localStorage.setItem('rsp_keputusan',JSON.stringify(v));}catch(e){}}else if(localKE.length>0){sbSave('keputusan',localKE);}});
+        sbLoad('jadwal').then(function(v){if(v!==null){setJadwal(v);try{localStorage.setItem('rsp_jadwal',JSON.stringify(v));}catch(e){}}else if(Object.keys(localJA).length>0){sbSave('jadwal',localJA);}});
         var sb2=getSB();
         if(!sb2)return;
         sb2.channel('rsp_live').on('postgres_changes',{event:'*',schema:'public',table:'app_data'},function(pl){
           try{var key=pl.new.key;var val=pl.new.value;if(!val)return;
-            if(key==='backlog'&&val.length>0){setBacklog(val);try{localStorage.setItem('rsp_backlog',JSON.stringify(val));}catch(e){}}
-            else if(key==='keputusan'&&val.length>0){setKeputusan(val);try{localStorage.setItem('rsp_keputusan',JSON.stringify(val));}catch(e){}}
+            if(key==='backlog'){setBacklog(val);try{localStorage.setItem('rsp_backlog',JSON.stringify(val));}catch(e){}}
+            else if(key==='keputusan'){setKeputusan(val);try{localStorage.setItem('rsp_keputusan',JSON.stringify(val));}catch(e){}}
             else if(key==='jadwal'){setJadwal(val);try{localStorage.setItem('rsp_jadwal',JSON.stringify(val));}catch(e){}}
           }catch(e){}
         }).subscribe();
@@ -2816,6 +2816,15 @@ function App(){
     document.head.appendChild(script);
   },[]);
 
+  function pullFromSB(){
+    sbLoad('backlog').then(function(v){if(v!==null){setBacklog(v);try{localStorage.setItem('rsp_backlog',JSON.stringify(v));}catch(e){}}});
+    sbLoad('keputusan').then(function(v){if(v!==null){setKeputusan(v);try{localStorage.setItem('rsp_keputusan',JSON.stringify(v));}catch(e){}}});
+    sbLoad('jadwal').then(function(v){if(v!==null){setJadwal(v);try{localStorage.setItem('rsp_jadwal',JSON.stringify(v));}catch(e){}}});
+  }
+  useEffect(()=>{
+    var t=setInterval(function(){if(getSB())pullFromSB();},30000);
+    return function(){clearInterval(t);};
+  },[]);
   const addI=(items)=>{const n=[...backlog,...items];setBacklog(n);sv('backlog',n);};
   const updI=(id,patch)=>{const n=backlog.map(it=>it.id===id?{...it,...patch}:it);setBacklog(n);sv('backlog',n);};
   const delI=(id)=>{const n=backlog.filter(it=>it.id!==id);setBacklog(n);sv('backlog',n);};
@@ -2871,6 +2880,7 @@ function App(){
                 <span>{backlog.length} total</span>
                 {nc>0&&<><span className="w-1 h-1 rounded-full bg-red-500"/><span>{nc} baru</span></>}
               </div>
+              <button onClick={function(){if(getSB())pullFromSB();}} className="w-8 h-8 rounded-full flex items-center justify-center text-[13px] border as st bg-stone-100 border-stone-200 text-stone-500" title="Sync dari Supabase">🔄</button>
               <button onClick={()=>setShowSettings(true)} className={`w-8 h-8 rounded-full flex items-center justify-center text-[14px] border as st ${!getApiKey()?'bg-amber-50 border-amber-200 text-amber-600':'bg-stone-100 border-stone-200 text-stone-500'}`} title="Pengaturan & API Key">⚙️</button>
             </div>
           </div>
