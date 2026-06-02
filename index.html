@@ -684,7 +684,7 @@ function Keputusan({keputusan,onUpdate,onDelete,onAddKeputusan}){
 }
 
 // ── SETTINGS ──────────────────────────────────────────────────
-function SettingsModal({onClose,gTok,gCalId,gCals,gBusy,onConnect,onPickCal,onForceSync,syncMsg}){
+function SettingsModal({onClose,gTok,gCalId,gCals,gBusy,onConnect,onPickCal,onForceSync,syncMsg,onResetJadwal,onResetBacklog,onResetKeputusan}){
   const [key,setKey]=useState(localStorage.getItem('rsp_apikey')||'');
   const [showKey,setShowKey]=useState(false);
   const [saved,setSaved]=useState(false);
@@ -791,6 +791,11 @@ function SettingsModal({onClose,gTok,gCalId,gCals,gBusy,onConnect,onPickCal,onFo
               <div className="text-[11px] font-bold text-stone-700 mb-2">💾 Data tersimpan di browser ini</div>
               <div className="text-[10px] text-stone-500 leading-relaxed mb-3">Backlog, jadwal, dan keputusan tersimpan di localStorage browser ini. Untuk sync antar device (CEO, PA, PDCA), perlu setup Supabase — lihat tab Panduan Setup.</div>
               <button onClick={clearAll} className="text-[10px] font-bold text-red-500 as underline">Hapus semua data lokal</button>
+              <div className="flex flex-wrap gap-3 mt-2">
+                <button onClick={function(){if(confirm('Hapus SEMUA jadwal?\nBacklog & keputusan tetap aman.')){onResetJadwal();}}} className="text-[10px] font-bold text-orange-500 as underline">🗑 Reset Jadwal</button>
+                <button onClick={function(){if(confirm('Hapus SEMUA backlog?\nJadwal & keputusan tetap aman.')){onResetBacklog();}}} className="text-[10px] font-bold text-orange-500 as underline">🗑 Reset Backlog</button>
+                <button onClick={function(){if(confirm('Hapus SEMUA keputusan?\nJadwal & backlog tetap aman.')){onResetKeputusan();}}} className="text-[10px] font-bold text-orange-500 as underline">🗑 Reset Keputusan</button>
+              </div>
             </div>
             {/* Quick guide link */}
             <button className="w-full py-3 rounded-2xl bg-stone-50 border border-stone-200 text-[11px] font-bold text-stone-600 as st flex items-center justify-center gap-2" onClick={()=>setTab('guide')}>📖 Lihat Panduan Deploy & Setup Lengkap →</button>
@@ -2999,6 +3004,9 @@ function App(){
     }).catch(function(){return false;});
   }
   function pushDay(date){if(!gTok||!gCalId){alert('Connect Google Calendar dulu di ⚙️');return;}var its=jadwal[date]||[];var done=0;var chain=Promise.resolve();its.forEach(function(it){chain=chain.then(function(){return upsertGCalEvent(it,gTok,gCalId).then(function(r){if(!r.error){done++;updateJadwal(date,it.id,{gcalEventId:r.id});}});});});chain.then(function(){alert(done+'/'+its.length+' berhasil. Update = tidak numpuk di Calendar!');});}
+  function resetJadwal(){var e={};setJadwal(e);sv('jadwal',e);sbSave('jadwal',e);alert('✓ Semua jadwal dihapus.');}
+  function resetBacklog(){setBacklog([]);sv('backlog',[]);sbSave('backlog',[]);alert('✓ Semua backlog dihapus.');}
+  function resetKeputusan(){setKeputusan([]);sv('keputusan',[]);sbSave('keputusan',[]);alert('✓ Semua keputusan dihapus.');}
   function forceSyncNow(){setSyncMsg('Syncing...');var p=[];if(backlog.length>0)p.push(new Promise(function(res){sbSave('backlog',backlog);res();}));if(keputusan.length>0)p.push(new Promise(function(res){sbSave('keputusan',keputusan);res();}));if(Object.keys(jadwal).length>0)p.push(new Promise(function(res){sbSave('jadwal',jadwal);res();}));Promise.all(p).then(function(){setSyncMsg('✓ Sync selesai!');setTimeout(function(){setSyncMsg('');},3000);});}
   const [kpiCorp,setKpiCorp]=useState(()=>ld('kpi_corp')||{});
   const [kpiCeo,setKpiCeo]=useState(()=>ld('kpi_ceo')||{});
@@ -3087,7 +3095,7 @@ function App(){
 
   return(
     <div id="ac">
-      {showSettings&&<SettingsModal onClose={()=>setShowSettings(false)} gTok={gTok} gCalId={gCalId} gCals={gCals} gBusy={gBusy} onConnect={connectCal} onPickCal={pickCal} onForceSync={forceSyncNow} syncMsg={syncMsg}/>}
+      {showSettings&&<SettingsModal onClose={()=>setShowSettings(false)} gTok={gTok} gCalId={gCalId} gCals={gCals} gBusy={gBusy} onConnect={connectCal} onPickCal={pickCal} onForceSync={forceSyncNow} syncMsg={syncMsg} onResetJadwal={resetJadwal} onResetBacklog={resetBacklog} onResetKeputusan={resetKeputusan}/>}
       {/* ── DESKTOP SIDEBAR ── */}
       <aside className="hidden md:flex md:flex-col md:w-56 md:flex-shrink-0 md:sticky md:top-0 md:h-screen md:border-r md:border-stone-200 md:bg-white md:shadow-[2px_0_12px_rgba(0,0,0,0.04)] md:z-50">
         <Sidebar tab={tab} sub={sub} setTab={setTab} setST={setST} nc={nc} belumCount={belumCount}/>
