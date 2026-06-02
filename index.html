@@ -1312,10 +1312,26 @@ function ImportJadwal({onAddJadwal,onBatchAddJadwal}){
 }
 
 // ── ICS HELPERS ───────────────────────────────────────────────
+function stripHtml(html){
+  try{
+    var tmp=document.createElement('div');
+    // Convert block elements to newlines first
+    var h=html.replace(/<br\s*\/?>/gi,'\n').replace(/<\/p>/gi,'\n\n').replace(/<\/div>/gi,'\n').replace(/<\/li>/gi,'\n').replace(/<li[^>]*>/gi,'• ');
+    tmp.innerHTML=h;
+    var txt=tmp.textContent||tmp.innerText||'';
+    // Clean up extra blank lines
+    return txt.replace(/\n{3,}/g,'\n\n').trim();
+  }catch(e){
+    return html.replace(/<[^>]+>/g,' ').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&').replace(/&nbsp;/g,' ').replace(/\s{2,}/g,' ').trim();
+  }
+}
 function parseGCalDesc(raw){
   try{
     if(!raw)return{};
-    var text=raw.replace(/\\n/g,'\n').replace(/\\,/g,',').replace(/\\;/g,';').replace(/\\:/g,':').trim();
+    // Detect HTML and strip it
+    var isHtml=/<[a-z][\s\S]*>/i.test(raw);
+    var text=isHtml?stripHtml(raw):raw.replace(/\\n/g,'\n').replace(/\\,/g,',').replace(/\\;/g,';').replace(/\\:/g,':');
+    text=text.trim();
     var result={};
     function extract(pat){try{var m=text.match(pat);return m?m[1].trim():null;}catch(e){return null;}}
     function extractBlock(startPat,endPat){
@@ -1333,8 +1349,8 @@ function parseGCalDesc(raw){
     if(!execBlock)execBlock=extractBlock(/Current Issue:?\s*\n/i,/\n\nDecision|\n\nNote:/i);
     if(execBlock)result.execSummary=cleanBullets(execBlock);
     var dn=extractBlock(/Decision Needed:?\s*\n?/i,/\n\nDecision Made|\n\nNote:|\n\n━/i);
-    if(dn&&dn!=='-'&&dn.length>1)result.decisionNeeded=dn;
-    var note=extractBlock(/Note:?\s*\n/i,/\n\n━|\n\n[A-Z]/i);if(note)result.linkData=note;
+    if(dn&&dn!=='-'&&dn.replace(/-/g,'').trim().length>0)result.decisionNeeded=dn.replace(/^-\s*$/,'').trim()||null;
+    var note=extractBlock(/Note:?\s*\n/i,/\n\n━|\n\n[A-Z]/i);if(note&&note.length>2)result.linkData=note;
     return result;
   }catch(e){return{};}
 }
