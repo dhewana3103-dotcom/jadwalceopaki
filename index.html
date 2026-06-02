@@ -871,7 +871,7 @@ function SettingsModal({onClose,gTok,gCalId,gCals,gBusy,onConnect,onPickCal,onFo
 function Sidebar({tab,sub,setTab,setST,nc,belumCount}){
   const ITEMS=[
     {id:'dashboard',ico:'📊',lbl:'Dashboard'},
-    {id:'jadwal',ico:'📅',lbl:'Jadwal',subs:[{id:'harian',lbl:'Harian'},{id:'mingguan',lbl:'Mingguan'}]},
+    {id:'jadwal',ico:'📅',lbl:'Jadwal',subs:[{id:'harian',lbl:'Harian'},{id:'mingguan',lbl:'Mingguan'},{id:'bulanan',lbl:'Bulanan'}]},
     {id:'dump',ico:'✨',lbl:'Dump Think',fab:true},
     {id:'backlog',ico:'📋',lbl:'Backlog',subs:[{id:'backlog',lbl:'Backlog'},{id:'keputusan',lbl:'Keputusan & Tracking'}]},
     {id:'resume',ico:'📈',lbl:'Resume'},
@@ -985,6 +985,8 @@ function ImportMoM({onAddBacklog,onAddKeputusan,backlog,jadwal,onUpdateJadwal}){
   const [inputMode,setInputMode]=useState('paste');
   const [csvText,setCsvText]=useState('');
   const [selectedId,setSelectedId]=useState('');
+  const [freeText,setFreeText]=useState('');
+  const [linkMode,setLinkMode]=useState('jadwal'); // 'jadwal' or 'free'
   const [preview,setPreview]=useState(null);
   const [destOvr,setDestOvr]=useState({}); // {idx: 'backlog'|'keputusan'}
   const [err,setErr]=useState('');
@@ -1007,8 +1009,9 @@ function ImportMoM({onAddBacklog,onAddKeputusan,backlog,jadwal,onUpdateJadwal}){
   function doParse(){
     setErr('');setDone(false);setDestOvr({});
     if(!csvText.trim()){setErr('Isi atau upload CSV dulu.');return;}
-    if(!selectedId){setErr('Pilih aktivitas meeting dulu di Step 1.');return;}
-    const result=parseMoMCSV(csvText,selAct?mLabel(selAct):'Import MoM');
+    if(linkMode==='jadwal'&&!selectedId){setErr('Pilih aktivitas meeting dulu di Step 1, atau pilih mode "Input Bebas".');return;}
+    const meetName=linkMode==='free'?(freeText.trim()||'Import MoM'):(selAct?mLabel(selAct):'Import MoM');
+    const result=parseMoMCSV(csvText,meetName);
     if(result.error){setErr(result.error);return;}
     if(!result.backlog.length&&!result.keputusan.length){setErr('Tidak ada item yang berhasil diparsing. Cek format CSV.');return;}
     setPreview(result);
@@ -1020,7 +1023,7 @@ function ImportMoM({onAddBacklog,onAddKeputusan,backlog,jadwal,onUpdateJadwal}){
            ...preview.keputusan.map((kpt,i)=>({...kpt,_orig:'keputusan',_idx:preview.backlog.length+i,_jenis:'Feedback',_action:kpt.deskripsi}))];
   }
   const items=allItems();
-  const getDest=(it)=>destOvr[it._idx]??it._orig;
+  const getDest=(it)=>destOvr[it._idx]!==undefined?destOvr[it._idx]:it._orig;
   const toggleDest=(it)=>setDestOvr(p=>({...p,[it._idx]:getDest(it)==='backlog'?'keputusan':'backlog'}));
 
   function doConfirm(){
@@ -1030,9 +1033,9 @@ function ImportMoM({onAddBacklog,onAddKeputusan,backlog,jadwal,onUpdateJadwal}){
     // Save backlog
     if(toBacklog.length)onAddBacklog(toBacklog.map(it=>it._orig==='backlog'?{...it}:{id:'BL-'+genId(),sumber:'PDCA',tanggal:todayStr(),konteks:it.konteks||'',isi:it._action||'',action:it._action||'',ekspektasi:'',pic:null,deadline:null,fungsiKPI:'operasional',kategori:'Meeting Review Operasional + Evaluasi Tim',blokWaktu:'sore-review',prioritas:'sedang',status:'baru',notes:'Dipindah dari Feedback'}));
     // Save keputusan
-    toKpt.forEach(it=>{if(it._orig==='keputusan')onAddKeputusan(it);else onAddKeputusan({id:'KP-'+genId(),tanggal:todayStr(),backlogId:null,konteks:it.konteks,deskripsi:it._action,fungsiKPI:'operasional',dampak:it.prioritas==='tinggi'?'tinggi':'sedang',status:'disampaikan',output:it._action,updateTL:'',sumber:selAct?.detailKegiatan||'Import MoM'});});
-    // Auto-fill output on linked jadwal item
-    if(selAct){
+    toKpt.forEach(it=>{if(it._orig==='keputusan')onAddKeputusan(it);else onAddKeputusan({id:'KP-'+genId(),tanggal:todayStr(),backlogId:null,konteks:it.konteks,deskripsi:it._action,fungsiKPI:'operasional',dampak:it.prioritas==='tinggi'?'tinggi':'sedang',status:'disampaikan',output:it._action,updateTL:'',sumber:selAct&&linkMode==='jadwal'?selAct.detailKegiatan:(freeText||'Import MoM')});});
+    // Auto-fill output on linked jadwal item (only when linked to a real jadwal item)
+    if(selAct&&linkMode==='jadwal'){
       const blLines=toBacklog.map((it,i)=>`${i+1}. ${it._action}${it.pic?' → '+it.pic:''}${it.deadline?' ('+it.deadline+')':''}`);
       const kLines=toKpt.map((it,i)=>`${i+1}. ${it._action}`);
       const out=[`[MoM Import — ${new Date().toLocaleDateString('id-ID',{day:'numeric',month:'short',year:'numeric'})}]`,blLines.length?`\nAction Items (${blLines.length}):\n${blLines.join('\n')}` :'',kLines.length?`\nFeedback (${kLines.length}):\n${kLines.join('\n')}` :''].filter(Boolean).join('');
@@ -1048,35 +1051,49 @@ function ImportMoM({onAddBacklog,onAddKeputusan,backlog,jadwal,onUpdateJadwal}){
     <div className="p-4 pb-10 afi md:px-6">
       <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 mb-5">
         <div className="text-[12px] font-extrabold text-blue-800 mb-1">📥 Import Notulensi MoM</div>
-        <div className="text-[11px] text-blue-700 leading-relaxed">Link MoM ke aktivitas meeting, lalu import CSV. Output jadwal akan otomatis terisi.</div>
+        <div className="text-[11px] text-blue-700 leading-relaxed">Import CSV notulensi → otomatis masuk Backlog atau Keputusan & Tracking.</div>
       </div>
 
-      {/* STEP 1: Pilih aktivitas */}
+      {/* STEP 1: Link ke meeting atau input bebas */}
       <div className="mb-5">
         <div className="flex items-center gap-2 mb-2">
           <span className="w-5 h-5 rounded-full bg-stone-800 text-white text-[10px] font-black flex items-center justify-center flex-shrink-0">1</span>
-          <div className="text-[11px] font-extrabold text-stone-700">Pilih Aktivitas Meeting</div>
-          <span className="text-[10px] text-stone-400">7 hari terakhir · hanya jenis Meeting</span>
+          <div className="text-[11px] font-extrabold text-stone-700">Link Meeting</div>
         </div>
-        {meetOpts.length===0?(
-          <div className="p-3 bg-amber-50 border border-amber-100 rounded-xl text-[11px] text-amber-700">⚠️ Tidak ada aktivitas meeting dalam 7 hari terakhir. Tambahkan dulu di Jadwal Harian.</div>
-        ):(
-          <select className="w-full px-3 py-2.5 rounded-xl border border-stone-200 bg-white text-[11px] font-medium focus:outline-none focus:ring-2 focus:ring-stone-400" value={selectedId} onChange={e=>setSelectedId(e.target.value)}>
-            <option value="">— Pilih meeting yang MoM-nya akan diimport —</option>
-            {meetOpts.map(m=><option key={m.id} value={m.id}>{mLabel(m)}</option>)}
-          </select>
-        )}
-        {selAct&&<div className="mt-2 px-3 py-2.5 bg-blue-50 border border-blue-100 rounded-xl flex items-center gap-2">
-          <div className="flex-1">
-            <div className="text-[11px] font-bold text-blue-800">{selAct.detailKegiatan}</div>
-            <div className="flex gap-1.5 mt-1 flex-wrap">
-              <span className="text-[9px] font-mono text-blue-600">{selAct.tanggal}</span>
-              <span className="text-[9px] text-blue-600">{selAct.jamMulai}–{selAct.jamSelesai}</span>
-              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${JENIS_COLOR[selAct.jenisKegiatan]||''}`}>{JENIS_SHORT[selAct.jenisKegiatan]||selAct.jenisKegiatan}</span>
-            </div>
+        {/* Mode toggle */}
+        <div className="flex bg-stone-100 p-1 rounded-2xl border border-stone-200 gap-1 mb-3">
+          <button className={`flex-1 py-2 rounded-xl text-[10px] font-bold st as ${linkMode==='jadwal'?'bg-white shadow-sm text-stone-900 border border-stone-200/60':'text-stone-500'}`} onClick={()=>setLinkMode('jadwal')}>📅 Dari Jadwal</button>
+          <button className={`flex-1 py-2 rounded-xl text-[10px] font-bold st as ${linkMode==='free'?'bg-white shadow-sm text-stone-900 border border-stone-200/60':'text-stone-500'}`} onClick={()=>setLinkMode('free')}>✏️ Input Bebas</button>
+        </div>
+        {linkMode==='jadwal'?(
+          <div>
+            <div className="text-[10px] text-stone-400 mb-1.5">Pilih dari aktivitas meeting 7 hari terakhir. Output jadwal akan otomatis diisi.</div>
+            {meetOpts.length===0?(
+              <div className="p-3 bg-amber-50 border border-amber-100 rounded-xl text-[11px] text-amber-700">⚠️ Tidak ada aktivitas meeting dalam 7 hari terakhir. Gunakan mode "Input Bebas".</div>
+            ):(
+              <select className="w-full px-3 py-2.5 rounded-xl border border-stone-200 bg-white text-[11px] font-medium focus:outline-none focus:ring-2 focus:ring-stone-400" value={selectedId} onChange={e=>setSelectedId(e.target.value)}>
+                <option value="">— Pilih meeting (opsional) —</option>
+                {meetOpts.map(m=><option key={m.id} value={m.id}>{mLabel(m)}</option>)}
+              </select>
+            )}
+            {selAct&&<div className="mt-2 px-3 py-2.5 bg-blue-50 border border-blue-100 rounded-xl flex items-center gap-2">
+              <div className="flex-1">
+                <div className="text-[11px] font-bold text-blue-800">{selAct.detailKegiatan}</div>
+                <div className="flex gap-1.5 mt-1 flex-wrap">
+                  <span className="text-[9px] font-mono text-blue-600">{selAct.tanggal}</span>
+                  <span className="text-[9px] text-blue-600">{selAct.jamMulai}–{selAct.jamSelesai}</span>
+                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${JENIS_COLOR[selAct.jenisKegiatan]||''}`}>{JENIS_SHORT[selAct.jenisKegiatan]||selAct.jenisKegiatan}</span>
+                </div>
+              </div>
+              <span className="text-emerald-500 text-lg">✓</span>
+            </div>}
           </div>
-          <span className="text-emerald-500 text-lg">✓</span>
-        </div>}
+        ):(
+          <div>
+            <div className="text-[10px] text-stone-400 mb-1.5">Nama meeting / sumber notulensi (opsional — untuk label referensi)</div>
+            <input className="w-full px-3 py-2.5 rounded-xl border border-stone-200 bg-white text-[11px] focus:outline-none focus:ring-2 focus:ring-stone-400" value={freeText} onChange={e=>setFreeText(e.target.value)} placeholder="Contoh: Rapat COO 3 Juni, Review Keuangan Mei, One-on-one dengan Pak Andyka..."/>
+          </div>
+        )}
       </div>
 
       {/* STEP 2: CSV */}
@@ -1105,9 +1122,9 @@ function ImportMoM({onAddBacklog,onAddKeputusan,backlog,jadwal,onUpdateJadwal}){
       </div>
 
       {err&&<div className="p-3 rounded-xl bg-red-50 border border-red-100 text-[11px] text-red-600 mb-4">⚠️ {err}</div>}
-      {done&&<div className="p-3 rounded-xl bg-emerald-50 border border-emerald-100 text-[11px] text-emerald-700 mb-4">✅ Berhasil disimpan! {selAct&&'Output jadwal item otomatis diperbarui.'}</div>}
+      {done&&<div className="p-3 rounded-xl bg-emerald-50 border border-emerald-100 text-[11px] text-emerald-700 mb-4">✅ Berhasil disimpan! {selAct&&linkMode==='jadwal'?'Output jadwal item otomatis diperbarui.':''}</div>}
 
-      <button className={`w-full py-3.5 rounded-2xl text-[12px] font-extrabold st as mb-4 ${(!csvText.trim()||!selectedId)?'bg-stone-200 text-stone-400 cursor-not-allowed':'bg-stone-900 text-white shadow-float'}`} onClick={doParse} disabled={!csvText.trim()||!selectedId}>🔍 Parse & Preview</button>
+      <button className={`w-full py-3.5 rounded-2xl text-[12px] font-extrabold st as mb-4 ${!csvText.trim()?'bg-stone-200 text-stone-400 cursor-not-allowed':'bg-stone-900 text-white shadow-float'}`} onClick={doParse} disabled={!csvText.trim()}>🔍 Parse & Preview</button>
 
       {/* STEP 3: Preview */}
       {preview&&<div className="afi">
@@ -1163,13 +1180,13 @@ function ImportMoM({onAddBacklog,onAddKeputusan,backlog,jadwal,onUpdateJadwal}){
           </table>
         </div>
 
-        {selAct&&<div className="bg-stone-50 border border-stone-200 rounded-xl p-3 mb-4">
+        {selAct&&linkMode==='jadwal'&&<div className="bg-stone-50 border border-stone-200 rounded-xl p-3 mb-4">
           <div className="text-[9px] font-extrabold text-stone-400 uppercase tracking-wider mb-1.5">Output yang akan ditulis ke jadwal item ini</div>
           <div className="text-[10px] font-mono text-stone-600 leading-relaxed whitespace-pre-wrap">{`[MoM — ${new Date().toLocaleDateString('id-ID',{day:'numeric',month:'short'})}]\nAction (${toBacklogCount}x):\n${items.filter(it=>getDest(it)==='backlog').map((it,i)=>`${i+1}. ${it._action}${it.pic?' → '+it.pic:''}${it.deadline?' ('+it.deadline+')':''}`).join('\n')}\nFeedback (${toKptCount}x):\n${items.filter(it=>getDest(it)==='keputusan').map((it,i)=>`${i+1}. ${it._action}`).join('\n')}`}</div>
         </div>}
 
         <button className="w-full py-3.5 rounded-2xl bg-emerald-600 text-white text-[12px] font-bold shadow-md as st" onClick={doConfirm}>
-          ✓ Simpan {items.length} item + Update Output Jadwal
+          ✓ Simpan {items.length} item{selAct&&linkMode==='jadwal'?' + Update Output Jadwal':''}
         </button>
       </div>}
     </div>
@@ -1186,6 +1203,8 @@ function ImportJadwal({onAddJadwal,onBatchAddJadwal}){
   const [preview,setPreview]=useState(null);
   const [err,setErr]=useState('');
   const [done,setDone]=useState(false);
+  const [rangeFrom,setRangeFrom]=useState('');
+  const [rangeTo,setRangeTo]=useState('');
   const fileRef=React.useRef();
 
   function handleFile(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>setCsvText(ev.target.result);r.readAsText(f,'UTF-8');}
@@ -1204,6 +1223,9 @@ function ImportJadwal({onAddJadwal,onBatchAddJadwal}){
       const f=parseCSVLine(line);
       const get=(col)=>col!==null?(f[col]||'').trim():'';
       const date=get(COL.date);if(!date)return;
+      // Apply range filter if set
+      if(rangeFrom&&date<rangeFrom)return;
+      if(rangeTo&&date>rangeTo)return;
       items.push({id:'SJ-'+genId(),tanggal:date,jamMulai:get(COL.mulai),jamSelesai:get(COL.selesai),masalahBacklogId:'',masalahText:get(COL.masalah),kategori:get(COL.kategori)||'RSP',jenisKegiatan:normalizeJenis(get(COL.jenis)),detailKegiatan:get(COL.detail),relateMilestone:kpiLabelToId(get(COL.kpi)),outputKeputusan:get(COL.output)});
     });
     return{items,error:null};
@@ -1214,7 +1236,7 @@ function ImportJadwal({onAddJadwal,onBatchAddJadwal}){
     if(!csvText.trim()){setErr('Isi atau upload CSV dulu.');return;}
     const result=parseJadwalCSV(csvText);
     if(result.error){setErr(result.error);return;}
-    if(!result.items.length){setErr('Tidak ada baris yang berhasil diparsing. Cek kolom "Date" harus terisi di setiap baris.');return;}
+    if(!result.items.length){setErr('Tidak ada baris yang berhasil diparsing. Cek kolom "Date" harus terisi, atau coba sesuaikan filter range tanggal.');return;}
     setPreview(result);
   }
 
@@ -1235,6 +1257,25 @@ function ImportJadwal({onAddJadwal,onBatchAddJadwal}){
         <div className="text-[12px] font-extrabold text-emerald-800 mb-2">📅 Import Jadwal CEO</div>
         <div className="text-[11px] text-emerald-700 leading-relaxed mb-2">Import data jadwal dari CSV. Format kolom harus sesuai dengan template export dari aplikasi ini.</div>
         <div className="text-[10px] text-emerald-600 font-semibold">Kolom yang dikenali: <span className="font-mono bg-emerald-100 px-1 rounded">Date</span> · <span className="font-mono bg-emerald-100 px-1 rounded">Jam Mulai</span> · <span className="font-mono bg-emerald-100 px-1 rounded">Jam Selesai</span> · <span className="font-mono bg-emerald-100 px-1 rounded">Masalah yang Dievaluasi</span> · <span className="font-mono bg-emerald-100 px-1 rounded">Kategori</span> · <span className="font-mono bg-emerald-100 px-1 rounded">Jenis Kegiatan</span> · <span className="font-mono bg-emerald-100 px-1 rounded">Detail Kegiatan</span> · <span className="font-mono bg-emerald-100 px-1 rounded">Relate Milestone/KPI</span> · <span className="font-mono bg-emerald-100 px-1 rounded">Output Keputusan/Arahan</span></div>
+      </div>
+
+      {/* Range filter */}
+      <div className="bg-stone-50 border border-stone-200 rounded-2xl p-3.5 mb-4">
+        <div className="text-[10px] font-extrabold text-stone-500 uppercase tracking-wider mb-2">Filter Range Tanggal <span className="font-normal normal-case text-stone-400">(opsional — kosongkan untuk import semua)</span></div>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <div className="text-[9px] font-bold text-stone-400 mb-1">Dari tanggal</div>
+            <input type="date" className="w-full px-2.5 py-2 rounded-xl border border-stone-200 bg-white text-[11px] focus:outline-none focus:ring-2 focus:ring-stone-400" value={rangeFrom} onChange={e=>setRangeFrom(e.target.value)}/>
+          </div>
+          <div>
+            <div className="text-[9px] font-bold text-stone-400 mb-1">Sampai tanggal</div>
+            <input type="date" className="w-full px-2.5 py-2 rounded-xl border border-stone-200 bg-white text-[11px] focus:outline-none focus:ring-2 focus:ring-stone-400" value={rangeTo} onChange={e=>setRangeTo(e.target.value)}/>
+          </div>
+        </div>
+        {(rangeFrom||rangeTo)&&<div className="mt-2 flex items-center justify-between">
+          <div className="text-[10px] text-stone-500">Filter aktif: {rangeFrom||'awal'} → {rangeTo||'akhir'}</div>
+          <button className="text-[10px] text-stone-400 underline as" onClick={()=>{setRangeFrom('');setRangeTo('');}}>Reset filter</button>
+        </div>}
       </div>
 
       <div className="flex bg-stone-100 p-1 rounded-2xl border border-stone-200 gap-1 mb-3">
@@ -1639,8 +1680,9 @@ function KPICorpImport({onSave}){
   const [preview,setPreview]=useState(null);
   const [err,setErr]=useState('');
   const [done,setDone]=useState(false);
-  function doParse(){setErr('');setDone(false);if(!tsv.trim()){setErr('Paste data TSV dulu.');return;}try{const result=parseKPICorpTSV(tsv);if(!result.rows.length){setErr('Tidak ada baris data yang berhasil diparsing.');return;}setPreview(result);}catch(e){setErr('Gagal parse: '+e.message);}}
-  function doSave(){if(!preview)return;onSave(month,preview);setPreview(null);setTsv('');setDone(true);}
+  const [savedMonth,setSavedMonth]=useState('');
+  function doParse(){setErr('');setDone(false);setSavedMonth('');if(!tsv.trim()){setErr('Paste data TSV dulu.');return;}try{const result=parseKPICorpTSV(tsv);if(!result.rows.length){setErr('Tidak ada baris data yang berhasil diparsing. Pastikan format TSV benar (Select All di Sheets → Copy → Paste).');return;}setPreview(result);}catch(e){setErr('Gagal parse: '+e.message);}}
+  function doSave(){if(!preview)return;onSave(month,preview);setPreview(null);setTsv('');setDone(true);setSavedMonth(month);}
   const months=[0,1,2,3,4,5].map(i=>{const d=new Date();d.setMonth(d.getMonth()-i);return d.toISOString().slice(0,7);});
   return(
     <div className="p-4 pb-10 afi md:px-6">
@@ -1657,7 +1699,7 @@ function KPICorpImport({onSave}){
       <div className="text-[10px] font-extrabold text-stone-400 uppercase tracking-wider mb-1.5">Paste Data TSV dari Google Sheets</div>
       <textarea className="w-full min-h-[160px] p-3 rounded-2xl border border-stone-200 bg-stone-50 text-[10px] font-mono text-stone-700 focus:outline-none focus:ring-2 focus:ring-stone-400 resize-y mb-4" value={tsv} onChange={e=>setTsv(e.target.value)} placeholder="Select All di Google Sheets → Ctrl+C → Paste di sini..."/>
       {err&&<div className="p-3 rounded-xl bg-red-50 border border-red-100 text-[11px] text-red-600 mb-4">⚠️ {err}</div>}
-      {done&&<div className="p-3 rounded-xl bg-emerald-50 border border-emerald-100 text-[11px] text-emerald-700 mb-4">✅ KPI Corporate disimpan! Dashboard otomatis terupdate.</div>}
+      {done&&<div className="p-3 rounded-xl bg-emerald-50 border border-emerald-100 text-[11px] text-emerald-700 mb-4">✅ KPI Corporate {savedMonth?new Date(savedMonth+'-01').toLocaleDateString('id-ID',{month:'long',year:'numeric'}):''} berhasil disimpan! Buka tab Dashboard → pilih bulan yang baru diimport.</div>}
       <button className={`w-full py-3.5 rounded-2xl text-[12px] font-extrabold st as mb-4 ${!tsv.trim()?'bg-stone-200 text-stone-400 cursor-not-allowed':'bg-stone-900 text-white shadow-float'}`} onClick={doParse} disabled={!tsv.trim()}>🔍 Parse & Preview</button>
       {preview&&<div className="afi">
         <div className="flex items-center justify-between mb-3"><div className="text-[12px] font-bold text-stone-800">{preview.rows.length} sub-indikator — cek skor</div><button className="text-[10px] text-stone-400 as" onClick={()=>setPreview(null)}>✕</button></div>
@@ -2365,13 +2407,25 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
 // ── JADWAL MINGGUAN ───────────────────────────────────────────
 function JadwalMingguan({backlog,jadwal,filter}){
   const [selDate,setSelDate]=useState(null);
-  const mon=new Date();const diff=mon.getDay()===0?6:mon.getDay()-1;mon.setDate(mon.getDate()-diff);
-  const days=Array.from({length:7},(_,i)=>{const d=new Date(mon);d.setDate(mon.getDate()+i);return{date:d.toISOString().slice(0,10),lbl:d.toLocaleDateString('id-ID',{weekday:'short'}).slice(0,3),num:d.getDate(),isToday:d.toISOString().slice(0,10)===todayStr()};});
+  // Week offset: 0=this week, -1=last week, +1=next week etc
+  const [weekOffset,setWeekOffset]=useState(0);
+  const getMon=(offset)=>{const mon=new Date();const diff=mon.getDay()===0?6:mon.getDay()-1;mon.setDate(mon.getDate()-diff+offset*7);return mon;};
+  const mon=getMon(weekOffset);
+  const days=Array.from({length:7},(_,i)=>{const d=new Date(mon);d.setDate(mon.getDate()+i);return{date:d.toISOString().slice(0,10),lbl:d.toLocaleDateString('id-ID',{weekday:'short'}).slice(0,3),num:d.getDate(),month:d.getMonth(),isToday:d.toISOString().slice(0,10)===todayStr()};});
+  const weekLabel=(()=>{const s=days[0];const e=days[6];const sm=new Date(s.date+'T12:00:00').toLocaleDateString('id-ID',{month:'short'});const em=new Date(e.date+'T12:00:00').toLocaleDateString('id-ID',{month:'short'});return s.month===e.month?`${s.num}–${e.num} ${sm}`:`${s.num} ${sm} – ${e.num} ${em}`;})();
   const blSched=backlog.filter(it=>it.status==='dijadwalkan');
   const filtDays=selDate?days.filter(d=>d.date===selDate):days;
   return(
     <div className="afi pb-4">
-      <div className="px-4 pt-4 pb-2 flex justify-between items-end"><div className="text-[11px] font-extrabold text-stone-500 uppercase tracking-widest">Minggu Ini</div><div className="text-[10px] text-stone-400">{days[0].num}–{days[6].num} {new Date().toLocaleDateString('id-ID',{month:'long'})}</div></div>
+      {/* Week navigator */}
+      <div className="px-4 pt-4 pb-2 flex justify-between items-center">
+        <div className="text-[11px] font-extrabold text-stone-500 uppercase tracking-widest">Jadwal Mingguan</div>
+        <div className="flex items-center gap-1">
+          <button onClick={()=>{setWeekOffset(p=>p-1);setSelDate(null);}} className="w-7 h-7 rounded-lg bg-stone-100 border border-stone-200 text-[12px] font-bold text-stone-600 as st flex items-center justify-center">‹</button>
+          <button onClick={()=>{setWeekOffset(0);setSelDate(null);}} className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border as st ${weekOffset===0?'bg-stone-800 text-white border-stone-800':'bg-white text-stone-600 border-stone-200'}`}>{weekOffset===0?'Minggu ini':weekLabel}</button>
+          <button onClick={()=>{setWeekOffset(p=>p+1);setSelDate(null);}} className="w-7 h-7 rounded-lg bg-stone-100 border border-stone-200 text-[12px] font-bold text-stone-600 as st flex items-center justify-center">›</button>
+        </div>
+      </div>
       <div className="grid grid-cols-7 gap-1 px-4 mb-4">
         {days.map(d=>{const dj=filter?applyJadwalFilter(jadwal[d.date]||[],filter):(jadwal[d.date]||[]);const byB=BLOKS.map(b=>({b,items:[...dj.filter(it=>getBlokFromTime(it.jamMulai)===b.id),...blSched.filter(it=>it.tanggal===d.date&&it.blokWaktu===b.id)]}));const isWE=new Date(d.date+'T12:00:00').getDay();const isSel=selDate===d.date;return(
           <div key={d.date} onClick={()=>setSelDate(p=>p===d.date?null:d.date)} className={`rounded-xl overflow-hidden border cursor-pointer st as flex flex-col ${isWE===0||isWE===6?'opacity-60':''} ${isSel?'border-stone-800 shadow-md':d.isToday?'border-blue-300 shadow-sm':'border-stone-200'}`}>
@@ -2402,8 +2456,7 @@ function JadwalMingguan({backlog,jadwal,filter}){
                         const kColor=KATEGORI_COLOR[it.kategori]||'bg-stone-100 text-stone-600';
                         return(
                         <div key={i} className="p-3 pl-4 relative">
-                          <div className={`absolute left-0 top-0 bottom-0 w-1 ${kpi?.bg||'bg-stone-200'}`}/>
-                          {/* Time + badges */}
+                          <div className={`absolute left-0 top-0 bottom-0 w-1 ${kpi&&kpi.bg?kpi.bg:'bg-stone-200'}`}/>
                           <div className="flex items-center gap-1.5 flex-wrap mb-1">
                             {isNew&&<span className="text-[11px] font-black text-stone-700 tabular-nums">{it.jamMulai}–{it.jamSelesai}</span>}
                             {isNew&&<span className={`px-1.5 py-0.5 rounded-full text-[8px] font-bold ${kColor}`}>{it.kategori}</span>}
@@ -2422,6 +2475,148 @@ function JadwalMingguan({backlog,jadwal,filter}){
           );
         })}
       </div>
+    </div>
+  );
+}
+
+// ── JADWAL BULANAN ────────────────────────────────────────────
+function JadwalBulanan({jadwal,filter}){
+  const [monthOffset,setMonthOffset]=useState(0);
+  const now=new Date();
+  const year=new Date(now.getFullYear(),now.getMonth()+monthOffset,1).getFullYear();
+  const month=new Date(now.getFullYear(),now.getMonth()+monthOffset,1).getMonth();
+  const monthStr=new Date(year,month,1).toLocaleDateString('id-ID',{month:'long',year:'numeric'});
+  const monthKey=`${year}-${String(month+1).padStart(2,'0')}`;
+
+  // Collect all items in this month
+  const allItems=Object.entries(jadwal||{}).flatMap(([date,items])=>{
+    if(!date.startsWith(monthKey))return[];
+    const its=filter?applyJadwalFilter(items||[],filter):(items||[]);
+    return its.map(it=>({...it,tanggal:date}));
+  });
+
+  // Stats
+  const totalKegiatan=allItems.length;
+  const totalJam=Math.round(allItems.reduce((s,it)=>s+getDur(it.jamMulai,it.jamSelesai),0)*10)/10;
+  const adaOutput=allItems.filter(it=>it.outputKeputusan&&it.outputKeputusan.trim()).length;
+
+  // Group by jenis
+  const byJenis={};
+  JENIS_KEGIATAN.forEach(j=>{byJenis[j]=allItems.filter(it=>it.jenisKegiatan===j).length;});
+
+  // Group by KPI
+  const byKpi={};
+  KPI5.forEach(k=>{byKpi[k.id]=allItems.filter(it=>it.relateMilestone===k.id).length;});
+
+  // Group by kategori
+  const byKat={RSP:0,BT:0,TKB:0,Personal:0};
+  allItems.forEach(it=>{if(byKat[it.kategori]!==undefined)byKat[it.kategori]++;});
+
+  // Days in month with count
+  const daysInMonth=new Date(year,month+1,0).getDate();
+  const calDays=Array.from({length:daysInMonth},(_,i)=>{
+    const d=new Date(year,month,i+1);
+    const ds=d.toISOString().slice(0,10);
+    const its=filter?applyJadwalFilter(jadwal[ds]||[],filter):(jadwal[ds]||[]);
+    return{ds,num:i+1,dow:d.getDay(),count:its.length};
+  });
+  const firstDow=calDays[0].dow;
+  const padStart=firstDow===0?6:firstDow-1;
+  const maxCount=Math.max(1,...calDays.map(d=>d.count));
+
+  return(
+    <div className="afi pb-8">
+      {/* Month navigator */}
+      <div className="px-4 pt-4 pb-3 flex items-center justify-between">
+        <button onClick={()=>setMonthOffset(p=>p-1)} className="w-8 h-8 rounded-xl bg-stone-100 border border-stone-200 text-[13px] font-bold text-stone-600 as st flex items-center justify-center">‹</button>
+        <div className="text-center">
+          <div className="text-[14px] font-extrabold text-stone-900">{monthStr}</div>
+          {monthOffset!==0&&<button onClick={()=>setMonthOffset(0)} className="text-[10px] text-stone-400 underline as">Kembali ke bulan ini</button>}
+        </div>
+        <button onClick={()=>setMonthOffset(p=>p+1)} className="w-8 h-8 rounded-xl bg-stone-100 border border-stone-200 text-[13px] font-bold text-stone-600 as st flex items-center justify-center">›</button>
+      </div>
+
+      {/* Summary cards */}
+      <div className="px-4 grid grid-cols-3 gap-3 mb-5">
+        {[['Total Kegiatan',totalKegiatan,'📅'],['Total Jam',totalJam+'h','⏱'],['Ada Output',adaOutput+'x','✅']].map(([l,v,e])=>(
+          <div key={l} className="bg-white border border-stone-200 rounded-2xl p-3 text-center shadow-soft">
+            <div className="text-xl mb-0.5">{e}</div>
+            <div className="text-xl font-black text-stone-900">{v}</div>
+            <div className="text-[9px] text-stone-400 font-medium">{l}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Calendar heatmap */}
+      <div className="px-4 mb-5">
+        <div className="bg-white border border-stone-200 rounded-2xl p-3 shadow-soft">
+          <div className="text-[10px] font-extrabold text-stone-400 uppercase tracking-wider mb-2">Kalender — kepadatan kegiatan</div>
+          <div className="grid grid-cols-7 gap-1 mb-1">
+            {['Sen','Sel','Rab','Kam','Jum','Sab','Min'].map(d=><div key={d} className="text-center text-[8px] font-bold text-stone-400">{d}</div>)}
+          </div>
+          <div className="grid grid-cols-7 gap-1">
+            {Array.from({length:padStart},(_,i)=><div key={'p'+i}/>)}
+            {calDays.map(d=>{
+              const intensity=d.count===0?'bg-stone-100 text-stone-400':d.count<3?'bg-blue-100 text-blue-700':d.count<6?'bg-blue-300 text-blue-900':d.count<9?'bg-blue-500 text-white':'bg-blue-700 text-white';
+              const isToday=d.ds===todayStr();
+              return(
+                <div key={d.ds} className={`rounded-lg h-8 flex flex-col items-center justify-center ${intensity} ${isToday?'ring-2 ring-amber-400':''}`}>
+                  <div className="text-[9px] font-bold leading-none">{d.num}</div>
+                  {d.count>0&&<div className="text-[7px] leading-none opacity-80">{d.count}x</div>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Breakdown by kategori */}
+      <div className="px-4 mb-4">
+        <div className="text-[10px] font-extrabold text-stone-400 uppercase tracking-wider mb-2">Per Entitas</div>
+        <div className="grid grid-cols-4 gap-2">
+          {[['RSP','bg-blue-50 border-blue-200 text-blue-700'],['BT','bg-emerald-50 border-emerald-200 text-emerald-700'],['TKB','bg-amber-50 border-amber-200 text-amber-700'],['Personal','bg-stone-50 border-stone-200 text-stone-600']].map(([k,c])=>(
+            <div key={k} className={`rounded-xl p-2.5 text-center border ${c}`}>
+              <div className="text-xl font-black">{byKat[k]||0}</div>
+              <div className="text-[9px] font-bold">{k}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Breakdown by jenis */}
+      <div className="px-4 mb-4">
+        <div className="bg-white border border-stone-200 rounded-2xl p-4 shadow-soft">
+          <div className="text-[10px] font-extrabold text-stone-400 uppercase tracking-wider mb-3">Per Jenis Kegiatan</div>
+          <div className="space-y-2.5">
+            {JENIS_KEGIATAN.map(j=>{const n=byJenis[j]||0;const pct=totalKegiatan>0?Math.round((n/totalKegiatan)*100):0;const jc=JENIS_COLOR[j]||'bg-stone-100 text-stone-600';return(
+              <div key={j} className="flex items-center gap-2">
+                <span className={`flex-shrink-0 px-1.5 py-0.5 rounded text-[8px] font-bold ${jc}`} style={{minWidth:80,textAlign:'center'}}>{JENIS_SHORT[j]||j}</span>
+                <div className="flex-1 h-2.5 bg-stone-100 rounded-full overflow-hidden"><div className="h-full bg-stone-600 rounded-full" style={{width:pct+'%'}}/></div>
+                <span className="text-[10px] font-bold text-stone-600 tabular-nums w-8 text-right">{n}x</span>
+              </div>
+            );})}
+          </div>
+        </div>
+      </div>
+
+      {/* Breakdown by KPI */}
+      <div className="px-4">
+        <div className="bg-white border border-stone-200 rounded-2xl p-4 shadow-soft">
+          <div className="text-[10px] font-extrabold text-stone-400 uppercase tracking-wider mb-3">Per Fungsi KPI</div>
+          <div className="space-y-2.5">
+            {KPI5.map(k=>{const n=byKpi[k.id]||0;const pct=totalKegiatan>0?Math.round((n/totalKegiatan)*100):0;return(
+              <div key={k.id} className="flex items-center gap-2">
+                <span className={`flex-shrink-0 text-[9px] font-black ${k.color}`} style={{minWidth:56}}>{k.short}</span>
+                <div className="flex-1 h-2.5 bg-stone-100 rounded-full overflow-hidden"><div className="h-full rounded-full" style={{width:pct+'%',background:k.hex}}/></div>
+                <span className="text-[10px] font-bold text-stone-600 tabular-nums">{pct}%</span>
+                <span className="text-[10px] text-stone-400 tabular-nums w-6 text-right">{n}x</span>
+              </div>
+            );})}
+          </div>
+        </div>
+      </div>
+
+      {!totalKegiatan&&<div className="px-4 py-10 text-center"><div className="text-4xl mb-3 opacity-30">📅</div><div className="text-[13px] font-bold text-stone-400">Belum ada kegiatan di bulan ini</div></div>}
     </div>
   );
 }
@@ -3015,7 +3210,7 @@ function App(){
   const [kpiCorp,setKpiCorp]=useState(()=>ld('kpi_corp')||{});
   const [kpiCeo,setKpiCeo]=useState(()=>ld('kpi_ceo')||{});
   const [dashMonth,setDashMonth]=useState(()=>new Date().toISOString().slice(0,7));
-  function saveKpiCorp(month,data){const n={...kpiCorp,[month]:data};setKpiCorp(n);sv('kpi_corp',n);}
+  function saveKpiCorp(month,data){const n={...kpiCorp,[month]:data};setKpiCorp(n);sv('kpi_corp',n);setDashMonth(month);}
   function saveKpiCeo(month,items){const n={...kpiCeo,[month]:items};setKpiCeo(n);sv('kpi_ceo',n);}
   const dashWeekly=kpiCorp[dashMonth]?.weekly||INIT_W;
   const [weekly]=useState(INIT_W);
@@ -3088,7 +3283,7 @@ function App(){
 
   const TABS=[
     {id:'dashboard',ico:'📊',lbl:'Dash'},
-    {id:'jadwal',ico:'📅',lbl:'Jadwal',subs:[{id:'harian',lbl:'Harian'},{id:'mingguan',lbl:'Mingguan'}]},
+    {id:'jadwal',ico:'📅',lbl:'Jadwal',subs:[{id:'harian',lbl:'Harian'},{id:'mingguan',lbl:'Mingguan'},{id:'bulanan',lbl:'Bulanan'}]},
     {id:'dump'},
     {id:'backlog',ico:'📋',lbl:'Backlog',subs:[{id:'backlog',lbl:'Backlog'},{id:'keputusan',lbl:'Keputusan & Tracking'}]},
     {id:'resume',ico:'📈',lbl:'Resume'},
@@ -3158,6 +3353,7 @@ function App(){
           {tab==='dashboard'&&<Dashboard weekly={dashWeekly} kpiCorp={kpiCorp} dashMonth={dashMonth} onChangeMonth={setDashMonth}/>}
           {tab==='jadwal'&&sub.jadwal==='harian'&&<JadwalHarian backlog={backlog} jadwal={jadwal} onAddJadwal={addToJadwal} onRemoveJadwal={removeFromJadwal} onUpdateJadwal={updateJadwal} onUpdate={updI} onAddKeputusan={addK} filter={jadwalFilter} gcalOn={!!(gTok&&gCalId)} onPushItem={pushItem} onPushDay={pushDay}/>}
           {tab==='jadwal'&&sub.jadwal==='mingguan'&&<JadwalMingguan backlog={backlog} jadwal={jadwal} filter={jadwalFilter}/>}
+          {tab==='jadwal'&&sub.jadwal==='bulanan'&&<JadwalBulanan jadwal={jadwal} filter={jadwalFilter}/>}
           {tab==='dump'&&<DumpPage onAdd={addI} onAddKeputusan={addK} onAddJadwal={addToJadwal} onBatchAddJadwal={batchAddToJadwal} onUpdateJadwal={updateJadwal} onResetICSBatch={resetJadwalBatch} onSaveKpiCorp={saveKpiCorp} onSaveKpiCeo={saveKpiCeo} jadwal={jadwal} backlog={backlog} onDone={()=>{setTab('backlog');setST('backlog','backlog');}}/>}
           {tab==='backlog'&&sub.backlog==='backlog'&&<BacklogList backlog={backlog} onUpdate={updI} onDelete={delI} onAddKeputusan={addK}/>}
           {tab==='backlog'&&sub.backlog==='keputusan'&&<Keputusan keputusan={keputusan} onUpdate={updK} onDelete={delK} onAddKeputusan={addK}/>}
