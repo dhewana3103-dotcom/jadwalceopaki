@@ -43,6 +43,21 @@ function sbLoad(k){try{var sb=getSB();if(!sb)return Promise.resolve(null);return
 function loadGSI(cb){if(window.google&&window.google.accounts){cb();return;}var s=document.createElement('script');s.src='https://accounts.google.com/gsi/client';s.onload=cb;document.head.appendChild(s);}
 function doConnectGCal(onTok,onErr){loadGSI(function(){try{_gTokenClient=window.google.accounts.oauth2.initTokenClient({client_id:GCAL_CLIENT_ID,scope:'https://www.googleapis.com/auth/calendar',callback:function(r){if(r.error){if(onErr)onErr(r.error);return;}_gTok=r.access_token;if(onTok)onTok(r.access_token);}});_gTokenClient.requestAccessToken();}catch(e){if(onErr)onErr(e.message);}});}
 function listGCals(tok){return fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList',{headers:{Authorization:'Bearer '+tok}}).then(function(r){return r.json();}).then(function(d){return d.items||[];});}
+function fetchGCalEvents(tok,calId,dateMin,dateMax){
+  var url='https://www.googleapis.com/calendar/v3/calendars/'+encodeURIComponent(calId)+'/events?singleEvents=true&orderBy=startTime&timeMin='+encodeURIComponent(dateMin+'T00:00:00+07:00')+'&timeMax='+encodeURIComponent(dateMax+'T23:59:59+07:00')+'&maxResults=500';
+  return fetch(url,{headers:{Authorization:'Bearer '+tok}}).then(function(r){return r.json();}).then(function(d){return d.items||[];});
+}
+function gCalEventToJadwal(ev){
+  var start=ev.start&&(ev.start.dateTime||ev.start.date)||'';
+  var end=ev.end&&(ev.end.dateTime||ev.end.date)||'';
+  var dateStr=start.slice(0,10);
+  var jamMulai=start.length>10?start.slice(11,16):'00:00';
+  var jamSelesai=end.length>10?end.slice(11,16):'00:00';
+  var summary=ev.summary||'';
+  var mapped=mapICSEvent(summary);
+  var brief=parseGCalDesc(ev.description||'');
+  return{id:'SJ-'+genId(),tanggal:dateStr,jamMulai:jamMulai,jamSelesai:jamSelesai,masalahBacklogId:'',masalahText:'',kategori:mapped.kategori,jenisKegiatan:mapped.jenisKegiatan,detailKegiatan:brief.objective||mapped.detail||summary,relateMilestone:mapped.relateMilestone,outputKeputusan:'',peserta:brief.peserta||'',execSummary:brief.execSummary||'',decisionNeeded:brief.decisionNeeded||'',linkData:brief.linkData||'',gcalEventId:ev.id||''};
+}
 function buildGCalDesc(item){
   var lines=[];
   var kl=(KPI5.find(function(k){return k.id===item.relateMilestone;})||{}).label||item.relateMilestone||'';
@@ -684,7 +699,7 @@ function Keputusan({keputusan,onUpdate,onDelete,onAddKeputusan}){
 }
 
 // ── SETTINGS ──────────────────────────────────────────────────
-function SettingsModal({onClose,gTok,gCalId,gCals,gBusy,onConnect,onPickCal,onForceSync,syncMsg,onResetJadwal,onResetBacklog,onResetKeputusan}){
+function SettingsModal({onClose,gTok,gCalId,gCals,gBusy,onConnect,onPickCal,onForceSync,syncMsg,onResetJadwal,onResetBacklog,onResetKeputusan,onPullGCal,pulling}){
   const [key,setKey]=useState(localStorage.getItem('rsp_apikey')||'');
   const [showKey,setShowKey]=useState(false);
   const [saved,setSaved]=useState(false);
@@ -780,10 +795,22 @@ function SettingsModal({onClose,gTok,gCalId,gCals,gBusy,onConnect,onPickCal,onFo
                     <option value="">— Pilih calendar —</option>
                     {(gCals||[]).map(function(c){return<option key={c.id} value={c.id}>{c.summary+(c.primary?' (Primary)':'')}</option>;})}
                   </select>
-                  {gCalId&&<div className="text-[10px] text-emerald-600 font-medium">✓ Siap push ke calendar ini</div>}
-                  <button className="text-[10px] text-stone-400 underline as" onClick={onConnect}>Reconnect</button>
+                  {gCalId&&<div className="text-[10px] text-emerald-600 font-medium">✓ Calendar dipilih — siap push & pull</div>}
+                  {gCalId&&<div className="border border-blue-100 rounded-xl overflow-hidden">
+                    <div className="px-3 py-2 bg-blue-50 border-b border-blue-100 text-[9px] font-extrabold text-blue-600 uppercase tracking-wider">⬇️ Pull / Import dari Calendar</div>
+                    <div className="p-2 grid grid-cols-2 gap-1.5">
+                      {[['Hari ini',0,0],['7 hari ke depan',0,7],['Bulan ini',-15,15],['30 hari ke belakang',-30,0]].map(function(r){
+                        return<button key={r[0]} className={`py-2 rounded-lg text-[10px] font-bold as st border text-left px-2.5 ${pulling?'bg-stone-100 text-stone-300':'bg-white text-stone-700 border-stone-200 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700'}`} disabled={pulling} onClick={function(){
+                          var d1=new Date();d1.setDate(d1.getDate()+r[1]);
+                          var d2=new Date();d2.setDate(d2.getDate()+r[2]);
+                          onPullGCal(d1.toISOString().slice(0,10),d2.toISOString().slice(0,10));
+                        }}>{pulling?'⏳ Mengambil...':r[0]}</button>;
+                      })}
+                    </div>
+                  </div>}
+                  <button className="text-[10px] text-stone-400 underline as" onClick={onConnect}>Reconnect / ganti akun</button>
                 </div>}
-                <div className="text-[10px] text-stone-400">Setelah connect, tombol 📅 muncul di Jadwal untuk push ke Google Calendar CEO.</div>
+                <div className="text-[10px] text-stone-400">Setelah connect: tombol 📅 di Jadwal untuk push, atau pull event dari Calendar langsung di sini.</div>
               </div>
             </div>
             {/* Storage info */}
@@ -1286,36 +1313,30 @@ function ImportJadwal({onAddJadwal,onBatchAddJadwal}){
 
 // ── ICS HELPERS ───────────────────────────────────────────────
 function parseGCalDesc(raw){
-  if(!raw)return{};
-  // Unescape ICS encoding: \n → newline, \, → comma
-  var text=raw.replace(/\\n/g,'\n').replace(/\\,/g,',').replace(/\\;/g,';').replace(/\\:/g,':').trim();
-  var result={};
-  function extract(pattern){var m=text.match(pattern);return m?m[1].trim():null;}
-  function extractBlock(startPat,endPat){
-    var si=text.search(startPat);if(si<0)return null;
-    var afterStart=text.slice(si).replace(startPat,'').trim();
-    var ei=endPat?afterStart.search(endPat):-1;
-    return(ei>0?afterStart.slice(0,ei):afterStart).trim();
-  }
-  function cleanBullets(s){if(!s)return '';return s.split('\n').map(function(l){return l.replace(/^[•\-\*]\s*/,'').trim();}).filter(Boolean).join('\n');}
-  // OBJECTIVE
-  var obj=extract(/OBJECTIVE\s*\n([^\n]+)/i);
-  if(obj)result.objective=obj;
-  // ATTENDEES block
-  var attBlock=extractBlock(/ATTENDEES?\s*\n/i,/\n\n|\nEXECUTIVE|\nDECISION|\nNote:/i);
-  if(attBlock)result.peserta=cleanBullets(attBlock);
-  // EXECUTIVE SUMMARY → Current Issue
-  var execBlock=extractBlock(/EXECUTIVE SUMMARY\s*\n(?:Current Issue:?\s*\n)?/i,/\n\n(?:Decision|\nNote:)/i);
-  if(!execBlock)execBlock=extractBlock(/Current Issue:?\s*\n/i,/\n\nDecision|\nNote:/i);
-  if(execBlock)result.execSummary=cleanBullets(execBlock);
-  // Decision Needed
-  var dn=extractBlock(/Decision Needed:?\s*\n?/i,/\n\nDecision Made|\n\nNote:|\n\n[A-Z]/i);
-  if(dn&&dn!=='-'&&dn.length>1)result.decisionNeeded=dn;
-  // Note / links
-  var note=extractBlock(/Note:?\s*\n/i,/\n\n[A-Z]|\n━/i);
-  if(note)result.linkData=note;
-  // Fallback: after ━ separator, before end
-  return result;
+  try{
+    if(!raw)return{};
+    var text=raw.replace(/\\n/g,'\n').replace(/\\,/g,',').replace(/\\;/g,';').replace(/\\:/g,':').trim();
+    var result={};
+    function extract(pat){try{var m=text.match(pat);return m?m[1].trim():null;}catch(e){return null;}}
+    function extractBlock(startPat,endPat){
+      try{
+        var si=text.search(startPat);if(si<0)return null;
+        var afterStart=text.slice(si).replace(startPat,'').trim();
+        var ei=endPat?afterStart.search(endPat):-1;
+        return(ei>0?afterStart.slice(0,ei):afterStart).trim();
+      }catch(e){return null;}
+    }
+    function cleanBullets(s){if(!s)return'';return s.split('\n').map(function(l){return l.replace(/^[•\-\*]\s*/,'').trim();}).filter(Boolean).join('\n');}
+    var obj=extract(/OBJECTIVE\s*\n([^\n]+)/i);if(obj)result.objective=obj;
+    var attBlock=extractBlock(/ATTENDEES?\s*\n/i,/\n\nEXECUTIVE|\n\nDECISION|\n\nNote:/i);if(attBlock)result.peserta=cleanBullets(attBlock);
+    var execBlock=extractBlock(/EXECUTIVE SUMMARY\s*\n(?:Current Issue:?\s*\n)?/i,/\n\nDecision/i);
+    if(!execBlock)execBlock=extractBlock(/Current Issue:?\s*\n/i,/\n\nDecision|\n\nNote:/i);
+    if(execBlock)result.execSummary=cleanBullets(execBlock);
+    var dn=extractBlock(/Decision Needed:?\s*\n?/i,/\n\nDecision Made|\n\nNote:|\n\n━/i);
+    if(dn&&dn!=='-'&&dn.length>1)result.decisionNeeded=dn;
+    var note=extractBlock(/Note:?\s*\n/i,/\n\n━|\n\n[A-Z]/i);if(note)result.linkData=note;
+    return result;
+  }catch(e){return{};}
 }
 
 function parseDTStr(val){
@@ -1424,7 +1445,7 @@ function ImportICS({onBatchAddJadwal,onResetICSBatch}){
   const [lastBatch,setLastBatch]=useState(()=>{try{const s=localStorage.getItem('rsp_last_ics');return s?JSON.parse(s):null;}catch{return null;}});
   const fileRef=React.useRef();
 
-  const rangeStart=todayStr();
+  const rangeStart=(()=>{const d=new Date();d.setDate(d.getDate()-30);return d.toISOString().slice(0,10);})();
   const rangeEnd=(()=>{const d=new Date();d.setFullYear(d.getFullYear()+1);return d.toISOString().slice(0,10);})();
 
   function handleFile(e){const f=e.target.files[0];if(!f)return;setErr('');const r=new FileReader();r.onload=ev=>setIcsText(ev.target.result);r.readAsText(f,'UTF-8');}
@@ -1475,7 +1496,7 @@ function ImportICS({onBatchAddJadwal,onResetICSBatch}){
       <div className="bg-violet-50 border border-violet-100 rounded-2xl p-4 mb-5">
         <div className="text-[12px] font-extrabold text-violet-800 mb-1">🗓 Import dari Google Calendar (.ics)</div>
         <div className="text-[11px] text-violet-700 leading-relaxed mb-1">Di Google Calendar: <strong>⚙️ Settings → Import & Export → Export</strong>, download file .ics, lalu upload di sini.</div>
-        <div className="text-[10px] text-violet-600">Range import: <strong>{rangeStart}</strong> s.d. <strong>{rangeEnd}</strong></div>
+        <div className="text-[10px] text-violet-600">Range import: <strong>30 hari lalu</strong> s.d. <strong>{rangeEnd}</strong></div>
       </div>
 
       {/* Reset last batch */}
@@ -3007,6 +3028,34 @@ function App(){
   function resetJadwal(){var e={};setJadwal(e);sv('jadwal',e);sbSave('jadwal',e);alert('✓ Semua jadwal dihapus.');}
   function resetBacklog(){setBacklog([]);sv('backlog',[]);sbSave('backlog',[]);alert('✓ Semua backlog dihapus.');}
   function resetKeputusan(){setKeputusan([]);sv('keputusan',[]);sbSave('keputusan',[]);alert('✓ Semua keputusan dihapus.');}
+  const [pulling,setPulling]=useState(false);
+  function pullFromGCal(dateMin,dateMax){
+    if(!gTok||!gCalId){alert('Connect Google Calendar dulu di ⚙️');return;}
+    setPulling(true);
+    fetchGCalEvents(gTok,gCalId,dateMin,dateMax).then(function(evs){
+      var byDate={};
+      evs.forEach(function(ev){
+        if(!ev.start)return;
+        var item=gCalEventToJadwal(ev);
+        if(!item.tanggal)return;
+        if(!byDate[item.tanggal])byDate[item.tanggal]=[];
+        byDate[item.tanggal].push(item);
+      });
+      var n={...jadwal};
+      Object.keys(byDate).forEach(function(date){
+        if(!n[date])n[date]=[];
+        // Avoid duplicates by gcalEventId
+        var existing=n[date].map(function(it){return it.gcalEventId;}).filter(Boolean);
+        byDate[date].forEach(function(item){
+          if(!item.gcalEventId||!existing.includes(item.gcalEventId)){n[date].push(item);}
+          else{n[date]=n[date].map(function(it){return it.gcalEventId===item.gcalEventId?{...it,...item}:it;});}
+        });
+      });
+      setJadwal(n);sv('jadwal',n);
+      setPulling(false);
+      alert('✅ '+evs.length+' event berhasil diimport dari Google Calendar!');
+    }).catch(function(e){setPulling(false);alert('❌ Gagal: '+e.message+'\nCoba reconnect Google Calendar.');});
+  }
   function forceSyncNow(){setSyncMsg('Syncing...');var p=[];if(backlog.length>0)p.push(new Promise(function(res){sbSave('backlog',backlog);res();}));if(keputusan.length>0)p.push(new Promise(function(res){sbSave('keputusan',keputusan);res();}));if(Object.keys(jadwal).length>0)p.push(new Promise(function(res){sbSave('jadwal',jadwal);res();}));Promise.all(p).then(function(){setSyncMsg('✓ Sync selesai!');setTimeout(function(){setSyncMsg('');},3000);});}
   const [kpiCorp,setKpiCorp]=useState(()=>ld('kpi_corp')||{});
   const [kpiCeo,setKpiCeo]=useState(()=>ld('kpi_ceo')||{});
@@ -3095,7 +3144,7 @@ function App(){
 
   return(
     <div id="ac">
-      {showSettings&&<SettingsModal onClose={()=>setShowSettings(false)} gTok={gTok} gCalId={gCalId} gCals={gCals} gBusy={gBusy} onConnect={connectCal} onPickCal={pickCal} onForceSync={forceSyncNow} syncMsg={syncMsg} onResetJadwal={resetJadwal} onResetBacklog={resetBacklog} onResetKeputusan={resetKeputusan}/>}
+      {showSettings&&<SettingsModal onClose={()=>setShowSettings(false)} gTok={gTok} gCalId={gCalId} gCals={gCals} gBusy={gBusy} onConnect={connectCal} onPickCal={pickCal} onForceSync={forceSyncNow} syncMsg={syncMsg} onResetJadwal={resetJadwal} onResetBacklog={resetBacklog} onResetKeputusan={resetKeputusan} onPullGCal={pullFromGCal} pulling={pulling}/>}
       {/* ── DESKTOP SIDEBAR ── */}
       <aside className="hidden md:flex md:flex-col md:w-56 md:flex-shrink-0 md:sticky md:top-0 md:h-screen md:border-r md:border-stone-200 md:bg-white md:shadow-[2px_0_12px_rgba(0,0,0,0.04)] md:z-50">
         <Sidebar tab={tab} sub={sub} setTab={setTab} setST={setST} nc={nc} belumCount={belumCount}/>
