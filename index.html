@@ -56,7 +56,7 @@ function gCalEventToJadwal(ev){
   var summary=ev.summary||'';
   var mapped=mapICSEvent(summary);
   var brief=parseGCalDesc(ev.description||'');
-  return{id:'SJ-'+genId(),tanggal:dateStr,jamMulai:jamMulai,jamSelesai:jamSelesai,masalahBacklogId:'',masalahText:'',kategori:mapped.kategori,jenisKegiatan:mapped.jenisKegiatan,detailKegiatan:brief.objective||mapped.detail||summary,relateMilestone:mapped.relateMilestone,outputKeputusan:'',peserta:brief.peserta||'',execSummary:brief.execSummary||'',decisionNeeded:brief.decisionNeeded||'',linkData:brief.linkData||'',gcalEventId:ev.id||''};
+  return{id:'SJ-'+genId(),tanggal:dateStr,jamMulai:jamMulai,jamSelesai:jamSelesai,masalahBacklogId:'',masalahText:'',kategori:mapped.kategori,jenisKegiatan:mapped.jenisKegiatan,detailKegiatan:mapped.detail||summary,relateMilestone:mapped.relateMilestone,outputKeputusan:'',gcalDesc:brief.desc||'',gcalEventId:ev.id||''};
 }
 function buildGCalDesc(item){
   var lines=[];
@@ -1315,12 +1315,9 @@ function ImportJadwal({onAddJadwal,onBatchAddJadwal}){
 function stripHtml(html){
   try{
     var tmp=document.createElement('div');
-    // Convert block elements to newlines first
     var h=html.replace(/<br\s*\/?>/gi,'\n').replace(/<\/p>/gi,'\n\n').replace(/<\/div>/gi,'\n').replace(/<\/li>/gi,'\n').replace(/<li[^>]*>/gi,'• ');
     tmp.innerHTML=h;
-    var txt=tmp.textContent||tmp.innerText||'';
-    // Clean up extra blank lines
-    return txt.replace(/\n{3,}/g,'\n\n').trim();
+    return(tmp.textContent||tmp.innerText||'').replace(/\n{3,}/g,'\n\n').trim();
   }catch(e){
     return html.replace(/<[^>]+>/g,' ').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&').replace(/&nbsp;/g,' ').replace(/\s{2,}/g,' ').trim();
   }
@@ -1328,30 +1325,9 @@ function stripHtml(html){
 function parseGCalDesc(raw){
   try{
     if(!raw)return{};
-    // Detect HTML and strip it
     var isHtml=/<[a-z][\s\S]*>/i.test(raw);
-    var text=isHtml?stripHtml(raw):raw.replace(/\\n/g,'\n').replace(/\\,/g,',').replace(/\\;/g,';').replace(/\\:/g,':');
-    text=text.trim();
-    var result={};
-    function extract(pat){try{var m=text.match(pat);return m?m[1].trim():null;}catch(e){return null;}}
-    function extractBlock(startPat,endPat){
-      try{
-        var si=text.search(startPat);if(si<0)return null;
-        var afterStart=text.slice(si).replace(startPat,'').trim();
-        var ei=endPat?afterStart.search(endPat):-1;
-        return(ei>0?afterStart.slice(0,ei):afterStart).trim();
-      }catch(e){return null;}
-    }
-    function cleanBullets(s){if(!s)return'';return s.split('\n').map(function(l){return l.replace(/^[•\-\*]\s*/,'').trim();}).filter(Boolean).join('\n');}
-    var obj=extract(/OBJECTIVE\s*\n([^\n]+)/i);if(obj)result.objective=obj;
-    var attBlock=extractBlock(/ATTENDEES?\s*\n/i,/\n\nEXECUTIVE|\n\nDECISION|\n\nNote:/i);if(attBlock)result.peserta=cleanBullets(attBlock);
-    var execBlock=extractBlock(/EXECUTIVE SUMMARY\s*\n(?:Current Issue:?\s*\n)?/i,/\n\nDecision/i);
-    if(!execBlock)execBlock=extractBlock(/Current Issue:?\s*\n/i,/\n\nDecision|\n\nNote:/i);
-    if(execBlock)result.execSummary=cleanBullets(execBlock);
-    var dn=extractBlock(/Decision Needed:?\s*\n?/i,/\n\nDecision Made|\n\nNote:|\n\n━/i);
-    if(dn&&dn!=='-'&&dn.replace(/-/g,'').trim().length>0)result.decisionNeeded=dn.replace(/^-\s*$/,'').trim()||null;
-    var note=extractBlock(/Note:?\s*\n/i,/\n\n━|\n\n[A-Z]/i);if(note&&note.length>2)result.linkData=note;
-    return result;
+    var text=isHtml?stripHtml(raw):raw.replace(/\\n/g,'\n').replace(/\\,/g,',').replace(/\\;/g,';').replace(/\\:/g,':').trim();
+    return{desc:text};
   }catch(e){return{};}
 }
 
@@ -1438,7 +1414,7 @@ function parseICS(icsText,rangeStart,rangeEnd){
     function mk(s,e){
       const ds=new Date(s),de=new Date(e);
       const dateStr=`${ds.getFullYear()}-${String(ds.getMonth()+1).padStart(2,'0')}-${String(ds.getDate()).padStart(2,'0')}`;
-      return{id:'SJ-'+genId(),tanggal:dateStr,jamMulai:`${String(ds.getHours()).padStart(2,'0')}:${String(ds.getMinutes()).padStart(2,'0')}`,jamSelesai:`${String(de.getHours()).padStart(2,'0')}:${String(de.getMinutes()).padStart(2,'0')}`,masalahBacklogId:'',masalahText:'',kategori:mapped.kategori,jenisKegiatan:mapped.jenisKegiatan,detailKegiatan:brief.objective||mapped.detail||summary,relateMilestone:mapped.relateMilestone,outputKeputusan:'',peserta:brief.peserta||'',execSummary:brief.execSummary||'',decisionNeeded:brief.decisionNeeded||'',linkData:brief.linkData||''};
+      return{id:'SJ-'+genId(),tanggal:dateStr,jamMulai:`${String(ds.getHours()).padStart(2,'0')}:${String(ds.getMinutes()).padStart(2,'0')}`,jamSelesai:`${String(de.getHours()).padStart(2,'0')}:${String(de.getMinutes()).padStart(2,'0')}`,masalahBacklogId:'',masalahText:'',kategori:mapped.kategori,jenisKegiatan:mapped.jenisKegiatan,detailKegiatan:mapped.detail||summary,relateMilestone:mapped.relateMilestone,outputKeputusan:'',gcalDesc:brief.desc||''};
     }
     if(props['RRULE']){
       expandRRuleICS(start.ts,durMs,props['RRULE'],rangeStart,rangeEnd).forEach(({start:s,end:e})=>{
@@ -2053,9 +2029,9 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
     const isExpEdit=!fromBacklog&&expEdit===item.id;
     const [ef,setEf]=useState({jamMulai:item.jamMulai||'',jamSelesai:item.jamSelesai||'',kategori:item.kategori||'RSP',jenisKegiatan:item.jenisKegiatan||'Meeting Review Operasional + Evaluasi Tim',detailKegiatan:item.detailKegiatan||'',masalahText:item.masalahText||'',relateMilestone:item.relateMilestone||'operasional'});
     const [expDetail,setExpDetail]=useState(false);
-    const hasBrief=item.peserta||item.execSummary||item.decisionNeeded||item.linkData;
+    const hasBrief=item.gcalDesc&&item.gcalDesc.trim();
     function openEdit(){setEf({jamMulai:item.jamMulai||'',jamSelesai:item.jamSelesai||'',kategori:item.kategori||'RSP',jenisKegiatan:item.jenisKegiatan||'Meeting Review Operasional + Evaluasi Tim',detailKegiatan:item.detailKegiatan||'',masalahText:item.masalahText||'',relateMilestone:item.relateMilestone||'operasional',peserta:item.peserta||'',execSummary:item.execSummary||'',decisionNeeded:item.decisionNeeded||'',linkData:item.linkData||''});setExpEdit(item.id);setExpOutput(null);setExpChecklist(null);}
-    function saveEdit(){onUpdateJadwal(today,item.id,{jamMulai:ef.jamMulai,jamSelesai:ef.jamSelesai,kategori:ef.kategori,jenisKegiatan:ef.jenisKegiatan,detailKegiatan:ef.detailKegiatan,masalahText:ef.masalahText,relateMilestone:ef.relateMilestone,peserta:ef.peserta||'',execSummary:ef.execSummary||'',decisionNeeded:ef.decisionNeeded||'',linkData:ef.linkData||''});setExpEdit(null);}
+    function saveEdit(){onUpdateJadwal(today,item.id,{jamMulai:ef.jamMulai,jamSelesai:ef.jamSelesai,kategori:ef.kategori,jenisKegiatan:ef.jenisKegiatan,detailKegiatan:ef.detailKegiatan,masalahText:ef.masalahText,relateMilestone:ef.relateMilestone});setExpEdit(null);}
     const jColor=JENIS_COLOR[item.jenisKegiatan]||'bg-stone-100 text-stone-600';
     const kColor=KATEGORI_COLOR[item.kategori]||'bg-stone-100 text-stone-600';
     const hasOutput=fromBacklog?false:!!item.outputKeputusan;
@@ -2094,27 +2070,12 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
           {/* Pre-Meeting Brief */}
           {hasBrief&&<div className="mb-2.5">
             <button className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg border st as text-left ${expDetail?'bg-stone-800 text-white border-stone-800':'bg-stone-50 border-stone-200 hover:bg-stone-100'}`} onClick={function(){setExpDetail(function(p){return !p;});}}>
-              <span className="text-[10px] font-bold">📋 Pre-Meeting Brief</span>
+              <span className="text-[10px] font-bold">📋 Deskripsi Calendar</span>
               <span className={`text-[10px] ${expDetail?'text-stone-300 rotate-180':'text-stone-400'}`}>▼</span>
             </button>
-            {expDetail&&<div className="border border-stone-200 border-t-0 rounded-b-xl overflow-hidden afi bg-white">
-              {item.peserta&&<div className="px-3 py-2.5 border-b border-stone-100">
-                <div className="text-[9px] font-extrabold text-stone-400 uppercase tracking-wider mb-1">Attendees</div>
-                {item.peserta.split('\n').map(function(p,i){return p.trim()?<div key={i} className="text-[11px] text-stone-700">• {p.trim()}</div>:null;})}
-              </div>}
-              {item.execSummary&&<div className="px-3 py-2.5 border-b border-stone-100">
-                <div className="text-[9px] font-extrabold text-stone-400 uppercase tracking-wider mb-1">Executive Summary — Current Issue</div>
-                {item.execSummary.split('\n').map(function(l,i){return l.trim()?<div key={i} className="text-[11px] text-stone-700 leading-relaxed">• {l.trim()}</div>:null;})}
-              </div>}
-              {item.decisionNeeded&&<div className="px-3 py-2.5 border-b border-stone-100">
-                <div className="text-[9px] font-extrabold text-red-500 uppercase tracking-wider mb-1">Decision Needed 🔴</div>
-                <div className="text-[11px] text-red-700 font-semibold leading-relaxed">{item.decisionNeeded}</div>
-              </div>}
-              {item.linkData&&<div className="px-3 py-2.5">
-                <div className="text-[9px] font-extrabold text-blue-400 uppercase tracking-wider mb-1">Link Data / Lampiran</div>
-                <div className="text-[11px] text-blue-600 break-all">{item.linkData}</div>
-              </div>}
-              {item.gcalEventId&&<div className="px-3 py-1.5 bg-emerald-50 border-t border-emerald-100 text-[9px] text-emerald-600 font-medium">✓ Sudah di Google Calendar — tekan 📅 ✓ untuk update</div>}
+            {expDetail&&<div className="border border-stone-200 border-t-0 rounded-b-xl bg-white p-3 afi">
+              <div className="text-[11px] text-stone-700 leading-relaxed whitespace-pre-wrap">{item.gcalDesc}</div>
+              {item.gcalEventId&&<div className="mt-2 pt-2 border-t border-stone-100 text-[9px] text-emerald-600 font-medium">✓ Sudah di Google Calendar</div>}
             </div>}
           </div>}
           {/* Row 3: Masalah yang dievaluasi */}
@@ -2245,28 +2206,6 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
                 <div className="text-[9px] font-bold text-stone-400 uppercase mb-1">Masalah yang Dievaluasi</div>
                 <input className="w-full px-2.5 py-2 rounded-xl border border-stone-200 text-[12px] focus:outline-none focus:ring-2 focus:ring-stone-400" value={ef.masalahText} onChange={e=>setEf(p=>({...p,masalahText:e.target.value}))} placeholder="Masalah / topik yang dibahas..."/>
               </div>}
-              {/* Structured brief fields */}
-              <div className="pt-2 border-t border-stone-100">
-                <div className="text-[9px] font-extrabold text-stone-500 uppercase tracking-wider mb-2">Pre-Meeting Brief (untuk Calendar)</div>
-                <div className="space-y-2">
-                  <div>
-                    <div className="text-[9px] font-bold text-stone-400 uppercase mb-1">Attendees (satu per baris)</div>
-                    <textarea className="w-full px-2.5 py-2 rounded-xl border border-stone-200 text-[11px] focus:outline-none focus:ring-1 focus:ring-stone-400 resize-none" rows={3} value={ef.peserta||''} onChange={e=>setEf(p=>({...p,peserta:e.target.value}))} placeholder={'CEO\nCOO\nProject\nPDCA'}/>
-                  </div>
-                  <div>
-                    <div className="text-[9px] font-bold text-stone-400 uppercase mb-1">Executive Summary — Current Issue (satu per baris)</div>
-                    <textarea className="w-full px-2.5 py-2 rounded-xl border border-stone-200 text-[11px] focus:outline-none focus:ring-1 focus:ring-stone-400 resize-none" rows={3} value={ef.execSummary||''} onChange={e=>setEf(p=>({...p,execSummary:e.target.value}))} placeholder={'Bekasi 2: paving blk DE, penjualan rendah\nBekasi 3: wifi lemot, BPHTB terkendala'}/>
-                  </div>
-                  <div>
-                    <div className="text-[9px] font-bold text-red-400 uppercase mb-1">Decision Needed 🔴</div>
-                    <textarea className="w-full px-2.5 py-2 rounded-xl border border-red-100 text-[11px] focus:outline-none focus:ring-1 focus:ring-red-300 resize-none" rows={2} value={ef.decisionNeeded||''} onChange={e=>setEf(p=>({...p,decisionNeeded:e.target.value}))} placeholder="Apa yang perlu diputuskan CEO di meeting ini?"/>
-                  </div>
-                  <div>
-                    <div className="text-[9px] font-bold text-blue-400 uppercase mb-1">Link Data / Lampiran</div>
-                    <input className="w-full px-2.5 py-2 rounded-xl border border-stone-200 text-[11px] focus:outline-none focus:ring-1 focus:ring-stone-400" value={ef.linkData||''} onChange={e=>setEf(p=>({...p,linkData:e.target.value}))} placeholder="https://docs.google.com/..."/>
-                  </div>
-                </div>
-              </div>
               {/* Save */}
               <button className="w-full py-2.5 rounded-xl bg-stone-900 text-white text-[11px] font-bold as st" onClick={saveEdit}>Simpan Perubahan</button>
             </div>
