@@ -117,52 +117,11 @@ const KPI_CEO_DEFAULT=[
 ];
 
 // NEW: Backlog structure with konteks + isi + action
-const SAMPLE_BL=[
-  {id:'BL-A1',sumber:'CEO',tanggal:'2026-05-20',
-   konteks:'Cashflow Proyek Bekasi',
-   isi:'Cashflow negatif 2 minggu berturut-turut, masih investigasi oleh Pak Andyka',
-   action:'CEO review & putuskan: tunda pembayaran atau cari sumber dana baru',
-   fungsiKPI:'finansial',kategori:'Meeting Strategic',prioritas:'tinggi',blokWaktu:'malam-keputusan',pic:null,deadline:null,notes:'',status:'baru'},
-  {id:'BL-A2',sumber:'PDCA',tanggal:'2026-05-19',
-   konteks:'Pengembangan Lahan Baru',
-   isi:'Zero lahan baru close sampai W2 — target 1 lahan bulan ini belum terpenuhi',
-   action:'Eskalasi ke Legal, review pipeline dan hambatan proses close lahan',
-   fungsiKPI:'riset',kategori:'Meeting Review Ops',prioritas:'tinggi',blokWaktu:'sore-review',pic:'Legal',deadline:'2026-05-30',notes:'',status:'dijadwalkan'},
-  {id:'BL-A3',sumber:'PA',tanggal:'2026-05-20',
-   konteks:'Complaint Sales — Temuan Fraud',
-   isi:'Temuan fraud 1.29% di complaint sales, harusnya 0%. Tim investigasi sedang berjalan.',
-   action:'CEO putuskan SOP baru untuk mencegah fraud + sanksi internal',
-   fungsiKPI:'operasional',kategori:'Meeting Strategic',prioritas:'tinggi',blokWaktu:'malam-keputusan',pic:null,deadline:null,notes:'',status:'baru'},
-  {id:'BL-A4',sumber:'CEO',tanggal:'2026-05-18',
-   konteks:'Strategi Konten Q2',
-   isi:'Belum ada blueprint konten TOFU-BOFU untuk Q2, Juni ada jadwal tampil TV',
-   action:'Deepwork susun strategi konten Q2, lalu brief ke tim Zafan',
-   fungsiKPI:'branding',kategori:'Deepwork Strategic',prioritas:'sedang',blokWaktu:'pagi-dalam',pic:'Zafan',deadline:'2026-05-25',notes:'',status:'baru'},
-  {id:'BL-A5',sumber:'PDCA',tanggal:'2026-05-17',
-   konteks:'Rekrutmen Posisi Kritis',
-   isi:'SDM rekrut posisi kritis baru 37%, 5 posisi kritis masih kosong',
-   action:'Review pipeline rekrutmen, putuskan mana yang perlu diakselerasi',
-   fungsiKPI:'people',kategori:'Meeting Review Ops',prioritas:'sedang',blokWaktu:'sore-review',pic:'HR',deadline:null,notes:'',status:'dijadwalkan'},
-  {id:'BL-A6',sumber:'CEO',tanggal:'2026-05-16',
-   konteks:'Ekspansi Kendal',
-   isi:'Perlu validasi lapangan sebelum putuskan lanjut atau tidak',
-   action:'Genba survei lokasi ekspansi Kendal, evaluasi kelayakan',
-   fungsiKPI:'riset',kategori:'Genba',prioritas:'sedang',blokWaktu:'siang-dinamis',pic:null,deadline:null,notes:'',status:'selesai'},
-];
+const SAMPLE_BL=[];
 
-const SJ={'2026-05-21':[
-  {id:'SJ1',jamMulai:'05:30',jamSelesai:'07:30',masalahBacklogId:'BL-A1',masalahText:'',kategori:'RSP',jenisKegiatan:'Deepwork Strategic',detailKegiatan:'Analisis mendalam cashflow Q2 + cost overrun Cikampek. Susun rekomendasi keputusan untuk meeting malam.',relateMilestone:'finansial',outputKeputusan:''},
-  {id:'SJ2',jamMulai:'08:00',jamSelesai:'10:00',masalahBacklogId:'BL-A4',masalahText:'',kategori:'RSP',jenisKegiatan:'Bikin Konten',detailKegiatan:'Review arah konten bersama Zafan untuk brief Q2. Finalisasi konten pillar dan timeline eksekusi.',relateMilestone:'branding',outputKeputusan:''},
-  {id:'SJ3',jamMulai:'11:00',jamSelesai:'13:00',masalahBacklogId:null,masalahText:'Genba rutin pabrik Pegambiran',kategori:'RSP',jenisKegiatan:'Genba',detailKegiatan:'Genba rutin cek produksi dan kondisi mesin pabrik beton. Evaluasi output dan catat temuan.',relateMilestone:'riset',outputKeputusan:''},
-  {id:'SJ4',jamMulai:'15:30',jamSelesai:'17:00',masalahBacklogId:'BL-A5',masalahText:'',kategori:'RSP',jenisKegiatan:'Meeting Review Operasional + Evaluasi Tim',detailKegiatan:'Evaluasi pencapaian target mingguan COO & CMO. Flag yang meleset, putuskan eskalasi atau tidak.',relateMilestone:'operasional',outputKeputusan:''},
-  {id:'SJ5',jamMulai:'17:00',jamSelesai:'18:00',masalahBacklogId:'BL-A5',masalahText:'',kategori:'RSP',jenisKegiatan:'Meeting Review Operasional + Evaluasi Tim',detailKegiatan:'Review pipeline 5 posisi kritis yang masih kosong. Putuskan akselerasi atau ubah kriteria rekrutmen.',relateMilestone:'people',outputKeputusan:''},
-  {id:'SJ6',jamMulai:'19:30',jamSelesai:'21:00',masalahBacklogId:'BL-A3',masalahText:'',kategori:'RSP',jenisKegiatan:'Meeting Strategic/Problem Solving/Approval',detailKegiatan:'Finalisasi SOP fraud + approval vendor beton Cikampek. CEO buat keputusan, PA catat di MOM.',relateMilestone:'operasional',outputKeputusan:''},
-]};
+const SJ={};
 
-const SAMPLE_KPT=[
-  {id:'KP-001',tanggal:'2026-05-20',backlogId:'BL-A6',konteks:'Ekspansi Kendal',deskripsi:'Survei lokasi ekspansi Kendal — kelayakan lahan disetujui lanjut',fungsiKPI:'riset',dampak:'tinggi',status:'proses',output:'Lokasi feasible, perlu kajian legal. Tim Legal diminta siapkan dokumen 2 minggu.',updateTL:'Legal sudah mulai proses, target selesai 3 Juni',sumber:'Genba'},
-  {id:'KP-002',tanggal:'2026-05-18',backlogId:null,konteks:'Strategi Konten Q2',deskripsi:'Konten TOFU-BOFU Q2 fokus properti syariah — brief ke Zafan',fungsiKPI:'branding',dampak:'sedang',status:'sesuai',output:'Konten pillar: syariah, KPR mudah, kemajuan proyek. Target 5 konten/minggu.',sumber:'Dump Think'},
-];
+const SAMPLE_KPT=[];
 
 // ── HELPERS ──────────────────────────────────────────────────
 const ld=(k)=>{try{const v=localStorage.getItem('rsp_'+k);return v?JSON.parse(v):null;}catch{return null;}};
