@@ -43,7 +43,28 @@ function sbLoad(k){try{var sb=getSB();if(!sb)return Promise.resolve(null);return
 function loadGSI(cb){if(window.google&&window.google.accounts){cb();return;}var s=document.createElement('script');s.src='https://accounts.google.com/gsi/client';s.onload=cb;document.head.appendChild(s);}
 function doConnectGCal(onTok,onErr){loadGSI(function(){try{_gTokenClient=window.google.accounts.oauth2.initTokenClient({client_id:GCAL_CLIENT_ID,scope:'https://www.googleapis.com/auth/calendar',callback:function(r){if(r.error){if(onErr)onErr(r.error);return;}_gTok=r.access_token;if(onTok)onTok(r.access_token);}});_gTokenClient.requestAccessToken();}catch(e){if(onErr)onErr(e.message);}});}
 function listGCals(tok){return fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList',{headers:{Authorization:'Bearer '+tok}}).then(function(r){return r.json();}).then(function(d){return d.items||[];});}
-function pushEventGCal(item,tok,calId){var tz='Asia/Jakarta';var kl=(KPI5.find(function(k){return k.id===item.relateMilestone;})||{}).label||'';var desc='['+( item.jenisKegiatan||'')+'] '+(item.kategori||'')+' KPI:'+kl;var body={summary:item.detailKegiatan||'Kegiatan CEO',description:desc,start:{dateTime:item.tanggal+'T'+(item.jamMulai||'08:00')+':00',timeZone:tz},end:{dateTime:item.tanggal+'T'+(item.jamSelesai||'09:00')+':00',timeZone:tz}};return fetch('https://www.googleapis.com/calendar/v3/calendars/'+encodeURIComponent(calId)+'/events',{method:'POST',headers:{Authorization:'Bearer '+tok,'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(r){return r.json();});}
+function buildGCalDesc(item){
+  var lines=[];
+  var kl=(KPI5.find(function(k){return k.id===item.relateMilestone;})||{}).label||item.relateMilestone||'';
+  if(item.peserta){lines.push('ATTENDEES');item.peserta.split('\n').forEach(function(p){if(p.trim())lines.push('• '+p.trim());});lines.push('');}
+  if(item.execSummary){lines.push('EXECUTIVE SUMMARY');lines.push('Current Issue:');item.execSummary.split('\n').forEach(function(l){if(l.trim())lines.push('• '+l.trim());});lines.push('');}
+  if(item.decisionNeeded){lines.push('DECISION NEEDED:');lines.push(item.decisionNeeded);lines.push('');}
+  if(item.linkData){lines.push('LINK DATA / LAMPIRAN:');lines.push(item.linkData);lines.push('');}
+  lines.push('━━━━━━━━━━━━━━━━━━━━━━');
+  lines.push('['+( item.jenisKegiatan||'')+'] '+item.kategori+' · KPI: '+kl);
+  if(item.masalahText)lines.push('Masalah: '+item.masalahText);
+  return lines.join('\n');
+}
+function upsertGCalEvent(item,tok,calId){
+  var tz='Asia/Jakarta';
+  var body={summary:item.detailKegiatan||'Kegiatan CEO',description:buildGCalDesc(item),start:{dateTime:item.tanggal+'T'+(item.jamMulai||'08:00')+':00',timeZone:tz},end:{dateTime:item.tanggal+'T'+(item.jamSelesai||'09:00')+':00',timeZone:tz}};
+  var hasId=item.gcalEventId;
+  var url='https://www.googleapis.com/calendar/v3/calendars/'+encodeURIComponent(calId)+'/events'+(hasId?'/'+item.gcalEventId:'');
+  return fetch(url,{method:hasId?'PUT':'POST',headers:{Authorization:'Bearer '+tok,'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(r){return r.json();});
+}
+function deleteGCalEvent(eventId,tok,calId){
+  return fetch('https://www.googleapis.com/calendar/v3/calendars/'+encodeURIComponent(calId)+'/events/'+eventId,{method:'DELETE',headers:{Authorization:'Bearer '+tok}});
+}
 
 const WEEKS=['W1','W2','W3','W4','W5'];
 const GROUPS=[
@@ -1994,8 +2015,10 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
     const isExpCL=expChecklist===item.id;
     const isExpEdit=!fromBacklog&&expEdit===item.id;
     const [ef,setEf]=useState({jamMulai:item.jamMulai||'',jamSelesai:item.jamSelesai||'',kategori:item.kategori||'RSP',jenisKegiatan:item.jenisKegiatan||'Meeting Review Operasional + Evaluasi Tim',detailKegiatan:item.detailKegiatan||'',masalahText:item.masalahText||'',relateMilestone:item.relateMilestone||'operasional'});
-    function openEdit(){setEf({jamMulai:item.jamMulai||'',jamSelesai:item.jamSelesai||'',kategori:item.kategori||'RSP',jenisKegiatan:item.jenisKegiatan||'Meeting Review Operasional + Evaluasi Tim',detailKegiatan:item.detailKegiatan||'',masalahText:item.masalahText||'',relateMilestone:item.relateMilestone||'operasional'});setExpEdit(item.id);setExpOutput(null);setExpChecklist(null);}
-    function saveEdit(){onUpdateJadwal(today,item.id,ef);setExpEdit(null);}
+    const [expDetail,setExpDetail]=useState(false);
+    const hasBrief=item.peserta||item.execSummary||item.decisionNeeded||item.linkData;
+    function openEdit(){setEf({jamMulai:item.jamMulai||'',jamSelesai:item.jamSelesai||'',kategori:item.kategori||'RSP',jenisKegiatan:item.jenisKegiatan||'Meeting Review Operasional + Evaluasi Tim',detailKegiatan:item.detailKegiatan||'',masalahText:item.masalahText||'',relateMilestone:item.relateMilestone||'operasional',peserta:item.peserta||'',execSummary:item.execSummary||'',decisionNeeded:item.decisionNeeded||'',linkData:item.linkData||''});setExpEdit(item.id);setExpOutput(null);setExpChecklist(null);}
+    function saveEdit(){onUpdateJadwal(today,item.id,{jamMulai:ef.jamMulai,jamSelesai:ef.jamSelesai,kategori:ef.kategori,jenisKegiatan:ef.jenisKegiatan,detailKegiatan:ef.detailKegiatan,masalahText:ef.masalahText,relateMilestone:ef.relateMilestone,peserta:ef.peserta||'',execSummary:ef.execSummary||'',decisionNeeded:ef.decisionNeeded||'',linkData:ef.linkData||''});setExpEdit(null);}
     const jColor=JENIS_COLOR[item.jenisKegiatan]||'bg-stone-100 text-stone-600';
     const kColor=KATEGORI_COLOR[item.kategori]||'bg-stone-100 text-stone-600';
     const hasOutput=fromBacklog?false:!!item.outputKeputusan;
@@ -2031,6 +2054,32 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
           </div>
           {/* Row 2: Detail kegiatan */}
           <div className="text-[12px] font-semibold text-stone-800 leading-snug mb-2">{fromBacklog?item.isi:item.detailKegiatan}</div>
+          {/* Pre-Meeting Brief */}
+          {hasBrief&&<div className="mb-2.5">
+            <button className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg border st as text-left ${expDetail?'bg-stone-800 text-white border-stone-800':'bg-stone-50 border-stone-200 hover:bg-stone-100'}`} onClick={function(){setExpDetail(function(p){return !p;});}}>
+              <span className="text-[10px] font-bold">📋 Pre-Meeting Brief</span>
+              <span className={`text-[10px] ${expDetail?'text-stone-300 rotate-180':'text-stone-400'}`}>▼</span>
+            </button>
+            {expDetail&&<div className="border border-stone-200 border-t-0 rounded-b-xl overflow-hidden afi bg-white">
+              {item.peserta&&<div className="px-3 py-2.5 border-b border-stone-100">
+                <div className="text-[9px] font-extrabold text-stone-400 uppercase tracking-wider mb-1">Attendees</div>
+                {item.peserta.split('\n').map(function(p,i){return p.trim()?<div key={i} className="text-[11px] text-stone-700">• {p.trim()}</div>:null;})}
+              </div>}
+              {item.execSummary&&<div className="px-3 py-2.5 border-b border-stone-100">
+                <div className="text-[9px] font-extrabold text-stone-400 uppercase tracking-wider mb-1">Executive Summary — Current Issue</div>
+                {item.execSummary.split('\n').map(function(l,i){return l.trim()?<div key={i} className="text-[11px] text-stone-700 leading-relaxed">• {l.trim()}</div>:null;})}
+              </div>}
+              {item.decisionNeeded&&<div className="px-3 py-2.5 border-b border-stone-100">
+                <div className="text-[9px] font-extrabold text-red-500 uppercase tracking-wider mb-1">Decision Needed 🔴</div>
+                <div className="text-[11px] text-red-700 font-semibold leading-relaxed">{item.decisionNeeded}</div>
+              </div>}
+              {item.linkData&&<div className="px-3 py-2.5">
+                <div className="text-[9px] font-extrabold text-blue-400 uppercase tracking-wider mb-1">Link Data / Lampiran</div>
+                <div className="text-[11px] text-blue-600 break-all">{item.linkData}</div>
+              </div>}
+              {item.gcalEventId&&<div className="px-3 py-1.5 bg-emerald-50 border-t border-emerald-100 text-[9px] text-emerald-600 font-medium">✓ Sudah di Google Calendar — tekan 📅 ✓ untuk update</div>}
+            </div>}
+          </div>}
           {/* Row 3: Masalah yang dievaluasi */}
           {masalahLabel&&<div className="bg-stone-50 border border-stone-200 rounded-lg px-2.5 py-2 mb-2">
             <div className="text-[8px] font-extrabold text-stone-400 uppercase tracking-wider mb-0.5">Masalah dievaluasi</div>
@@ -2106,7 +2155,7 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
             <button className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold st as ${isExpOut?'bg-stone-800 text-white':'bg-stone-100 text-stone-600 hover:bg-stone-200'}`} onClick={()=>setExpOutput(isExpOut?null:item.id)}>
               {hasOutput?'📝 Edit Output':'✍️ Isi Output'}
             </button>
-            {!fromBacklog&&gcalOn&&<button className="py-1.5 px-2 rounded-lg text-[10px] font-bold bg-blue-50 text-blue-600 border border-blue-100 st as" onClick={function(){onPushItem(item).then(function(ok){alert(ok?'✅ Masuk Google Calendar!':'❌ Gagal. Coba reconnect di ⚙️');});}}>📅</button>}
+            {!fromBacklog&&gcalOn&&<button className={`py-1.5 px-2 rounded-lg text-[10px] font-bold border st as ${item.gcalEventId?'bg-emerald-50 text-emerald-600 border-emerald-100':'bg-blue-50 text-blue-600 border-blue-100'}`} title={item.gcalEventId?'Update event di Google Calendar':'Push ke Google Calendar'} onClick={function(){onPushItem(item,function(patch){onUpdateJadwal(today,item.id,patch);}).then(function(ok){alert(ok?(item.gcalEventId?'✅ Event diupdate di Calendar!':'✅ Masuk ke Google Calendar!'):'❌ Gagal. Coba reconnect di ⚙️');});}}>{item.gcalEventId?'📅 ✓':'📅'}</button>}
             {!fromBacklog&&<button className="py-1.5 px-2.5 rounded-lg text-[10px] font-bold bg-red-50 text-red-400 border border-red-100 st as" onClick={()=>{if(confirm('Hapus?'))onRemoveJadwal(today,item.id);}}>🗑</button>}
           </div>
           {/* Edit panel */}
@@ -2159,6 +2208,28 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
                 <div className="text-[9px] font-bold text-stone-400 uppercase mb-1">Masalah yang Dievaluasi</div>
                 <input className="w-full px-2.5 py-2 rounded-xl border border-stone-200 text-[12px] focus:outline-none focus:ring-2 focus:ring-stone-400" value={ef.masalahText} onChange={e=>setEf(p=>({...p,masalahText:e.target.value}))} placeholder="Masalah / topik yang dibahas..."/>
               </div>}
+              {/* Structured brief fields */}
+              <div className="pt-2 border-t border-stone-100">
+                <div className="text-[9px] font-extrabold text-stone-500 uppercase tracking-wider mb-2">Pre-Meeting Brief (untuk Calendar)</div>
+                <div className="space-y-2">
+                  <div>
+                    <div className="text-[9px] font-bold text-stone-400 uppercase mb-1">Attendees (satu per baris)</div>
+                    <textarea className="w-full px-2.5 py-2 rounded-xl border border-stone-200 text-[11px] focus:outline-none focus:ring-1 focus:ring-stone-400 resize-none" rows={3} value={ef.peserta||''} onChange={e=>setEf(p=>({...p,peserta:e.target.value}))} placeholder={'CEO\nCOO\nProject\nPDCA'}/>
+                  </div>
+                  <div>
+                    <div className="text-[9px] font-bold text-stone-400 uppercase mb-1">Executive Summary — Current Issue (satu per baris)</div>
+                    <textarea className="w-full px-2.5 py-2 rounded-xl border border-stone-200 text-[11px] focus:outline-none focus:ring-1 focus:ring-stone-400 resize-none" rows={3} value={ef.execSummary||''} onChange={e=>setEf(p=>({...p,execSummary:e.target.value}))} placeholder={'Bekasi 2: paving blk DE, penjualan rendah\nBekasi 3: wifi lemot, BPHTB terkendala'}/>
+                  </div>
+                  <div>
+                    <div className="text-[9px] font-bold text-red-400 uppercase mb-1">Decision Needed 🔴</div>
+                    <textarea className="w-full px-2.5 py-2 rounded-xl border border-red-100 text-[11px] focus:outline-none focus:ring-1 focus:ring-red-300 resize-none" rows={2} value={ef.decisionNeeded||''} onChange={e=>setEf(p=>({...p,decisionNeeded:e.target.value}))} placeholder="Apa yang perlu diputuskan CEO di meeting ini?"/>
+                  </div>
+                  <div>
+                    <div className="text-[9px] font-bold text-blue-400 uppercase mb-1">Link Data / Lampiran</div>
+                    <input className="w-full px-2.5 py-2 rounded-xl border border-stone-200 text-[11px] focus:outline-none focus:ring-1 focus:ring-stone-400" value={ef.linkData||''} onChange={e=>setEf(p=>({...p,linkData:e.target.value}))} placeholder="https://docs.google.com/..."/>
+                  </div>
+                </div>
+              </div>
               {/* Save */}
               <button className="w-full py-2.5 rounded-xl bg-stone-900 text-white text-[11px] font-bold as st" onClick={saveEdit}>Simpan Perubahan</button>
             </div>
@@ -2924,8 +2995,15 @@ function App(){
   const [syncMsg,setSyncMsg]=useState('');
   function connectCal(){setGBusy(true);doConnectGCal(function(tok){setGTok(tok);listGCals(tok).then(function(cs){setGCals(cs);setGBusy(false);}).catch(function(){setGBusy(false);});},function(e){alert('Gagal: '+e);setGBusy(false);});}
   function pickCal(id){setGCalId(id);localStorage.setItem('rsp_gcal_id',id);}
-  function pushItem(item){if(!gTok||!gCalId)return Promise.resolve(false);return pushEventGCal(item,gTok,gCalId).then(function(r){return !r.error;}).catch(function(){return false;});}
-  function pushDay(date){if(!gTok||!gCalId){alert('Connect Google Calendar dulu di ⚙️');return;}var its=jadwal[date]||[];var done=0;var chain=Promise.resolve();its.forEach(function(it){chain=chain.then(function(){return pushEventGCal(it,gTok,gCalId).then(function(r){if(!r.error)done++;});});});chain.then(function(){alert(done+'/'+its.length+' berhasil dipush ke Google Calendar!');});}
+  function pushItem(item,onUpdateItem){
+    if(!gTok||!gCalId)return Promise.resolve(false);
+    return upsertGCalEvent(item,gTok,gCalId).then(function(r){
+      if(r.error)return false;
+      if(r.id&&onUpdateItem)onUpdateItem({gcalEventId:r.id});
+      return true;
+    }).catch(function(){return false;});
+  }
+  function pushDay(date){if(!gTok||!gCalId){alert('Connect Google Calendar dulu di ⚙️');return;}var its=jadwal[date]||[];var done=0;var chain=Promise.resolve();its.forEach(function(it){chain=chain.then(function(){return upsertGCalEvent(it,gTok,gCalId).then(function(r){if(!r.error){done++;updateJadwal(date,it.id,{gcalEventId:r.id});}});});});chain.then(function(){alert(done+'/'+its.length+' berhasil. Update = tidak numpuk di Calendar!');});}
   function forceSyncNow(){setSyncMsg('Syncing...');var p=[];if(backlog.length>0)p.push(new Promise(function(res){sbSave('backlog',backlog);res();}));if(keputusan.length>0)p.push(new Promise(function(res){sbSave('keputusan',keputusan);res();}));if(Object.keys(jadwal).length>0)p.push(new Promise(function(res){sbSave('jadwal',jadwal);res();}));Promise.all(p).then(function(){setSyncMsg('✓ Sync selesai!');setTimeout(function(){setSyncMsg('');},3000);});}
   const [kpiCorp,setKpiCorp]=useState(()=>ld('kpi_corp')||{});
   const [kpiCeo,setKpiCeo]=useState(()=>ld('kpi_ceo')||{});
@@ -2987,7 +3065,13 @@ function App(){
   const delK=(id)=>{const n=keputusan.filter(it=>it.id!==id);setKeputusan(n);sv('keputusan',n);};
   const addToJadwal=(date,item)=>{const n={...jadwal};if(!n[date])n[date]=[];n[date]=[...n[date],item];setJadwal(n);sv('jadwal',n);};
   const batchAddToJadwal=(byDate)=>{const n={...jadwal};Object.entries(byDate).forEach(([date,items])=>{if(!n[date])n[date]=[];n[date]=[...(n[date]||[]),...items];});setJadwal(n);sv('jadwal',n);};
-  const removeFromJadwal=(date,itemId)=>{const n={...jadwal};if(n[date])n[date]=n[date].filter(it=>it.id!==itemId);setJadwal(n);sv('jadwal',n);};
+  const removeFromJadwal=(date,itemId)=>{
+    const item=(jadwal[date]||[]).find(function(it){return it.id===itemId;});
+    if(item&&item.gcalEventId&&gTok&&gCalId){
+      deleteGCalEvent(item.gcalEventId,gTok,gCalId).catch(function(){});
+    }
+    const n={...jadwal};if(n[date])n[date]=n[date].filter(it=>it.id!==itemId);setJadwal(n);sv('jadwal',n);
+  };
   const updateJadwal=(date,itemId,patch)=>{const n={...jadwal};if(n[date])n[date]=n[date].map(it=>it.id===itemId?{...it,...patch}:it);setJadwal(n);sv('jadwal',n);};
   const resetJadwalBatch=(batchId)=>{const n={...jadwal};Object.keys(n).forEach(date=>{n[date]=(n[date]||[]).filter(it=>it._icsBatch!==batchId);});setJadwal(n);sv('jadwal',n);};
   const setST=(t,v)=>setSub(p=>({...p,[t]:v}));
