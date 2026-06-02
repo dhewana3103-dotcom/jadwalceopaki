@@ -1321,6 +1321,39 @@ function ImportJadwal({onAddJadwal,onBatchAddJadwal}){
 }
 
 // ── ICS HELPERS ───────────────────────────────────────────────
+function parseGCalDesc(raw){
+  if(!raw)return{};
+  // Unescape ICS encoding: \n → newline, \, → comma
+  var text=raw.replace(/\\n/g,'\n').replace(/\\,/g,',').replace(/\\;/g,';').replace(/\\:/g,':').trim();
+  var result={};
+  function extract(pattern){var m=text.match(pattern);return m?m[1].trim():null;}
+  function extractBlock(startPat,endPat){
+    var si=text.search(startPat);if(si<0)return null;
+    var afterStart=text.slice(si).replace(startPat,'').trim();
+    var ei=endPat?afterStart.search(endPat):-1;
+    return(ei>0?afterStart.slice(0,ei):afterStart).trim();
+  }
+  function cleanBullets(s){if(!s)return '';return s.split('\n').map(function(l){return l.replace(/^[•\-\*]\s*/,'').trim();}).filter(Boolean).join('\n');}
+  // OBJECTIVE
+  var obj=extract(/OBJECTIVE\s*\n([^\n]+)/i);
+  if(obj)result.objective=obj;
+  // ATTENDEES block
+  var attBlock=extractBlock(/ATTENDEES?\s*\n/i,/\n\n|\nEXECUTIVE|\nDECISION|\nNote:/i);
+  if(attBlock)result.peserta=cleanBullets(attBlock);
+  // EXECUTIVE SUMMARY → Current Issue
+  var execBlock=extractBlock(/EXECUTIVE SUMMARY\s*\n(?:Current Issue:?\s*\n)?/i,/\n\n(?:Decision|\nNote:)/i);
+  if(!execBlock)execBlock=extractBlock(/Current Issue:?\s*\n/i,/\n\nDecision|\nNote:/i);
+  if(execBlock)result.execSummary=cleanBullets(execBlock);
+  // Decision Needed
+  var dn=extractBlock(/Decision Needed:?\s*\n?/i,/\n\nDecision Made|\n\nNote:|\n\n[A-Z]/i);
+  if(dn&&dn!=='-'&&dn.length>1)result.decisionNeeded=dn;
+  // Note / links
+  var note=extractBlock(/Note:?\s*\n/i,/\n\n[A-Z]|\n━/i);
+  if(note)result.linkData=note;
+  // Fallback: after ━ separator, before end
+  return result;
+}
+
 function parseDTStr(val){
   const isUTC=val.endsWith('Z');
   const c=val.replace('Z','');
@@ -1398,10 +1431,13 @@ function parseICS(icsText,rangeStart,rangeEnd){
     const start=parseDTStr(dtSV);const end=dtEV?parseDTStr(dtEV):start;
     const durMs=Math.max(end.ts-start.ts,900000); // min 15min
     const mapped=mapICSEvent(summary);
+    // Parse description for structured fields
+    const descRaw=props['DESCRIPTION']||'';
+    const brief=parseGCalDesc(descRaw);
     function mk(s,e){
       const ds=new Date(s),de=new Date(e);
       const dateStr=`${ds.getFullYear()}-${String(ds.getMonth()+1).padStart(2,'0')}-${String(ds.getDate()).padStart(2,'0')}`;
-      return{id:'SJ-'+genId(),tanggal:dateStr,jamMulai:`${String(ds.getHours()).padStart(2,'0')}:${String(ds.getMinutes()).padStart(2,'0')}`,jamSelesai:`${String(de.getHours()).padStart(2,'0')}:${String(de.getMinutes()).padStart(2,'0')}`,masalahBacklogId:'',masalahText:'',kategori:mapped.kategori,jenisKegiatan:mapped.jenisKegiatan,detailKegiatan:mapped.detail,relateMilestone:mapped.relateMilestone,outputKeputusan:''};
+      return{id:'SJ-'+genId(),tanggal:dateStr,jamMulai:`${String(ds.getHours()).padStart(2,'0')}:${String(ds.getMinutes()).padStart(2,'0')}`,jamSelesai:`${String(de.getHours()).padStart(2,'0')}:${String(de.getMinutes()).padStart(2,'0')}`,masalahBacklogId:'',masalahText:'',kategori:mapped.kategori,jenisKegiatan:mapped.jenisKegiatan,detailKegiatan:brief.objective||mapped.detail||summary,relateMilestone:mapped.relateMilestone,outputKeputusan:'',peserta:brief.peserta||'',execSummary:brief.execSummary||'',decisionNeeded:brief.decisionNeeded||'',linkData:brief.linkData||''};
     }
     if(props['RRULE']){
       expandRRuleICS(start.ts,durMs,props['RRULE'],rangeStart,rangeEnd).forEach(({start:s,end:e})=>{
@@ -3020,9 +3056,9 @@ function App(){
 
   useEffect(()=>{
     const sb=ld('backlog');const sk=ld('keputusan');const sj=ld('jadwal');
-    setBacklog(sb&&sb.length>0?sb:SAMPLE_BL);
-    setKeputusan(sk&&sk.length>0?sk:SAMPLE_KPT);
-    setJadwal(sj||SJ);
+    setBacklog(sb||[]);
+    setKeputusan(sk||[]);
+    setJadwal(sj||{});
     setReady(true);
     var script=document.createElement('script');
     script.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
