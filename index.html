@@ -873,7 +873,7 @@ function Sidebar({tab,sub,setTab,setST,nc,belumCount}){
     {id:'dashboard',ico:'📊',lbl:'Dashboard'},
     {id:'jadwal',ico:'📅',lbl:'Jadwal',subs:[{id:'harian',lbl:'Harian'},{id:'mingguan',lbl:'Mingguan'},{id:'bulanan',lbl:'Bulanan'}]},
     {id:'dump',ico:'✨',lbl:'Dump Think',fab:true},
-    {id:'backlog',ico:'📋',lbl:'Backlog',subs:[{id:'backlog',lbl:'Backlog'},{id:'keputusan',lbl:'Keputusan & Tracking'}]},
+    {id:'backlog',ico:'📋',lbl:'Backlog',subs:[{id:'backlog',lbl:'Backlog'},{id:'keputusan',lbl:'Keputusan & Tracking'},{id:'mom',lbl:'MoM'}]},
     {id:'resume',ico:'📈',lbl:'Resume'},
   ];
   return(
@@ -981,7 +981,7 @@ function exportJadwalCSV(jadwal,backlog,range){
 }
 
 // ── IMPORT MoM ─────────────────────────────────────────────────
-function ImportMoM({onAddBacklog,onAddKeputusan,backlog,jadwal,onUpdateJadwal}){
+function ImportMoM({onAddMom,onAddKeputusan,backlog,jadwal,onUpdateJadwal}){
   const [inputMode,setInputMode]=useState('paste');
   const [csvText,setCsvText]=useState('');
   const [selectedId,setSelectedId]=useState('');
@@ -1028,17 +1028,26 @@ function ImportMoM({onAddBacklog,onAddKeputusan,backlog,jadwal,onUpdateJadwal}){
 
   function doConfirm(){
     if(!preview)return;
-    const toBacklog=items.filter(it=>getDest(it)==='backlog');
-    const toKpt=items.filter(it=>getDest(it)==='keputusan');
-    // Save backlog
-    if(toBacklog.length)onAddBacklog(toBacklog.map(it=>it._orig==='backlog'?{...it}:{id:'BL-'+genId(),sumber:'PDCA',tanggal:todayStr(),konteks:it.konteks||'',isi:it._action||'',action:it._action||'',ekspektasi:'',pic:null,deadline:null,fungsiKPI:'operasional',kategori:'Meeting Review Operasional + Evaluasi Tim',blokWaktu:'sore-review',prioritas:'sedang',status:'baru',notes:'Dipindah dari Feedback'}));
-    // Save keputusan
-    toKpt.forEach(it=>{if(it._orig==='keputusan')onAddKeputusan(it);else onAddKeputusan({id:'KP-'+genId(),tanggal:todayStr(),backlogId:null,konteks:it.konteks,deskripsi:it._action,fungsiKPI:'operasional',dampak:it.prioritas==='tinggi'?'tinggi':'sedang',status:'disampaikan',output:it._action,updateTL:'',sumber:selAct&&linkMode==='jadwal'?selAct.detailKegiatan:(freeText||'Import MoM')});});
-    // Auto-fill output on linked jadwal item (only when linked to a real jadwal item)
+    const allIt=items;
+    const meetName=linkMode==='free'?(freeText.trim()||'Import MoM'):(selAct?mLabel(selAct):'Import MoM');
+    const meetDate=selAct&&linkMode==='jadwal'?selAct.tanggal:todayStr();
+    const gcalDescVal=selAct&&linkMode==='jadwal'?(selAct.gcalDesc||''):'';
+    // Save to MoM (single entry per meeting)
+    const momEntry={
+      id:'MOM-'+genId(),
+      tanggal:meetDate,
+      meetingName:meetName,
+      gcalDesc:gcalDescVal,
+      items:allIt.map(it=>({id:it.id||('MI-'+genId()),konteks:it.konteks||'',action:it._action||'',jenis:it._jenis||'',pic:it.pic||'',deadline:it.deadline||'',status:'pending'})),
+      sumber:linkMode==='jadwal'&&selAct?selAct.id:'',
+      createdAt:todayStr()
+    };
+    if(onAddMom)onAddMom(momEntry);
+    // Auto-fill output on linked jadwal item
     if(selAct&&linkMode==='jadwal'){
-      const blLines=toBacklog.map((it,i)=>`${i+1}. ${it._action}${it.pic?' → '+it.pic:''}${it.deadline?' ('+it.deadline+')':''}`);
-      const kLines=toKpt.map((it,i)=>`${i+1}. ${it._action}`);
-      const out=[`[MoM Import — ${new Date().toLocaleDateString('id-ID',{day:'numeric',month:'short',year:'numeric'})}]`,blLines.length?`\nAction Items (${blLines.length}):\n${blLines.join('\n')}` :'',kLines.length?`\nFeedback (${kLines.length}):\n${kLines.join('\n')}` :''].filter(Boolean).join('');
+      const actionLines=allIt.filter(it=>it._jenis!=='Feedback').map((it,i)=>`${i+1}. ${it._action}${it.pic?' \u2192 '+it.pic:''}${it.deadline?' ('+it.deadline+')':''}`);
+      const fbLines=allIt.filter(it=>it._jenis==='Feedback').map((it,i)=>`${i+1}. ${it._action}`);
+      const out=[`[MoM — ${new Date().toLocaleDateString('id-ID',{day:'numeric',month:'short',year:'numeric'})}]`,actionLines.length?`\nAction (${actionLines.length}):\n${actionLines.join('\n')}` :'',fbLines.length?`\nFeedback (${fbLines.length}):\n${fbLines.join('\n')}` :''].filter(Boolean).join('');
       onUpdateJadwal(selAct.tanggal,selAct.id,{outputKeputusan:out});
     }
     setPreview(null);setCsvText('');setDestOvr({});setDone(true);
@@ -1122,7 +1131,7 @@ function ImportMoM({onAddBacklog,onAddKeputusan,backlog,jadwal,onUpdateJadwal}){
       </div>
 
       {err&&<div className="p-3 rounded-xl bg-red-50 border border-red-100 text-[11px] text-red-600 mb-4">⚠️ {err}</div>}
-      {done&&<div className="p-3 rounded-xl bg-emerald-50 border border-emerald-100 text-[11px] text-emerald-700 mb-4">✅ Berhasil disimpan! {selAct&&linkMode==='jadwal'?'Output jadwal item otomatis diperbarui.':''}</div>}
+      {done&&<div className="p-3 rounded-xl bg-emerald-50 border border-emerald-100 text-[11px] text-emerald-700 mb-4">✅ MoM disimpan ke tab Backlog → MoM! {selAct&&linkMode==='jadwal'?'Output jadwal otomatis diperbarui.':''}</div>}
 
       <button className={`w-full py-3.5 rounded-2xl text-[12px] font-extrabold st as mb-4 ${!csvText.trim()?'bg-stone-200 text-stone-400 cursor-not-allowed':'bg-stone-900 text-white shadow-float'}`} onClick={doParse} disabled={!csvText.trim()}>🔍 Parse & Preview</button>
 
@@ -1186,7 +1195,7 @@ function ImportMoM({onAddBacklog,onAddKeputusan,backlog,jadwal,onUpdateJadwal}){
         </div>}
 
         <button className="w-full py-3.5 rounded-2xl bg-emerald-600 text-white text-[12px] font-bold shadow-md as st" onClick={doConfirm}>
-          ✓ Simpan {items.length} item{selAct&&linkMode==='jadwal'?' + Update Output Jadwal':''}
+          ✓ Simpan {items.length} item ke MoM{selAct&&linkMode==='jadwal'?' + Update Output Jadwal':''}
         </button>
       </div>}
     </div>
@@ -1791,7 +1800,7 @@ function KPIPage({onSaveKpiCorp,onSaveKpiCeo}){
   );
 }
 
-function DumpPage({onAdd,onAddKeputusan,onAddJadwal,onBatchAddJadwal,onUpdateJadwal,onResetICSBatch,onSaveKpiCorp,onSaveKpiCeo,jadwal,backlog,onDone}){
+function DumpPage({onAdd,onAddKeputusan,onAddJadwal,onBatchAddJadwal,onUpdateJadwal,onResetICSBatch,onSaveKpiCorp,onSaveKpiCeo,onAddMom,jadwal,backlog,onDone}){
   const [mode,setMode]=useState('dump');
   const tabs=[{id:'dump',lbl:'🧠 Dump'},{id:'importMom',lbl:'📥 MoM'},{id:'importJadwal',lbl:'📅 CSV'},{id:'importICS',lbl:'🗓 ICS'},{id:'kpi',lbl:'📊 KPI'}];
   return(
@@ -1802,7 +1811,7 @@ function DumpPage({onAdd,onAddKeputusan,onAddJadwal,onBatchAddJadwal,onUpdateJad
         </div>
       </div>
       {mode==='dump'&&<DumpInput onAdd={onAdd} onDone={onDone}/>}
-      {mode==='importMom'&&<ImportMoM onAddBacklog={items=>onAdd(items)} onAddKeputusan={onAddKeputusan} backlog={backlog} jadwal={jadwal} onUpdateJadwal={onUpdateJadwal}/>}
+      {mode==='importMom'&&<ImportMoM onAddMom={onAddMom} onAddKeputusan={onAddKeputusan} backlog={backlog} jadwal={jadwal} onUpdateJadwal={onUpdateJadwal}/>}
       {mode==='importJadwal'&&<ImportJadwal onAddJadwal={onAddJadwal} onBatchAddJadwal={onBatchAddJadwal}/>}
       {mode==='importICS'&&<ImportICS onBatchAddJadwal={onBatchAddJadwal} onResetICSBatch={onResetICSBatch}/>}
       {mode==='kpi'&&<KPIPage onSaveKpiCorp={onSaveKpiCorp} onSaveKpiCeo={onSaveKpiCeo}/>}
@@ -1954,7 +1963,7 @@ function Dashboard({weekly,kpiCorp,dashMonth,onChangeMonth}){
               <div><div className="text-[13px] font-bold text-stone-800 flex items-center gap-1.5">{g.icon} {g.name} <span className="text-[10px] text-stone-400 font-medium">({g.bobot}%)</span></div><div className="text-[10px] text-stone-400 mt-0.5 ml-5">{g.div}</div></div>
               <div className="flex items-center gap-1.5">{active.slice(-2).map(w=>{const d=weekly[w];const gp=d?Math.round(g.items.reduce((s,i)=>{const v=d[i.id];return s+(v?Math.min(v.pct,100)*i.bobot/g.bobot:0);},0)):null;return<Pct key={w} p={gp} sm/>;})}<span className={`text-[10px] text-stone-300 st ${isO?'rotate-180':''}`}>▼</span></div>
             </div>
-            {isO&&<div className="overflow-x-auto bg-stone-50/50"><table className="w-full min-w-[380px]"><thead><tr>{['Sub Indikator',...WEEKS].map((h,i)=><th key={h} className={`text-[9px] font-bold text-stone-400 p-2 ${i===0?'text-left pl-3':'text-center'} bg-stone-100 uppercase tracking-wider border-b border-stone-200`}>{h}</th>)}</tr></thead><tbody>{g.items.map(item=><tr key={item.id} className="border-b border-stone-100 last:border-0"><td className="p-2 pl-3"><div className="text-[11px] font-semibold text-stone-700 leading-tight">{item.name}{item.c?' 🔴':''}</div><div className="text-[9px] text-stone-400 mt-0.5">{item.bobot}% bobot</div></td>{WEEKS.map(w=>{const d=weekly[w]?.[item.id];return<td key={w} className="p-2 text-center">{weekly[w]?<div className="flex flex-col items-center"><Pct p={d?.pct??null} sm/>{d?.aktual!==undefined&&<span className="text-[8px] text-stone-400 mt-0.5">n={d.aktual}</span>}</div>:<span className="text-[11px] text-stone-300">—</span>}</td>;})}</tr>)}</tbody></table></div>}
+            {isO&&<div className="overflow-x-auto bg-stone-50/50"><table className="w-full min-w-[380px]"><thead><tr>{['Sub Indikator',...WEEKS].map((h,i)=><th key={h} className={`text-[9px] font-bold text-stone-400 p-2 ${i===0?'text-left pl-3':'text-center'} bg-stone-100 uppercase tracking-wider border-b border-stone-200`}>{h}</th>)}</tr></thead><tbody>{g.items.map(item=><tr key={item.id} className="border-b border-stone-100 last:border-0"><td className="p-2 pl-3"><div className="text-[11px] font-semibold text-stone-700 leading-tight">{item.name}{item.c?' 🔴':''}</div><div className="text-[9px] text-stone-400 mt-0.5">{item.bobot}% bobot</div></td>{WEEKS.map(w=>{const d=weekly[w]?weekly[w][item.id]:null;return<td key={w} className="p-2 text-center">{weekly[w]?<div className="flex flex-col items-center"><Pct p={d!==null&&d!==undefined?d.pct:null} sm/>{d&&d.aktual!==undefined&&<span className="text-[8px] text-stone-400 mt-0.5">n={d.aktual}</span>}</div>:<span className="text-[11px] text-stone-300">—</span>}</td>;})}</tr>)}</tbody></table></div>}
           </div>
         );})}
       </div>
@@ -1996,404 +2005,307 @@ function applyJadwalFilter(items,filter){
   });
 }
 
+// Helper: parse "HH:MM" to minutes since midnight
+function timeToMin(t){if(!t)return 0;const p=t.split(':');return parseInt(p[0]||0)*60+parseInt(p[1]||0);}
+function nowTimeStr(){const n=new Date();return String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');}
+function getItemState(item){
+  const now=timeToMin(nowTimeStr());
+  const start=timeToMin(item.jamMulai||'00:00');
+  const end=timeToMin(item.jamSelesai||'23:59');
+  if(!item.jamMulai)return'upcoming';
+  if(now>=start&&now<end)return'current';
+  if(now>=end)return'past';
+  return'upcoming';
+}
+
 function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,onUpdate,onAddKeputusan,filter,gcalOn,onPushItem,onPushDay}){
   const today=todayStr();
   const dayName=new Date().toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long'});
-  // Flat array per day, sorted by jamMulai
   const dayItemsAll=(jadwal[today]||[]).slice().sort((a,b)=>(a.jamMulai||'').localeCompare(b.jamMulai||''));
   const dayItems=filter?applyJadwalFilter(dayItemsAll,filter):dayItemsAll;
   const hiddenCount=dayItemsAll.length-dayItems.length;
-  // Backlog items scheduled today (from backlog card "Jadwal" action)
-  const blSched=backlog.filter(it=>it.status==='dijadwalkan'&&it.tanggal===today);
-  const blBaru=backlog.filter(it=>it.status==='baru');
+  // Only non-meeting blSched
+  const blSched=backlog.filter(function(it){
+    if(it.status!=='dijadwalkan'||it.tanggal!==today)return false;
+    var j=it.kategori||'';
+    return!j.includes('Meeting')&&!j.includes('External');
+  });
 
-  const [addingBlok,setAddingBlok]=useState(null); // which blok is open for adding
-  const [showBL,setShowBL]=useState(false);
+  const [addingBlok,setAddingBlok]=useState(null);
   const [showExport,setShowExport]=useState(false);
   const [expOutput,setExpOutput]=useState(null);
   const [expChecklist,setExpChecklist]=useState(null);
   const [expEdit,setExpEdit]=useState(null);
-  const [editId,setEditId]=useState(null);
-
-  const EMPTY_F={
-    jamMulai:'08:00',jamSelesai:'09:00',
-    masalahMode:'backlog', // 'backlog' | 'manual'
-    masalahBacklogId:'',masalahText:'',
-    kategori:'RSP',jenisKegiatan:'Deepwork Strategic',
-    detailKegiatan:'',relateMilestone:'operasional',outputKeputusan:'',
-  };
-  const [newF,setNewF]=useState(EMPTY_F);
+  const [nowStr,setNowStr]=useState(nowTimeStr());
   const [outTexts,setOutTexts]=useState({});
 
-  function doAdd(blokId){
-    if(!newF.detailKegiatan.trim())return;
-    const item={
-      id:'SJ-'+genId(),
-      tanggal:today,
-      jamMulai:newF.jamMulai,
-      jamSelesai:newF.jamSelesai,
-      masalahBacklogId:newF.masalahMode==='backlog'?newF.masalahBacklogId:'',
-      masalahText:newF.masalahMode==='manual'?newF.masalahText:'',
-      kategori:newF.kategori,
-      jenisKegiatan:newF.jenisKegiatan,
-      detailKegiatan:newF.detailKegiatan,
-      relateMilestone:newF.relateMilestone,
-      outputKeputusan:'',
-    };
-    onAddJadwal(today,item);
-    setAddingBlok(null);setNewF(EMPTY_F);
-  }
+  useEffect(function(){
+    var t=setInterval(function(){setNowStr(nowTimeStr());},30000);
+    return function(){clearInterval(t);};
+  },[]);
+
+  const EMPTY_F={jamMulai:'08:00',jamSelesai:'09:00',kategori:'RSP',jenisKegiatan:'Deepwork Strategic',detailKegiatan:'',relateMilestone:'operasional',outputKeputusan:''};
 
   function saveOutput(item){
     const txt=outTexts[item.id]||'';if(!txt.trim())return;
-    // Update jadwal item
     onUpdateJadwal(today,item.id,{outputKeputusan:txt});
-    // Also create keputusan entry
     onAddKeputusan({id:'KP-'+genId(),tanggal:today,backlogId:item.masalahBacklogId||null,konteks:item.detailKegiatan.slice(0,50),deskripsi:item.detailKegiatan,fungsiKPI:item.relateMilestone,dampak:'sedang',status:'disampaikan',output:txt,sumber:item.jenisKegiatan});
-    setExpOutput(null);setOutTexts(p=>({...p,[item.id]:''}));
+    setExpOutput(null);setOutTexts(function(p){const n={...p};n[item.id]='';return n;});
   }
 
-  // Group items by blok for display
-  function getBlokItems(blokId){
-    return dayItems.filter(it=>getBlokFromTime(it.jamMulai)===blokId);
-  }
+  function getBlokItems(blokId){return dayItems.filter(function(it){return getBlokFromTime(it.jamMulai)===blokId;});}
 
-  function FField({label,children}){
-    return<div className="mb-3"><div className="text-[9px] font-extrabold text-stone-500 uppercase tracking-wider mb-1.5">{label}</div>{children}</div>;
-  }
-
-  function JadwalCard({item,fromBacklog=false}){
-    const kpi=KPI5.find(k=>k.id===item.relateMilestone);
-    const linkedBL=fromBacklog?null:backlog.find(b=>b.id===item.masalahBacklogId);
-    const masalahLabel=fromBacklog?`${item.konteks}: ${item.isi}`:(linkedBL?`${linkedBL.konteks}: ${linkedBL.isi}`:item.masalahText);
+  function JadwalCard({item,fromBL}){
+    const kpi=KPI5.find(function(k){return k.id===item.relateMilestone;});
     const isExpOut=expOutput===item.id;
     const isExpCL=expChecklist===item.id;
-    const isExpEdit=!fromBacklog&&expEdit===item.id;
-    const [ef,setEf]=useState({jamMulai:item.jamMulai||'',jamSelesai:item.jamSelesai||'',kategori:item.kategori||'RSP',jenisKegiatan:item.jenisKegiatan||'Meeting Review Operasional + Evaluasi Tim',detailKegiatan:item.detailKegiatan||'',masalahText:item.masalahText||'',relateMilestone:item.relateMilestone||'operasional'});
-    const [expDetail,setExpDetail]=useState(false);
-    const hasBrief=item.gcalDesc&&item.gcalDesc.trim();
-    function openEdit(){setEf({jamMulai:item.jamMulai||'',jamSelesai:item.jamSelesai||'',kategori:item.kategori||'RSP',jenisKegiatan:item.jenisKegiatan||'Meeting Review Operasional + Evaluasi Tim',detailKegiatan:item.detailKegiatan||'',masalahText:item.masalahText||'',relateMilestone:item.relateMilestone||'operasional',peserta:item.peserta||'',execSummary:item.execSummary||'',decisionNeeded:item.decisionNeeded||'',linkData:item.linkData||''});setExpEdit(item.id);setExpOutput(null);setExpChecklist(null);}
-    function saveEdit(){onUpdateJadwal(today,item.id,{jamMulai:ef.jamMulai,jamSelesai:ef.jamSelesai,kategori:ef.kategori,jenisKegiatan:ef.jenisKegiatan,detailKegiatan:ef.detailKegiatan,masalahText:ef.masalahText,relateMilestone:ef.relateMilestone});setExpEdit(null);}
+    const isExpEdit=expEdit===item.id;
+    const isMeeting=item.jenisKegiatan&&(item.jenisKegiatan.includes('Meeting')||item.jenisKegiatan.includes('External'));
+    const state=getItemState(item);
+    const [ef,setEf]=useState({jamMulai:item.jamMulai||'',jamSelesai:item.jamSelesai||'',kategori:item.kategori||'RSP',jenisKegiatan:item.jenisKegiatan||'Deepwork Strategic',detailKegiatan:item.detailKegiatan||'',gcalDesc:item.gcalDesc||'',relateMilestone:item.relateMilestone||'operasional'});
+
+    function openEdit(){setEf({jamMulai:item.jamMulai||'',jamSelesai:item.jamSelesai||'',kategori:item.kategori||'RSP',jenisKegiatan:item.jenisKegiatan||'Deepwork Strategic',detailKegiatan:item.detailKegiatan||'',gcalDesc:item.gcalDesc||'',relateMilestone:item.relateMilestone||'operasional'});setExpEdit(item.id);setExpOutput(null);setExpChecklist(null);}
+    function saveEdit(){
+      onUpdateJadwal(today,item.id,{jamMulai:ef.jamMulai,jamSelesai:ef.jamSelesai,kategori:ef.kategori,jenisKegiatan:ef.jenisKegiatan,detailKegiatan:ef.detailKegiatan,gcalDesc:ef.gcalDesc,relateMilestone:ef.relateMilestone});
+      if(gcalOn&&item.gcalEventId)onPushItem({...item,...ef},function(patch){onUpdateJadwal(today,item.id,patch);});
+      setExpEdit(null);
+    }
+
     const jColor=JENIS_COLOR[item.jenisKegiatan]||'bg-stone-100 text-stone-600';
     const kColor=KATEGORI_COLOR[item.kategori]||'bg-stone-100 text-stone-600';
-    const hasOutput=fromBacklog?false:!!item.outputKeputusan;
-    // Checklist — handle sub-type for Meeting Strategic
-    const clDef=(!fromBacklog&&PRE_CHECKLIST[item.jenisKegiatan])||null;
+    const hasOutput=fromBL?false:!!item.outputKeputusan;
+    const stateDot=state==='current'?'bg-blue-500 animate-pulse':state==='past'?'bg-stone-300':'bg-emerald-400';
+
+    const clDef=(!fromBL&&PRE_CHECKLIST[item.jenisKegiatan])||null;
     const hasSubs=clDef&&clDef._subs;
     const subType=item.meetingSubType||null;
     const clItems=hasSubs?(subType?(clDef[subType]||[]):[]):(Array.isArray(clDef)?clDef:[]);
     const clDone=item.checklistDone||{};
     const clTotal=clItems.length;
-    const clChecked=clItems.filter(c=>clDone[c.id]).length;
+    const clChecked=clItems.filter(function(c){return clDone[c.id];}).length;
     const clAllDone=clTotal>0&&clChecked===clTotal;
-    const clWajibTotal=clItems.filter(c=>c.wajib).length;
-    const clWajibDone=clItems.filter(c=>c.wajib&&clDone[c.id]).length;
-    function toggleCheck(cid){
-      if(fromBacklog)return;
-      onUpdateJadwal(today,item.id,{checklistDone:{...clDone,[cid]:!clDone[cid]}});
-    }
-    function setSubType(st){
-      onUpdateJadwal(today,item.id,{meetingSubType:st,checklistDone:{}});
-    }
+    const clWajibTotal=clItems.filter(function(c){return c.wajib;}).length;
+    const clWajibDone=clItems.filter(function(c){return c.wajib&&clDone[c.id];}).length;
+    function toggleCheck(cid){if(!fromBL)onUpdateJadwal(today,item.id,{checklistDone:{...clDone,[cid]:!clDone[cid]}});}
+    function setSubType(st){onUpdateJadwal(today,item.id,{meetingSubType:st,checklistDone:{}});}
+
+    const outputPlaceholder=isMeeting
+      ?'Import MoM via Dump \u2192 \uD83D\uDCE5 MoM setelah meeting selesai'
+      :'Isi output spesifik 5W1H:\n\u2022 What: apa yang dikerjakan/diputuskan?\n\u2022 Who: siapa yang bertanggung jawab?\n\u2022 When: deadline tindak lanjut?\n\u2022 Why: mengapa output ini penting?\n\u2022 How: bagaimana pelaksanaannya?\n\nContoh: "Revisi cashflow Bekasi (What) oleh Pak Andyka (Who) selesai 5 Juni (When) karena negatif 2 minggu (Why), format Excel + review CEO (How)"';
+
     return(
       <div className="bg-white rounded-xl border border-stone-200 shadow-sm overflow-hidden mb-2 relative afi">
-        <div className={`absolute left-0 top-0 bottom-0 w-1 ${kpi?.bg||'bg-stone-200'}`}/>
+        <div className={`absolute left-0 top-0 bottom-0 w-1 ${kpi&&kpi.bg?kpi.bg:'bg-stone-200'}`}/>
         <div className="p-3 pl-4">
-          {/* Row 1: Time + kategori badges */}
           <div className="flex items-center gap-2 mb-2 flex-wrap">
+            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${stateDot}`}/>
             <span className="text-[13px] font-black text-stone-900 tabular-nums">
-              {fromBacklog?(item.blokWaktu?BLOKS.find(b=>b.id===item.blokWaktu)?.time:'—'):`${item.jamMulai}–${item.jamSelesai}`}
+              {fromBL?(item.blokWaktu&&BLOKS.find(function(b){return b.id===item.blokWaktu;})?BLOKS.find(function(b){return b.id===item.blokWaktu;}).time:'--'):`${item.jamMulai}--${item.jamSelesai}`}
             </span>
-            <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${kColor}`}>{fromBacklog?'Backlog':item.kategori}</span>
-            <span className={`px-2 py-0.5 rounded-md text-[9px] font-bold ${jColor}`}>{JENIS_SHORT[item.jenisKegiatan]||item.kategori||item.jenisKegiatan}</span>
+            {state==='current'&&<span className="text-[8px] font-black text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full border border-blue-200">BERLANGSUNG</span>}
+            <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${kColor}`}>{fromBL?'Backlog':item.kategori}</span>
+            <span className={`px-2 py-0.5 rounded-md text-[9px] font-bold ${jColor}`}>{JENIS_SHORT[item.jenisKegiatan]||item.jenisKegiatan}</span>
           </div>
-          {/* Row 2: Detail kegiatan */}
-          <div className="text-[12px] font-semibold text-stone-800 leading-snug mb-2">{fromBacklog?item.isi:item.detailKegiatan}</div>
-          {/* Pre-Meeting Brief */}
-          {hasBrief&&<div className="mb-2.5">
-            <button className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg border st as text-left ${expDetail?'bg-stone-800 text-white border-stone-800':'bg-stone-50 border-stone-200 hover:bg-stone-100'}`} onClick={function(){setExpDetail(function(p){return !p;});}}>
-              <span className="text-[10px] font-bold">📋 Deskripsi Calendar</span>
-              <span className={`text-[10px] ${expDetail?'text-stone-300 rotate-180':'text-stone-400'}`}>▼</span>
-            </button>
-            {expDetail&&<div className="border border-stone-200 border-t-0 rounded-b-xl bg-white p-3 afi">
-              <div className="text-[11px] text-stone-700 leading-relaxed whitespace-pre-wrap">{item.gcalDesc}</div>
-              {item.gcalEventId&&<div className="mt-2 pt-2 border-t border-stone-100 text-[9px] text-emerald-600 font-medium">✓ Sudah di Google Calendar</div>}
+          <div className="text-[12px] font-semibold text-stone-800 leading-snug mb-2">{fromBL?item.isi:item.detailKegiatan}</div>
+          {!fromBL&&item.gcalDesc&&item.gcalDesc.trim()&&!isExpEdit&&(
+            <div className="bg-stone-50 border border-stone-200 rounded-lg px-2.5 py-2 mb-2">
+              <div className="text-[8px] font-extrabold text-stone-400 uppercase tracking-wider mb-0.5">Deskripsi Calendar</div>
+              <div className="text-[11px] text-stone-600 leading-relaxed whitespace-pre-wrap" style={{display:'-webkit-box',WebkitLineClamp:3,WebkitBoxOrient:'vertical',overflow:'hidden'}}>{item.gcalDesc}</div>
+            </div>
+          )}
+          {kpi&&<div className="flex items-center gap-1.5 mb-2"><KC id={kpi.id} sm/>{!fromBL&&item.gcalEventId&&<span className="text-[9px] text-emerald-600 font-medium">di Calendar</span>}</div>}
+          {hasOutput&&!isExpOut&&(
+            <div className="bg-emerald-50 border border-emerald-100 rounded-lg px-2.5 py-2 mb-2">
+              <div className="text-[8px] font-extrabold text-emerald-600 uppercase tracking-wider mb-0.5">Output</div>
+              <div className="text-[11px] text-emerald-800 font-medium leading-snug">{item.outputKeputusan.slice(0,120)}{item.outputKeputusan.length>120?'...':''}</div>
+            </div>
+          )}
+          {(clDef||hasSubs)&&!fromBL&&<div className="mb-2">
+            {hasSubs&&!subType&&<div className="border border-stone-200 rounded-xl overflow-hidden mb-1.5">
+              <div className="px-3 py-2 bg-stone-50 border-b border-stone-200 text-[10px] font-extrabold text-stone-600">Pilih tipe meeting:</div>
+              <div className="p-2 flex gap-2">{clDef._subs.map(function(s){return(
+                <button key={s} className="flex-1 py-2 px-3 rounded-xl border border-stone-200 bg-white text-[11px] font-bold text-stone-700 hover:bg-stone-50 as st text-left" onClick={function(){setSubType(s);}}>
+                  <div className="text-[13px] mb-0.5">{s==='approval'?'OK':'Think'}</div>
+                  <div>{clDef._subLabels[s]}</div>
+                </button>
+              );})}</div>
             </div>}
-          </div>}
-          {/* Row 3: Masalah yang dievaluasi */}
-          {masalahLabel&&<div className="bg-stone-50 border border-stone-200 rounded-lg px-2.5 py-2 mb-2">
-            <div className="text-[8px] font-extrabold text-stone-400 uppercase tracking-wider mb-0.5">Masalah dievaluasi</div>
-            <div className="text-[11px] text-stone-700 font-medium leading-snug">{masalahLabel}</div>
-          </div>}
-          {/* Row 4: KPI relate */}
-          {kpi&&<div className="flex items-center gap-1.5 mb-2.5"><KC id={kpi.id} sm/><span className="text-[9px] text-stone-400">Relate Milestone</span></div>}
-          {/* Row 5: Checklist pre-aktivitas */}
-          {(clDef||hasSubs)&&!fromBacklog&&<div className="mb-2.5">
-            {/* Sub-type selector for Meeting Strategic */}
-            {hasSubs&&!subType&&<div className="border border-stone-200 rounded-xl overflow-hidden">
-              <div className="px-3 py-2 bg-stone-50 border-b border-stone-200">
-                <div className="text-[10px] font-extrabold text-stone-600 flex items-center gap-1.5">📋 Pre-Aktivitas — Pilih tipe meeting ini:</div>
-              </div>
-              <div className="p-2 flex gap-2">
-                {clDef._subs.map(s=>(
-                  <button key={s} className="flex-1 py-2.5 px-3 rounded-xl border border-stone-200 bg-white text-[11px] font-bold text-stone-700 hover:bg-stone-50 as st text-left" onClick={()=>setSubType(s)}>
-                    <div className="text-[13px] mb-0.5">{s==='approval'?'✅':'🧠'}</div>
-                    <div>{clDef._subLabels[s]}</div>
-                  </button>
-                ))}
-              </div>
+            {hasSubs&&subType&&<div className="flex items-center justify-between mb-1.5">
+              <span className={`text-[10px] font-bold px-2 py-1 rounded-lg ${subType==='approval'?'bg-emerald-100 text-emerald-700':'bg-purple-100 text-purple-700'}`}>{clDef._subLabels[subType]}</span>
+              <button className="text-[10px] text-stone-400 as" onClick={function(){setSubType(null);}}>Ganti</button>
             </div>}
-            {/* Sub-type selected — show label + reset + checklist */}
-            {hasSubs&&subType&&<>
-              <div className="flex items-center justify-between mb-1.5">
-                <span className={`text-[10px] font-bold px-2 py-1 rounded-lg ${subType==='approval'?'bg-emerald-100 text-emerald-700':'bg-purple-100 text-purple-700'}`}>{clDef._subLabels[subType]}</span>
-                <button className="text-[10px] text-stone-400 font-semibold as hover:text-stone-600" onClick={()=>setSubType(null)}>↩ Ganti tipe</button>
-              </div>
-            </>}
-            {/* Checklist button + items (only if subType resolved or non-sub type) */}
             {clTotal>0&&<>
-              <button className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg border st as ${isExpCL?'bg-stone-800 text-white border-stone-800':'border-stone-200 hover:bg-stone-50'}`} onClick={()=>setExpChecklist(isExpCL?null:item.id)}>
+              <button className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg border st as ${isExpCL?'bg-stone-800 text-white border-stone-800':'border-stone-200 hover:bg-stone-50'}`} onClick={function(){setExpChecklist(isExpCL?null:item.id);}}>
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-bold">📋 Pre-Aktivitas</span>
-                  <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${clAllDone?'bg-emerald-500 text-white':clWajibDone===clWajibTotal?'bg-amber-400 text-white':'bg-red-100 text-red-700'}`}>{clChecked}/{clTotal}</span>
-                  {clWajibDone<clWajibTotal&&<span className="text-[9px] text-red-500 font-semibold">{clWajibTotal-clWajibDone} wajib belum</span>}
-                  {clAllDone&&<span className="text-[9px] text-emerald-400">✓ Siap</span>}
+                  <span className="text-[10px] font-bold">Pre-Aktivitas</span>
+                  <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${clAllDone?'bg-emerald-500 text-white':clWajibDone===clWajibTotal?'bg-amber-400 text-white':'bg-red-100 text-red-700'}`}>{clChecked}/{clTotal}</span>
+                  {clWajibDone<clWajibTotal&&<span className="text-[9px] text-red-500">{clWajibTotal-clWajibDone} wajib</span>}
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-16 h-1.5 bg-stone-200 rounded-full overflow-hidden">
-                    <div className={`h-full rounded-full ${clAllDone?'bg-emerald-500':clWajibDone===clWajibTotal?'bg-amber-400':'bg-red-400'}`} style={{width:`${clTotal?Math.round(clChecked/clTotal*100):0}%`}}/>
-                  </div>
-                  <span className={`text-[10px] ${isExpCL?'rotate-180 text-white':'text-stone-400'}`}>▼</span>
-                </div>
+                <span className={`text-[10px] ${isExpCL?'rotate-180 text-white':'text-stone-400'}`}>v</span>
               </button>
-              {isExpCL&&<div className="mt-1.5 border border-stone-200 rounded-xl overflow-hidden afi">
-                {clItems.map((c,ci)=>(
-                  <div key={c.id} className={`flex items-start gap-2.5 px-3 py-2.5 ${ci<clItems.length-1?'border-b border-stone-100':''} ${clDone[c.id]?'bg-emerald-50/50':'bg-white'} cursor-pointer hover:bg-stone-50 st`} onClick={()=>toggleCheck(c.id)}>
-                    <div className={`w-4 h-4 rounded border-2 flex-shrink-0 mt-0.5 flex items-center justify-center st ${clDone[c.id]?'bg-emerald-500 border-emerald-500':'border-stone-300 bg-white'}`}>
-                      {clDone[c.id]&&<span className="text-white text-[9px] font-black">✓</span>}
-                    </div>
+              {isExpCL&&<div className="mt-1 border border-stone-200 rounded-xl overflow-hidden afi">
+                {clItems.map(function(c,ci){return(
+                  <div key={c.id} className={`flex items-start gap-2.5 px-3 py-2.5 ${ci<clItems.length-1?'border-b border-stone-100':''} ${clDone[c.id]?'bg-emerald-50/50':'bg-white'} cursor-pointer hover:bg-stone-50 st`} onClick={function(){toggleCheck(c.id);}}>
+                    <div className={`w-4 h-4 rounded border-2 flex-shrink-0 mt-0.5 flex items-center justify-center st ${clDone[c.id]?'bg-emerald-500 border-emerald-500':'border-stone-300 bg-white'}`}>{clDone[c.id]&&<span className="text-white text-[9px] font-black">v</span>}</div>
                     <div className="flex-1 min-w-0">
                       <div className={`text-[11px] font-medium leading-snug ${clDone[c.id]?'line-through text-stone-400':'text-stone-700'}`}>{c.item}</div>
-                      <div className="flex items-center gap-1.5 mt-1">
-                        <span className="text-[9px] text-stone-400 bg-stone-100 px-1.5 py-0.5 rounded font-medium">👤 {c.pic}</span>
+                      <div className="flex gap-1.5 mt-0.5">
+                        <span className="text-[9px] text-stone-400 bg-stone-100 px-1.5 py-0.5 rounded">{c.pic}</span>
                         {c.wajib&&<span className="text-[9px] text-red-600 bg-red-50 px-1.5 py-0.5 rounded font-bold border border-red-100">Wajib</span>}
                       </div>
                     </div>
                   </div>
-                ))}
+                );})}
               </div>}
             </>}
           </div>}
-          {/* Row 6: Output keputusan */}
-          {hasOutput&&<div className="bg-emerald-50 border border-emerald-100 rounded-lg px-2.5 py-2 mb-2">
-            <div className="text-[8px] font-extrabold text-emerald-600 uppercase tracking-wider mb-0.5">Output/Keputusan</div>
-            <div className="text-[11px] text-emerald-800 font-medium leading-snug">{item.outputKeputusan}</div>
-          </div>}
-          {/* Actions */}
           <div className="flex items-center gap-1.5">
-            {!fromBacklog&&<button className={`py-1.5 px-2.5 rounded-lg text-[10px] font-bold st as ${isExpEdit?'bg-stone-800 text-white':'bg-stone-100 text-stone-600 hover:bg-stone-200'}`} onClick={()=>isExpEdit?setExpEdit(null):openEdit()}>✏️ Edit</button>}
-            <button className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold st as ${isExpOut?'bg-stone-800 text-white':'bg-stone-100 text-stone-600 hover:bg-stone-200'}`} onClick={()=>setExpOutput(isExpOut?null:item.id)}>
-              {hasOutput?'📝 Edit Output':'✍️ Isi Output'}
-            </button>
-            {!fromBacklog&&gcalOn&&<button className={`py-1.5 px-2 rounded-lg text-[10px] font-bold border st as ${item.gcalEventId?'bg-emerald-50 text-emerald-600 border-emerald-100':'bg-blue-50 text-blue-600 border-blue-100'}`} title={item.gcalEventId?'Update event di Google Calendar':'Push ke Google Calendar'} onClick={function(){onPushItem(item,function(patch){onUpdateJadwal(today,item.id,patch);}).then(function(ok){alert(ok?(item.gcalEventId?'✅ Event diupdate di Calendar!':'✅ Masuk ke Google Calendar!'):'❌ Gagal. Coba reconnect di ⚙️');});}}>{item.gcalEventId?'📅 ✓':'📅'}</button>}
-            {!fromBacklog&&<button className="py-1.5 px-2.5 rounded-lg text-[10px] font-bold bg-red-50 text-red-400 border border-red-100 st as" onClick={()=>{if(confirm('Hapus?'))onRemoveJadwal(today,item.id);}}>🗑</button>}
+            {!fromBL&&<button className={`py-1.5 px-2.5 rounded-lg text-[10px] font-bold st as ${isExpEdit?'bg-stone-800 text-white':'bg-stone-100 text-stone-600 hover:bg-stone-200'}`} onClick={function(){isExpEdit?setExpEdit(null):openEdit();}}>Edit</button>}
+            {!isMeeting&&!fromBL&&<button className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold st as ${isExpOut?'bg-stone-800 text-white':'bg-stone-100 text-stone-600 hover:bg-stone-200'}`} onClick={function(){setExpOutput(isExpOut?null:item.id);}}>{hasOutput?'Edit Output':'Isi Output'}</button>}
+            {isMeeting&&!fromBL&&<div className="flex-1 px-2.5 py-1.5 rounded-lg text-[10px] text-stone-400 bg-stone-50 border border-stone-200 text-center">Import MoM via Dump</div>}
+            {!fromBL&&gcalOn&&<button className={`py-1.5 px-2 rounded-lg text-[10px] font-bold border st as ${item.gcalEventId?'bg-emerald-50 text-emerald-600 border-emerald-100':'bg-blue-50 text-blue-600 border-blue-100'}`} onClick={function(){onPushItem(item,function(patch){onUpdateJadwal(today,item.id,patch);}).then(function(ok){alert(ok?(item.gcalEventId?'Event diupdate!':'Masuk Calendar!'):'Gagal. Reconnect di Settings');});}}>{item.gcalEventId?'Cal v':'Cal'}</button>}
+            {!fromBL&&<button className="py-1.5 px-2.5 rounded-lg text-[10px] font-bold bg-red-50 text-red-400 border border-red-100 st as" onClick={function(){if(confirm('Hapus?'))onRemoveJadwal(today,item.id);}}>X</button>}
           </div>
-          {/* Edit panel */}
-          {isExpEdit&&<div className="mt-3 border border-stone-200 rounded-2xl overflow-hidden afi">
+          {!fromBL&&isExpEdit&&<div className="mt-3 border border-stone-200 rounded-2xl overflow-hidden afi">
             <div className="px-3 py-2 bg-stone-50 border-b border-stone-200 flex items-center justify-between">
               <span className="text-[10px] font-extrabold text-stone-600 uppercase tracking-wider">Edit Kegiatan</span>
-              <button className="text-stone-400 text-[10px] as" onClick={()=>setExpEdit(null)}>✕</button>
+              <button className="text-stone-400 text-[10px] as" onClick={function(){setExpEdit(null);}}>X</button>
             </div>
             <div className="p-3 space-y-3">
-              {/* Jam */}
               <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <div className="text-[9px] font-bold text-stone-400 uppercase mb-1">Jam Mulai</div>
-                  <input type="time" className="w-full px-2.5 py-2 rounded-xl border border-stone-200 text-[12px] font-mono focus:outline-none focus:ring-2 focus:ring-stone-400" value={ef.jamMulai} onChange={e=>setEf(p=>({...p,jamMulai:e.target.value}))}/>
-                </div>
-                <div>
-                  <div className="text-[9px] font-bold text-stone-400 uppercase mb-1">Jam Selesai</div>
-                  <input type="time" className="w-full px-2.5 py-2 rounded-xl border border-stone-200 text-[12px] font-mono focus:outline-none focus:ring-2 focus:ring-stone-400" value={ef.jamSelesai} onChange={e=>setEf(p=>({...p,jamSelesai:e.target.value}))}/>
-                </div>
+                <div><div className="text-[9px] font-bold text-stone-400 uppercase mb-1">Jam Mulai</div><input type="time" className="w-full px-2.5 py-2 rounded-xl border border-stone-200 text-[12px] font-mono focus:outline-none focus:ring-2 focus:ring-stone-400" value={ef.jamMulai} onChange={function(e){setEf(function(p){return {...p,jamMulai:e.target.value};});}}/></div>
+                <div><div className="text-[9px] font-bold text-stone-400 uppercase mb-1">Jam Selesai</div><input type="time" className="w-full px-2.5 py-2 rounded-xl border border-stone-200 text-[12px] font-mono focus:outline-none focus:ring-2 focus:ring-stone-400" value={ef.jamSelesai} onChange={function(e){setEf(function(p){return {...p,jamSelesai:e.target.value};});}}/></div>
               </div>
-              {/* Kategori + Jenis */}
               <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <div className="text-[9px] font-bold text-stone-400 uppercase mb-1">Kategori</div>
-                  <select className="w-full px-2 py-2 rounded-xl border border-stone-200 text-[11px] focus:outline-none focus:ring-2 focus:ring-stone-400" value={ef.kategori} onChange={e=>setEf(p=>({...p,kategori:e.target.value}))}>
-                    {['RSP','BT','TKB','Personal'].map(k=><option key={k}>{k}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <div className="text-[9px] font-bold text-stone-400 uppercase mb-1">Jenis</div>
-                  <select className="w-full px-2 py-2 rounded-xl border border-stone-200 text-[11px] focus:outline-none focus:ring-2 focus:ring-stone-400" value={ef.jenisKegiatan} onChange={e=>setEf(p=>({...p,jenisKegiatan:e.target.value}))}>
-                    {JENIS_KEGIATAN.map(j=><option key={j} value={j}>{JENIS_SHORT[j]||j}</option>)}
-                  </select>
-                </div>
+                <div><div className="text-[9px] font-bold text-stone-400 uppercase mb-1">Kategori</div><select className="w-full px-2 py-2 rounded-xl border border-stone-200 text-[11px] focus:outline-none focus:ring-2 focus:ring-stone-400" value={ef.kategori} onChange={function(e){setEf(function(p){return {...p,kategori:e.target.value};});}}>{['RSP','BT','TKB','Personal'].map(function(k){return<option key={k}>{k}</option>;})}</select></div>
+                <div><div className="text-[9px] font-bold text-stone-400 uppercase mb-1">Jenis</div><select className="w-full px-2 py-2 rounded-xl border border-stone-200 text-[11px] focus:outline-none focus:ring-2 focus:ring-stone-400" value={ef.jenisKegiatan} onChange={function(e){setEf(function(p){return {...p,jenisKegiatan:e.target.value};});}}>{JENIS_KEGIATAN.map(function(j){return<option key={j} value={j}>{JENIS_SHORT[j]||j}</option>;})}</select></div>
               </div>
-              {/* Detail */}
+              <div><div className="text-[9px] font-bold text-stone-400 uppercase mb-1">Detail Kegiatan</div><input className="w-full px-2.5 py-2 rounded-xl border border-stone-200 text-[12px] focus:outline-none focus:ring-2 focus:ring-stone-400" value={ef.detailKegiatan} onChange={function(e){setEf(function(p){return {...p,detailKegiatan:e.target.value};});}}/></div>
+              <div><div className="text-[9px] font-bold text-stone-400 uppercase mb-1">Relate KPI</div><select className="w-full px-2 py-2 rounded-xl border border-stone-200 text-[11px] focus:outline-none focus:ring-2 focus:ring-stone-400" value={ef.relateMilestone} onChange={function(e){setEf(function(p){return {...p,relateMilestone:e.target.value};});}}>{KPI5.map(function(k){return<option key={k.id} value={k.id}>{k.label}</option>;})}</select></div>
               <div>
-                <div className="text-[9px] font-bold text-stone-400 uppercase mb-1">Detail Kegiatan</div>
-                <input className="w-full px-2.5 py-2 rounded-xl border border-stone-200 text-[12px] focus:outline-none focus:ring-2 focus:ring-stone-400" value={ef.detailKegiatan} onChange={e=>setEf(p=>({...p,detailKegiatan:e.target.value}))} placeholder="Detail kegiatan..."/>
+                <div className="text-[9px] font-bold text-stone-400 uppercase mb-1">Deskripsi Calendar</div>
+                <textarea className="w-full px-2.5 py-2 rounded-xl border border-stone-200 text-[11px] focus:outline-none focus:ring-2 focus:ring-stone-400 resize-y" rows={3} value={ef.gcalDesc} onChange={function(e){setEf(function(p){return {...p,gcalDesc:e.target.value};});}} placeholder="Konteks, peserta, agenda..."/>
               </div>
-              {/* KPI */}
-              <div>
-                <div className="text-[9px] font-bold text-stone-400 uppercase mb-1">Relate KPI</div>
-                <select className="w-full px-2 py-2 rounded-xl border border-stone-200 text-[11px] focus:outline-none focus:ring-2 focus:ring-stone-400" value={ef.relateMilestone} onChange={e=>setEf(p=>({...p,relateMilestone:e.target.value}))}>
-                  {KPI5.map(k=><option key={k.id} value={k.id}>{k.label}</option>)}
-                </select>
-              </div>
-              {/* Masalah */}
-              {!item.masalahBacklogId&&<div>
-                <div className="text-[9px] font-bold text-stone-400 uppercase mb-1">Masalah yang Dievaluasi</div>
-                <input className="w-full px-2.5 py-2 rounded-xl border border-stone-200 text-[12px] focus:outline-none focus:ring-2 focus:ring-stone-400" value={ef.masalahText} onChange={e=>setEf(p=>({...p,masalahText:e.target.value}))} placeholder="Masalah / topik yang dibahas..."/>
-              </div>}
-              {/* Save */}
-              <button className="w-full py-2.5 rounded-xl bg-stone-900 text-white text-[11px] font-bold as st" onClick={saveEdit}>Simpan Perubahan</button>
+              <button className="w-full py-2.5 rounded-xl bg-stone-900 text-white text-[11px] font-bold as st" onClick={saveEdit}>Simpan{gcalOn&&item.gcalEventId?' + Push Calendar':''}</button>
             </div>
           </div>}
-          {/* Output panel */}
-          {isExpOut&&<div className="mt-3 afi">
-            <div className="text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1.5">Output / Keputusan / Arahan</div>
-            <textarea className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 text-[12px] focus:outline-none focus:ring-2 focus:ring-stone-400 mb-2 resize-y" rows={3} value={outTexts[item.id]||item.outputKeputusan||''} onChange={e=>setOutTexts(p=>({...p,[item.id]:e.target.value}))} placeholder="Keputusan yang diambil, arahan yang diberikan..."/>
-            <button className={`w-full py-2 rounded-xl text-[11px] font-bold as st ${!(outTexts[item.id]||'').trim()?'bg-stone-200 text-stone-400 cursor-not-allowed':'bg-emerald-600 text-white'}`} onClick={()=>saveOutput(fromBacklog?{...item,id:item.id,masalahBacklogId:item.id}:item)} disabled={!(outTexts[item.id]||'').trim()}>Simpan Output</button>
+          {!fromBL&&!isMeeting&&isExpOut&&<div className="mt-3 afi">
+            <div className="text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-0.5">Output -- 5W1H</div>
+            <div className="text-[9px] text-stone-400 mb-2">What Who When Why How -- isi spesifik</div>
+            <textarea className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 text-[12px] focus:outline-none focus:ring-2 focus:ring-stone-400 mb-2 resize-y" rows={5} value={outTexts[item.id]!==undefined?outTexts[item.id]:(item.outputKeputusan||'')} onChange={function(e){setOutTexts(function(p){const n={...p};n[item.id]=e.target.value;return n;});}} placeholder={outputPlaceholder}/>
+            <button className={`w-full py-2 rounded-xl text-[11px] font-bold as st ${!(outTexts[item.id]!==undefined?outTexts[item.id]:(item.outputKeputusan||'')).trim()?'bg-stone-200 text-stone-400 cursor-not-allowed':'bg-emerald-600 text-white'}`} onClick={function(){saveOutput(item);}} disabled={!(outTexts[item.id]!==undefined?outTexts[item.id]:(item.outputKeputusan||'')).trim()}>Simpan Output</button>
           </div>}
         </div>
       </div>
     );
   }
 
-  // Add form per blok
   function AddForm({blokId}){
-    const bItems=blBaru.filter(it=>it.status==='baru'||it.status==='dijadwalkan');
-    const blok=BLOKS.find(b=>b.id===blokId);
-    const defJam=blok?blok.time.split('–').map(t=>t.trim().padStart(2,'0')+':00'):['08:00','10:00'];
+    const blok=BLOKS.find(function(b){return b.id===blokId;});
+    const defJam=blok?blok.time.split('--').map(function(t){return t.trim().padStart(2,'0')+':00';}):['08:00','10:00'];
     const [lf,setLf]=useState({...EMPTY_F,jamMulai:defJam[0]||'08:00',jamSelesai:defJam[1]||'09:00'});
-    function upd(k,v){setLf(p=>({...p,[k]:v}));}
+    function upd(k,v){setLf(function(p){return {...p,[k]:v};});}
     return(
-      <div className={`border-t ${blok?.border||'border-stone-200'} bg-stone-50/50 p-3 afi`}>
-        {/* Jam */}
+      <div className={`border-t ${blok&&blok.border?blok.border:'border-stone-200'} bg-stone-50/50 p-3 afi`}>
         <div className="flex gap-2 mb-3">
-          <div className="flex-1"><div className="text-[9px] font-bold text-stone-500 uppercase mb-1">Jam Mulai</div><input type="time" className="w-full px-2 py-1.5 rounded-lg border border-stone-200 bg-white text-[12px] font-mono focus:outline-none focus:ring-1 focus:ring-stone-400" value={lf.jamMulai} onChange={e=>upd('jamMulai',e.target.value)}/></div>
-          <div className="flex-1"><div className="text-[9px] font-bold text-stone-500 uppercase mb-1">Jam Selesai</div><input type="time" className="w-full px-2 py-1.5 rounded-lg border border-stone-200 bg-white text-[12px] font-mono focus:outline-none focus:ring-1 focus:ring-stone-400" value={lf.jamSelesai} onChange={e=>upd('jamSelesai',e.target.value)}/></div>
+          <div className="flex-1"><div className="text-[9px] font-bold text-stone-500 uppercase mb-1">Jam Mulai</div><input type="time" className="w-full px-2 py-1.5 rounded-lg border border-stone-200 bg-white text-[12px] font-mono focus:outline-none focus:ring-1 focus:ring-stone-400" value={lf.jamMulai} onChange={function(e){upd('jamMulai',e.target.value);}}/></div>
+          <div className="flex-1"><div className="text-[9px] font-bold text-stone-500 uppercase mb-1">Jam Selesai</div><input type="time" className="w-full px-2 py-1.5 rounded-lg border border-stone-200 bg-white text-[12px] font-mono focus:outline-none focus:ring-1 focus:ring-stone-400" value={lf.jamSelesai} onChange={function(e){upd('jamSelesai',e.target.value);}}/></div>
         </div>
-        {/* Masalah dari backlog atau manual */}
-        <div className="mb-3">
-          <div className="text-[9px] font-bold text-stone-500 uppercase mb-1.5">Masalah yang Dievaluasi</div>
-          <div className="flex bg-stone-100 p-0.5 rounded-lg border border-stone-200 mb-2 gap-0.5">
-            <button className={`flex-1 py-1.5 rounded-md text-[10px] font-bold st as ${lf.masalahMode==='backlog'?'bg-white shadow-sm text-stone-800':'text-stone-500'}`} onClick={()=>upd('masalahMode','backlog')}>Dari Backlog</button>
-            <button className={`flex-1 py-1.5 rounded-md text-[10px] font-bold st as ${lf.masalahMode==='manual'?'bg-white shadow-sm text-stone-800':'text-stone-500'}`} onClick={()=>upd('masalahMode','manual')}>Tulis Manual</button>
-          </div>
-          {lf.masalahMode==='backlog'?(
-            <select className="w-full px-2.5 py-2 rounded-xl border border-stone-200 bg-white text-[11px] font-medium focus:outline-none" value={lf.masalahBacklogId} onChange={e=>upd('masalahBacklogId',e.target.value)}>
-              <option value="">— Pilih dari backlog (opsional) —</option>
-              {backlog.map(b=><option key={b.id} value={b.id}>[{KPI5.find(k=>k.id===b.fungsiKPI)?.short}] {b.konteks}: {b.isi.slice(0,60)}</option>)}
-            </select>
-          ):(
-            <input className="w-full px-2.5 py-2 rounded-xl border border-stone-200 bg-white text-[12px] focus:outline-none focus:ring-1 focus:ring-stone-400" placeholder="Tulis masalah yang dievaluasi..." value={lf.masalahText} onChange={e=>upd('masalahText',e.target.value)}/>
-          )}
-        </div>
-        {/* Kategori (Personal/RSP/TKB/BT) */}
-        <div className="mb-3">
-          <div className="text-[9px] font-bold text-stone-500 uppercase mb-1.5">Kategori</div>
-          <div className="flex gap-1.5 flex-wrap">
-            {KATEGORI_ORG.map(k=><button key={k} className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border st as ${lf.kategori===k?'bg-stone-800 text-white border-stone-800 shadow-sm':'bg-white text-stone-600 border-stone-200'}`} onClick={()=>upd('kategori',k)}>{k}</button>)}
-          </div>
-        </div>
-        {/* Jenis Kegiatan */}
-        <div className="mb-3">
-          <div className="text-[9px] font-bold text-stone-500 uppercase mb-1.5">Jenis Kegiatan</div>
-          <select className="w-full px-2.5 py-2 rounded-xl border border-stone-200 bg-white text-[11px] font-medium focus:outline-none" value={lf.jenisKegiatan} onChange={e=>upd('jenisKegiatan',e.target.value)}>
-            {JENIS_KEGIATAN.map(j=><option key={j} value={j}>{j}</option>)}
-          </select>
-        </div>
-        {/* Detail Kegiatan */}
-        <div className="mb-3">
-          <div className="text-[9px] font-bold text-stone-500 uppercase mb-1.5">Detail Kegiatan *</div>
-          <textarea className="w-full px-2.5 py-2 rounded-xl border border-stone-200 bg-white text-[12px] focus:outline-none focus:ring-1 focus:ring-stone-400 resize-none" rows={2} placeholder="Apa yang akan dilakukan / dibahas?" value={lf.detailKegiatan} onChange={e=>upd('detailKegiatan',e.target.value)}/>
-        </div>
-        {/* Relate Milestone / KPI */}
-        <div className="mb-4">
-          <div className="text-[9px] font-bold text-stone-500 uppercase mb-1.5">Relate Milestone / KPI</div>
-          <div className="flex gap-1.5 flex-wrap">
-            {KPI5.map(k=><button key={k.id} className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold border st as ${lf.relateMilestone===k.id?`${k.bg} ${k.color} ${k.border} shadow-sm`:'bg-white text-stone-500 border-stone-200'}`} onClick={()=>upd('relateMilestone',k.id)}>{k.short}</button>)}
-          </div>
-        </div>
+        <div className="mb-3"><div className="text-[9px] font-bold text-stone-500 uppercase mb-1.5">Kategori</div><div className="flex gap-1.5 flex-wrap">{KATEGORI_ORG.map(function(k){return<button key={k} className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border st as ${lf.kategori===k?'bg-stone-800 text-white border-stone-800 shadow-sm':'bg-white text-stone-600 border-stone-200'}`} onClick={function(){upd('kategori',k);}}>{k}</button>;})}</div></div>
+        <div className="mb-3"><div className="text-[9px] font-bold text-stone-500 uppercase mb-1.5">Jenis Kegiatan</div><select className="w-full px-2.5 py-2 rounded-xl border border-stone-200 bg-white text-[11px] font-medium focus:outline-none" value={lf.jenisKegiatan} onChange={function(e){upd('jenisKegiatan',e.target.value);}}>{JENIS_KEGIATAN.map(function(j){return<option key={j} value={j}>{j}</option>;})}</select></div>
+        <div className="mb-3"><div className="text-[9px] font-bold text-stone-500 uppercase mb-1.5">Detail Kegiatan *</div><textarea className="w-full px-2.5 py-2 rounded-xl border border-stone-200 bg-white text-[12px] focus:outline-none focus:ring-1 focus:ring-stone-400 resize-none" rows={2} placeholder="Apa yang akan dilakukan?" value={lf.detailKegiatan} onChange={function(e){upd('detailKegiatan',e.target.value);}}/></div>
+        <div className="mb-4"><div className="text-[9px] font-bold text-stone-500 uppercase mb-1.5">Relate KPI</div><div className="flex gap-1.5 flex-wrap">{KPI5.map(function(k){return<button key={k.id} className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold border st as ${lf.relateMilestone===k.id?`${k.bg} ${k.color} ${k.border} shadow-sm`:'bg-white text-stone-500 border-stone-200'}`} onClick={function(){upd('relateMilestone',k.id);}}>{k.short}</button>;})}</div></div>
         <div className="flex gap-2">
-          <button className="flex-1 py-2 rounded-xl border border-stone-200 bg-white text-[11px] font-bold text-stone-500 as st" onClick={()=>setAddingBlok(null)}>Batal</button>
-          <button className={`flex-2 py-2 px-4 rounded-xl text-[11px] font-bold as st ${!lf.detailKegiatan.trim()?'bg-stone-200 text-stone-400 cursor-not-allowed':'bg-stone-800 text-white'}`} onClick={()=>{if(!lf.detailKegiatan.trim())return;onAddJadwal(today,{id:'SJ-'+genId(),tanggal:today,...lf,outputKeputusan:''});setAddingBlok(null);}} disabled={!lf.detailKegiatan.trim()}>+ Tambahkan</button>
+          <button className="flex-1 py-2 rounded-xl border border-stone-200 bg-white text-[11px] font-bold text-stone-500 as st" onClick={function(){setAddingBlok(null);}}>Batal</button>
+          <button className={`flex-2 py-2 px-4 rounded-xl text-[11px] font-bold as st ${!lf.detailKegiatan.trim()?'bg-stone-200 text-stone-400 cursor-not-allowed':'bg-stone-800 text-white'}`} onClick={function(){if(!lf.detailKegiatan.trim())return;onAddJadwal(today,{id:'SJ-'+genId(),tanggal:today,...lf,outputKeputusan:''});setAddingBlok(null);}} disabled={!lf.detailKegiatan.trim()}>+ Tambahkan</button>
         </div>
       </div>
     );
   }
+
+  const pastItems=dayItems.filter(function(it){return getItemState(it)==='past';});
+  const currentItems=dayItems.filter(function(it){return getItemState(it)==='current';});
+  const upcomingItems=dayItems.filter(function(it){return getItemState(it)==='upcoming';});
+  const lastPast=pastItems.length>0?pastItems[pastItems.length-1]:null;
+  const currentItem=currentItems[0]||null;
+  const nextItem=upcomingItems[0]||null;
 
   return(
     <div className="afi pb-4">
       <div className="px-5 pt-5 pb-3 md:px-6 flex justify-between items-start relative">
         <div>
           <div className="text-xl font-extrabold text-stone-800 tracking-tight">{dayName}</div>
-          <div className="text-[11px] font-medium text-stone-400 mt-0.5">{dayItems.length} kegiatan{hiddenCount>0?` · ${hiddenCount} disembunyikan`:''} · tap ✍️ untuk output · + untuk tambah</div>
+          <div className="text-[11px] font-medium text-stone-400 mt-0.5">{dayItems.length} kegiatan{hiddenCount>0?` -- ${hiddenCount} disembunyikan`:''} -- {nowStr}</div>
         </div>
         <div className="flex-shrink-0 relative flex items-center gap-2">
-          {gcalOn&&<button className="px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-200 text-[10px] font-bold text-blue-600 as st" onClick={function(){onPushDay(today);}}>📅 Push Semua</button>}
-          <button className="px-3 py-1.5 rounded-xl bg-stone-100 border border-stone-200 text-[10px] font-bold text-stone-600 as st flex items-center gap-1" onClick={()=>setShowExport(p=>!p)}>⬇️ Export</button>
+          {gcalOn&&<button className="px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-200 text-[10px] font-bold text-blue-600 as st" onClick={function(){onPushDay(today);}}>Push Semua</button>}
+          <button className="px-3 py-1.5 rounded-xl bg-stone-100 border border-stone-200 text-[10px] font-bold text-stone-600 as st flex items-center gap-1" onClick={function(){setShowExport(function(p){return !p;});}}>Export</button>
           {showExport&&<div className="absolute right-0 mt-1 bg-white border border-stone-200 rounded-2xl shadow-float z-30 overflow-hidden afi" style={{minWidth:160}}>
             <div className="px-3 py-2 text-[9px] font-extrabold text-stone-400 uppercase tracking-wider border-b border-stone-100">Export Jadwal CSV</div>
-            {[['today','📅 Hari ini'],['week','📆 Minggu ini'],['all','📂 Semua data']].map(([r,lbl])=>(
-              <button key={r} className="w-full text-left px-3 py-2.5 text-[11px] font-medium text-stone-700 hover:bg-stone-50 border-b border-stone-100 last:border-0 as" onClick={()=>{exportJadwalCSV(jadwal,backlog,r);setShowExport(false);}}>{lbl}</button>
-            ))}
+            {[['today','Hari ini'],['week','Minggu ini'],['all','Semua data']].map(function(r){return(
+              <button key={r[0]} className="w-full text-left px-3 py-2.5 text-[11px] font-medium text-stone-700 hover:bg-stone-50 border-b border-stone-100 last:border-0 as" onClick={function(){exportJadwalCSV(jadwal,backlog,r[0]);setShowExport(false);}}>{r[1]}</button>
+            );})}
           </div>}
         </div>
       </div>
 
-      {/* Backlog belum dijadwalkan */}
-      {blBaru.length>0&&<div className="mx-4 mb-4 md:mx-6">
-        <div className="bg-stone-100 border border-stone-200 rounded-2xl overflow-hidden shadow-inner">
-          <div className="p-3 flex justify-between items-center cursor-pointer as" onClick={()=>setShowBL(p=>!p)}>
-            <div className="text-[11px] font-bold text-stone-700">📋 {blBaru.length} backlog belum dijadwalkan</div>
-            <span className="text-[10px] text-stone-400">{showBL?'▲':'▼'}</span>
-          </div>
-          {showBL&&<div className="border-t border-stone-200 bg-white divide-y divide-stone-100 max-h-48 overflow-y-auto">
-            {blBaru.map(item=>{const k=KPI5.find(x=>x.id===item.fungsiKPI);return(
-              <div key={item.id} className="p-3 hover:bg-stone-50">
-                <div className={`text-[9px] font-extrabold uppercase tracking-widest mb-0.5 ${k?.color}`}>{item.konteks}</div>
-                <div className="text-[11px] font-semibold text-stone-800">{item.isi}</div>
-              </div>
-            );})}
-          </div>}
+      {/* TIMELINE — 3 card: 1 past, 1 current/idle, 1 upcoming */}
+      <div className="px-4 md:px-6 mb-4">
+        <div className="flex items-center gap-3 mb-2.5">
+          <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-stone-300"/><span className="text-[10px] text-stone-400">Selesai</span></div>
+          <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"/><span className="text-[10px] text-stone-400">Berlangsung</span></div>
+          <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-400"/><span className="text-[10px] text-stone-400">Upcoming</span></div>
+          {pastItems.length>1&&<span className="text-[10px] text-stone-300 ml-auto">{pastItems.length} kegiatan selesai</span>}
         </div>
-      </div>}
 
-      {/* Time blocks */}
-      <div className="space-y-4 px-4 md:grid md:grid-cols-2 md:gap-4 md:space-y-0 md:px-6 md:pb-6 md:items-start">
-        {BLOKS.map(blok=>{
+        {/* Past — hanya 1 terakhir */}
+        {lastPast&&<JadwalCard key={lastPast.id} item={lastPast}/>}
+
+        {/* Current / Idle */}
+        {currentItem
+          ?<JadwalCard key={currentItem.id} item={currentItem}/>
+          :<div className="bg-stone-50 border border-dashed border-stone-200 rounded-xl p-3 mb-2 flex items-center gap-3">
+            <span className="w-2 h-2 rounded-full bg-stone-300 flex-shrink-0"/>
+            <div>
+              <div className="text-[11px] font-bold text-stone-500">Tidak ada kegiatan saat ini</div>
+              {nextItem&&<div className="text-[10px] text-stone-400">Berikutnya: <strong>{nextItem.detailKegiatan}</strong> jam {nextItem.jamMulai}</div>}
+              {!nextItem&&pastItems.length>0&&<div className="text-[10px] text-stone-400">Semua kegiatan hari ini sudah selesai</div>}
+            </div>
+          </div>
+        }
+
+        {/* Upcoming — hanya 1 berikutnya */}
+        {nextItem&&<JadwalCard key={nextItem.id} item={nextItem}/>}
+
+        {dayItems.length===0&&<div className="py-8 text-center"><div className="text-3xl mb-2 opacity-30">📅</div><div className="text-[12px] font-bold text-stone-400">Belum ada kegiatan hari ini</div><div className="text-[10px] text-stone-300 mt-1">Tambah via blok waktu di bawah</div></div>}
+      </div>
+
+      <div className="h-px bg-stone-200 mx-4 md:mx-6 mb-4"/>
+
+      {/* Time blocks for adding */}
+      <div className="space-y-3 px-4 md:grid md:grid-cols-2 md:gap-4 md:space-y-0 md:px-6 md:pb-6 md:items-start">
+        {BLOKS.map(function(blok){
           const items=getBlokItems(blok.id);
-          const blItems=blSched.filter(it=>it.blokWaktu===blok.id);
-          const all=[...items,...blItems];
+          const blItems=blSched.filter(function(it){return it.blokWaktu===blok.id;});
           const isAdding=addingBlok===blok.id;
+          const hasNow=items.some(function(it){return getItemState(it)==='current';});
           return(
-            <div key={blok.id} className="bg-white rounded-3xl border border-stone-200 overflow-hidden shadow-soft">
-              {/* Blok header */}
-              <div className={`p-3.5 flex items-center justify-between ${blok.bg} border-b ${blok.border}`}>
-                <div>
-                  <div className="flex items-center gap-2"><span className={`text-[15px] font-black ${blok.color}`}>{blok.time}</span><span className={`text-[12px] font-bold ${blok.color}`}>{blok.label}</span></div>
-                  <div className={`text-[9px] font-semibold ${blok.color} opacity-70`}>{blok.kat}</div>
-                </div>
+            <div key={blok.id} className={`bg-white rounded-2xl border overflow-hidden shadow-soft ${hasNow?'border-blue-200':'border-stone-200'}`}>
+              <div className={`px-3 py-2.5 flex items-center justify-between ${blok.bg} border-b ${hasNow?'border-blue-200':blok.border}`}>
                 <div className="flex items-center gap-2">
-                  <div className={`w-8 h-8 rounded-xl bg-white/50 flex items-center justify-center text-[12px] font-black ${blok.color}`}>{all.length||'–'}</div>
-                  <button className={`w-8 h-8 rounded-xl bg-white/70 flex items-center justify-center text-[16px] font-bold ${blok.color} as st border ${blok.border}`} onClick={()=>setAddingBlok(isAdding?null:blok.id)}>{isAdding?'✕':'+'}</button>
+                  <span className={`text-[13px] font-black ${blok.color}`}>{blok.time}</span>
+                  <span className={`text-[11px] font-bold ${blok.color}`}>{blok.label}</span>
+                  {hasNow&&<span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"/>}
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className={`text-[11px] font-black ${blok.color} opacity-60`}>{items.length+blItems.length||'--'}</span>
+                  <button className={`w-7 h-7 rounded-lg bg-white/70 flex items-center justify-center text-[13px] font-bold ${blok.color} as st border ${blok.border}`} onClick={function(){setAddingBlok(isAdding?null:blok.id);}}>{isAdding?'X':'+'}</button>
                 </div>
               </div>
-              {/* Add form */}
               {isAdding&&<AddForm blokId={blok.id}/>}
-              {/* Items */}
-              <div className="p-2.5 bg-stone-50/30">
-                {all.length===0?<div className="py-4 text-center text-[10px] text-stone-400 italic">Belum ada kegiatan · tap + untuk menambah</div>
-                :<>
-                  {items.map(item=><JadwalCard key={item.id} item={item}/>)}
-                  {blItems.map(item=><JadwalCard key={item.id} item={item} fromBacklog={true}/>)}
-                </>}
-              </div>
+              {blItems.length>0&&!isAdding&&<div className="px-2.5 pt-2 pb-1 bg-stone-50/50 border-t border-stone-100">
+                {blItems.map(function(it){return<JadwalCard key={it.id} item={it} fromBL={true}/>;} )}
+              </div>}
             </div>
           );
         })}
@@ -2401,8 +2313,6 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
     </div>
   );
 }
-
-
 
 // ── JADWAL MINGGUAN ───────────────────────────────────────────
 function JadwalMingguan({backlog,jadwal,filter}){
@@ -3153,6 +3063,97 @@ Buat 5-8 rekomendasi. Prioritas: backlog tinggi+postpone>=3, lalu gap KPI, lalu 
   );
 }
 
+// ── MOM LIST ──────────────────────────────────────────────────
+function MoMList({mom,onDelete,jadwal}){
+  const [expId,setExpId]=useState(null);
+  const sorted=[...mom].sort((a,b)=>b.tanggal.localeCompare(a.tanggal));
+  if(sorted.length===0)return(
+    <div className="px-4 py-16 text-center">
+      <div className="text-4xl mb-3 opacity-30">📝</div>
+      <div className="text-[13px] font-bold text-stone-400">Belum ada MoM</div>
+      <div className="text-[11px] text-stone-300 mt-1">Import notulensi via Dump → 📥 MoM</div>
+    </div>
+  );
+  return(
+    <div className="pb-8 afi">
+      <div className="px-4 pt-4 pb-2 flex items-center justify-between">
+        <div className="text-[11px] font-extrabold text-stone-500 uppercase tracking-widest">Minutes of Meeting</div>
+        <span className="text-[10px] bg-stone-100 text-stone-500 px-2.5 py-1 rounded-full font-bold">{sorted.length} meeting</span>
+      </div>
+      <div className="px-4 space-y-3 md:px-6">
+        {sorted.map(entry=>{
+          const isExp=expId===entry.id;
+          const actionItems=entry.items.filter(it=>it.jenis!=='Feedback');
+          const feedbackItems=entry.items.filter(it=>it.jenis==='Feedback');
+          const doneCount=entry.items.filter(it=>it.status==='done').length;
+          const dateLabel=new Date(entry.tanggal+'T12:00:00').toLocaleDateString('id-ID',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
+          return(
+            <div key={entry.id} className="bg-white rounded-2xl border border-stone-200 shadow-soft overflow-hidden">
+              {/* Header row */}
+              <div className="p-4 cursor-pointer hover:bg-stone-50 st" onClick={()=>setExpId(isExp?null:entry.id)}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[12px] font-extrabold text-stone-900 leading-snug mb-1">{entry.meetingName}</div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[10px] font-mono text-stone-400">{dateLabel}</span>
+                      <span className="text-[10px] bg-stone-100 text-stone-500 px-1.5 py-0.5 rounded font-bold">{entry.items.length} item</span>
+                      {actionItems.length>0&&<span className="text-[10px] bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded font-bold border border-amber-100">{actionItems.length} action</span>}
+                      {doneCount>0&&<span className="text-[10px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded font-bold border border-emerald-100">{doneCount} done</span>}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <button className="py-1 px-2 rounded-lg text-[9px] font-bold bg-red-50 text-red-400 border border-red-100 as st" onClick={e=>{e.stopPropagation();if(confirm('Hapus MoM ini?'))onDelete(entry.id);}}>🗑</button>
+                    <span className={`text-[10px] text-stone-400 ${isExp?'rotate-180':''} transition-transform`}>▼</span>
+                  </div>
+                </div>
+              </div>
+              {/* Expanded detail */}
+              {isExp&&<div className="border-t border-stone-100 afi">
+                {/* Deskripsi Calendar */}
+                {entry.gcalDesc&&entry.gcalDesc.trim()&&<div className="px-4 py-3 bg-stone-50 border-b border-stone-100">
+                  <div className="text-[9px] font-extrabold text-stone-400 uppercase tracking-wider mb-1">Deskripsi Calendar</div>
+                  <div className="text-[11px] text-stone-600 leading-relaxed whitespace-pre-wrap">{entry.gcalDesc}</div>
+                </div>}
+                {/* Action items */}
+                {actionItems.length>0&&<div className="px-4 py-3 border-b border-stone-100">
+                  <div className="text-[9px] font-extrabold text-amber-600 uppercase tracking-wider mb-2">Action Items ({actionItems.length})</div>
+                  <div className="space-y-2">
+                    {actionItems.map((it,i)=>(
+                      <div key={it.id||i} className="flex items-start gap-2.5">
+                        <span className="text-[10px] font-black text-stone-400 flex-shrink-0 mt-0.5">{i+1}.</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[11px] font-semibold text-stone-800 leading-snug">{it.action}</div>
+                          <div className="flex gap-2 mt-0.5 flex-wrap">
+                            {it.pic&&<span className="text-[9px] text-stone-500">👤 {it.pic}</span>}
+                            {it.deadline&&<span className="text-[9px] text-stone-500">📅 {it.deadline}</span>}
+                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${it.jenis==='Immediately'?'bg-red-100 text-red-700':'bg-stone-100 text-stone-500'}`}>{it.jenis}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>}
+                {/* Feedback */}
+                {feedbackItems.length>0&&<div className="px-4 py-3">
+                  <div className="text-[9px] font-extrabold text-stone-400 uppercase tracking-wider mb-2">Feedback / Catatan ({feedbackItems.length})</div>
+                  <div className="space-y-1.5">
+                    {feedbackItems.map((it,i)=>(
+                      <div key={it.id||i} className="flex items-start gap-2">
+                        <span className="text-[10px] font-black text-stone-300 flex-shrink-0 mt-0.5">{i+1}.</span>
+                        <div className="text-[11px] text-stone-600 leading-snug">{it.action}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>}
+              </div>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── MAIN APP ──────────────────────────────────────────────────
 function App(){
   const [tab,setTab]=useState('dashboard');
@@ -3217,14 +3218,16 @@ function App(){
   const [backlog,setBacklog]=useState([]);
   const [keputusan,setKeputusan]=useState([]);
   const [jadwal,setJadwal]=useState({});
+  const [mom,setMom]=useState([]);
   const [showSettings,setShowSettings]=useState(false);
   const [ready,setReady]=useState(false);
 
   useEffect(()=>{
-    const sb=ld('backlog');const sk=ld('keputusan');const sj=ld('jadwal');
+    const sb=ld('backlog');const sk=ld('keputusan');const sj=ld('jadwal');const sm=ld('mom');
     setBacklog(sb||[]);
     setKeputusan(sk||[]);
     setJadwal(sj||{});
+    setMom(sm||[]);
     setReady(true);
     var script=document.createElement('script');
     script.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
@@ -3265,6 +3268,8 @@ function App(){
   const addK=(kpt)=>{const n=[kpt,...keputusan];setKeputusan(n);sv('keputusan',n);};
   const updK=(id,patch)=>{const n=keputusan.map(it=>it.id===id?{...it,...patch}:it);setKeputusan(n);sv('keputusan',n);};
   const delK=(id)=>{const n=keputusan.filter(it=>it.id!==id);setKeputusan(n);sv('keputusan',n);};
+  const addMom=(entry)=>{const n=[entry,...mom];setMom(n);sv('mom',n);};
+  const delMom=(id)=>{const n=mom.filter(it=>it.id!==id);setMom(n);sv('mom',n);};
   const addToJadwal=(date,item)=>{const n={...jadwal};if(!n[date])n[date]=[];n[date]=[...n[date],item];setJadwal(n);sv('jadwal',n);};
   const batchAddToJadwal=(byDate)=>{const n={...jadwal};Object.entries(byDate).forEach(([date,items])=>{if(!n[date])n[date]=[];n[date]=[...(n[date]||[]),...items];});setJadwal(n);sv('jadwal',n);};
   const removeFromJadwal=(date,itemId)=>{
@@ -3285,7 +3290,7 @@ function App(){
     {id:'dashboard',ico:'📊',lbl:'Dash'},
     {id:'jadwal',ico:'📅',lbl:'Jadwal',subs:[{id:'harian',lbl:'Harian'},{id:'mingguan',lbl:'Mingguan'},{id:'bulanan',lbl:'Bulanan'}]},
     {id:'dump'},
-    {id:'backlog',ico:'📋',lbl:'Backlog',subs:[{id:'backlog',lbl:'Backlog'},{id:'keputusan',lbl:'Keputusan & Tracking'}]},
+    {id:'backlog',ico:'📋',lbl:'Backlog',subs:[{id:'backlog',lbl:'Backlog'},{id:'keputusan',lbl:'Keputusan & Tracking'},{id:'mom',lbl:'MoM'}]},
     {id:'resume',ico:'📈',lbl:'Resume'},
   ];
   const AT=TABS.find(t=>t.id===tab);
@@ -3354,9 +3359,10 @@ function App(){
           {tab==='jadwal'&&sub.jadwal==='harian'&&<JadwalHarian backlog={backlog} jadwal={jadwal} onAddJadwal={addToJadwal} onRemoveJadwal={removeFromJadwal} onUpdateJadwal={updateJadwal} onUpdate={updI} onAddKeputusan={addK} filter={jadwalFilter} gcalOn={!!(gTok&&gCalId)} onPushItem={pushItem} onPushDay={pushDay}/>}
           {tab==='jadwal'&&sub.jadwal==='mingguan'&&<JadwalMingguan backlog={backlog} jadwal={jadwal} filter={jadwalFilter}/>}
           {tab==='jadwal'&&sub.jadwal==='bulanan'&&<JadwalBulanan jadwal={jadwal} filter={jadwalFilter}/>}
-          {tab==='dump'&&<DumpPage onAdd={addI} onAddKeputusan={addK} onAddJadwal={addToJadwal} onBatchAddJadwal={batchAddToJadwal} onUpdateJadwal={updateJadwal} onResetICSBatch={resetJadwalBatch} onSaveKpiCorp={saveKpiCorp} onSaveKpiCeo={saveKpiCeo} jadwal={jadwal} backlog={backlog} onDone={()=>{setTab('backlog');setST('backlog','backlog');}}/>}
+          {tab==='dump'&&<DumpPage onAdd={addI} onAddKeputusan={addK} onAddJadwal={addToJadwal} onBatchAddJadwal={batchAddToJadwal} onUpdateJadwal={updateJadwal} onResetICSBatch={resetJadwalBatch} onSaveKpiCorp={saveKpiCorp} onSaveKpiCeo={saveKpiCeo} onAddMom={addMom} jadwal={jadwal} backlog={backlog} onDone={()=>{setTab('backlog');setST('backlog','backlog');}}/>}
           {tab==='backlog'&&sub.backlog==='backlog'&&<BacklogList backlog={backlog} onUpdate={updI} onDelete={delI} onAddKeputusan={addK}/>}
           {tab==='backlog'&&sub.backlog==='keputusan'&&<Keputusan keputusan={keputusan} onUpdate={updK} onDelete={delK} onAddKeputusan={addK}/>}
+          {tab==='backlog'&&sub.backlog==='mom'&&<MoMList mom={mom} onDelete={delMom} jadwal={jadwal}/>}
           {tab==='resume'&&<AnalisaJadwal backlog={backlog} jadwal={jadwal} onAddJadwal={addToJadwal} onAddBacklog={addI} onUpdateBacklog={updI}/>}
         </div>
 
