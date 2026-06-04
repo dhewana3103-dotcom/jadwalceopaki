@@ -3304,17 +3304,27 @@ function App(){
         if(!byDate[item.tanggal])byDate[item.tanggal]=[];
         byDate[item.tanggal].push(item);
       });
-      var n={...jadwal};
-      Object.keys(byDate).forEach(function(date){
-        if(!n[date])n[date]=[];
-        // Avoid duplicates by gcalEventId
-        var existing=n[date].map(function(it){return it.gcalEventId;}).filter(Boolean);
-        byDate[date].forEach(function(item){
-          if(!item.gcalEventId||!existing.includes(item.gcalEventId)){n[date].push(item);}
-          else{n[date]=n[date].map(function(it){return it.gcalEventId===item.gcalEventId?{...it,...item}:it;});}
+      // Merge dengan jadwal yang sudah ada — pakai functional update agar dapat state terbaru
+      setJadwal(function(currentJadwal){
+        var n={...currentJadwal};
+        Object.keys(byDate).forEach(function(date){
+          if(!n[date])n[date]=[];
+          var existing=n[date].map(function(it){return it.gcalEventId;}).filter(Boolean);
+          byDate[date].forEach(function(item){
+            if(!item.gcalEventId||!existing.includes(item.gcalEventId)){
+              n[date].push(item);
+            } else {
+              n[date]=n[date].map(function(it){
+                return it.gcalEventId===item.gcalEventId?{...it,jamMulai:item.jamMulai,jamSelesai:item.jamSelesai,detailKegiatan:item.detailKegiatan,gcalDesc:item.gcalDesc}:it;
+              });
+            }
+          });
         });
+        // Save ke localStorage DAN Supabase sekaligus — cegah auto-poll overwrite
+        sv('jadwal',n);
+        sbSave('jadwal',n);
+        return n;
       });
-      setJadwal(n);sv('jadwal',n);
       setPulling(false);
       alert('✅ '+evs.length+' event berhasil diimport dari Google Calendar!');
     }).catch(function(e){setPulling(false);alert('❌ Gagal: '+e.message+'\nCoba reconnect Google Calendar.');});
@@ -3383,17 +3393,17 @@ function App(){
   const addMom=(entry)=>{const n=[entry,...mom];setMom(n);sv('mom',n);};
   const updMom=(id,patch)=>{const n=mom.map(it=>it.id===id?{...it,...patch}:it);setMom(n);sv('mom',n);};
   const delMom=(id)=>{const n=mom.filter(it=>it.id!==id);setMom(n);sv('mom',n);};
-  const addToJadwal=(date,item)=>{const n={...jadwal};if(!n[date])n[date]=[];n[date]=[...n[date],item];setJadwal(n);sv('jadwal',n);};
-  const batchAddToJadwal=(byDate)=>{const n={...jadwal};Object.entries(byDate).forEach(([date,items])=>{if(!n[date])n[date]=[];n[date]=[...(n[date]||[]),...items];});setJadwal(n);sv('jadwal',n);};
+  const addToJadwal=(date,item)=>{const n={...jadwal};if(!n[date])n[date]=[];n[date]=[...n[date],item];setJadwal(n);sv('jadwal',n);sbSave('jadwal',n);};
+  const batchAddToJadwal=(byDate)=>{const n={...jadwal};Object.entries(byDate).forEach(([date,items])=>{if(!n[date])n[date]=[];n[date]=[...(n[date]||[]),...items];});setJadwal(n);sv('jadwal',n);sbSave('jadwal',n);};
   const removeFromJadwal=(date,itemId)=>{
     const item=(jadwal[date]||[]).find(function(it){return it.id===itemId;});
     if(item&&item.gcalEventId&&gTok&&gCalId){
       deleteGCalEvent(item.gcalEventId,gTok,gCalId).catch(function(){});
     }
-    const n={...jadwal};if(n[date])n[date]=n[date].filter(it=>it.id!==itemId);setJadwal(n);sv('jadwal',n);
+    const n={...jadwal};if(n[date])n[date]=n[date].filter(it=>it.id!==itemId);setJadwal(n);sv('jadwal',n);sbSave('jadwal',n);
   };
-  const updateJadwal=(date,itemId,patch)=>{const n={...jadwal};if(n[date])n[date]=n[date].map(it=>it.id===itemId?{...it,...patch}:it);setJadwal(n);sv('jadwal',n);};
-  const resetJadwalBatch=(batchId)=>{const n={...jadwal};Object.keys(n).forEach(date=>{n[date]=(n[date]||[]).filter(it=>it._icsBatch!==batchId);});setJadwal(n);sv('jadwal',n);};
+  const updateJadwal=(date,itemId,patch)=>{const n={...jadwal};if(n[date])n[date]=n[date].map(it=>it.id===itemId?{...it,...patch}:it);setJadwal(n);sv('jadwal',n);sbSave('jadwal',n);};
+  const resetJadwalBatch=(batchId)=>{const n={...jadwal};Object.keys(n).forEach(date=>{n[date]=(n[date]||[]).filter(it=>it._icsBatch!==batchId);});setJadwal(n);sv('jadwal',n);sbSave('jadwal',n);};
   const setST=(t,v)=>setSub(p=>({...p,[t]:v}));
 
   const nc=backlog.filter(it=>it.status==='baru').length;
