@@ -48,26 +48,34 @@ function fetchGCalEvents(tok,calId,dateMin,dateMax){
   return fetch(url,{headers:{Authorization:'Bearer '+tok}}).then(function(r){return r.json();}).then(function(d){return d.items||[];});
 }
 function gCalEventToJadwal(ev){
-  var start=ev.start&&(ev.start.dateTime||ev.start.date)||'';
-  var end=ev.end&&(ev.end.dateTime||ev.end.date)||'';
-  var dateStr=start.slice(0,10);
-  var jamMulai=start.length>10?start.slice(11,16):'00:00';
-  var jamSelesai=end.length>10?end.slice(11,16):'00:00';
+  var startRaw=ev.start&&(ev.start.dateTime||ev.start.date)||'';
+  var endRaw=ev.end&&(ev.end.dateTime||ev.end.date)||'';
+  // Parse to local time (handles both +07:00 and Z offset)
+  function toLocal(s){
+    if(!s)return{date:'',time:'00:00'};
+    if(s.length<=10)return{date:s,time:'00:00'}; // all-day event
+    var d=new Date(s);
+    var yr=d.getFullYear();
+    var mo=String(d.getMonth()+1).padStart(2,'0');
+    var dy=String(d.getDate()).padStart(2,'0');
+    var hr=String(d.getHours()).padStart(2,'0');
+    var mn=String(d.getMinutes()).padStart(2,'0');
+    return{date:yr+'-'+mo+'-'+dy,time:hr+':'+mn};
+  }
+  var start=toLocal(startRaw);
+  var end=toLocal(endRaw);
   var summary=ev.summary||'';
   var mapped=mapICSEvent(summary);
-  var brief=parseGCalDesc(ev.description||'');
-  return{id:'SJ-'+genId(),tanggal:dateStr,jamMulai:jamMulai,jamSelesai:jamSelesai,masalahBacklogId:'',masalahText:'',kategori:mapped.kategori,jenisKegiatan:mapped.jenisKegiatan,detailKegiatan:mapped.detail||summary,relateMilestone:mapped.relateMilestone,outputKeputusan:'',gcalDesc:brief.desc||'',gcalEventId:ev.id||''};
+  var gcalDesc=ev.description?ev.description.replace(/<[^>]+>/g,'').trim():'';
+  return{id:'SJ-'+genId(),tanggal:start.date,jamMulai:start.time,jamSelesai:end.time,masalahBacklogId:'',masalahText:'',kategori:mapped.kategori,jenisKegiatan:mapped.jenisKegiatan,detailKegiatan:mapped.detail||summary,relateMilestone:mapped.relateMilestone,outputKeputusan:'',gcalDesc:gcalDesc,gcalEventId:ev.id||''};
 }
 function buildGCalDesc(item){
   var lines=[];
   var kl=(KPI5.find(function(k){return k.id===item.relateMilestone;})||{}).label||item.relateMilestone||'';
-  if(item.peserta){lines.push('ATTENDEES');item.peserta.split('\n').forEach(function(p){if(p.trim())lines.push('• '+p.trim());});lines.push('');}
-  if(item.execSummary){lines.push('EXECUTIVE SUMMARY');lines.push('Current Issue:');item.execSummary.split('\n').forEach(function(l){if(l.trim())lines.push('• '+l.trim());});lines.push('');}
-  if(item.decisionNeeded){lines.push('DECISION NEEDED:');lines.push(item.decisionNeeded);lines.push('');}
-  if(item.linkData){lines.push('LINK DATA / LAMPIRAN:');lines.push(item.linkData);lines.push('');}
-  lines.push('━━━━━━━━━━━━━━━━━━━━━━');
+  if(item.gcalDesc&&item.gcalDesc.trim())lines.push(item.gcalDesc.trim());
+  lines.push('');
+  lines.push('━━━━━━━━━━━━━━━━━━━━');
   lines.push('['+( item.jenisKegiatan||'')+'] '+item.kategori+' · KPI: '+kl);
-  if(item.masalahText)lines.push('Masalah: '+item.masalahText);
   return lines.join('\n');
 }
 function upsertGCalEvent(item,tok,calId){
@@ -3067,9 +3075,47 @@ Buat 5-8 rekomendasi. Prioritas: backlog tinggi+postpone>=3, lalu gap KPI, lalu 
 }
 
 // ── MOM LIST ──────────────────────────────────────────────────
-function MoMList({mom,onDelete,jadwal}){
+function MoMList({mom,onDelete,onUpdateMom,onAddKeputusan}){
   const [expId,setExpId]=useState(null);
+  const [expItemId,setExpItemId]=useState(null); // which action item is open for update
+  const [hasilTexts,setHasilTexts]=useState({}); // {itemId: text}
   const sorted=[...mom].sort((a,b)=>b.tanggal.localeCompare(a.tanggal));
+
+  function updateItemStatus(momId,itemId,patch){
+    const entry=mom.find(m=>m.id===momId);if(!entry)return;
+    const newItems=entry.items.map(it=>it.id===itemId?{...it,...patch}:it);
+    onUpdateMom(momId,{items:newItems});
+  }
+
+  function saveHasil(momEntry,item){
+    const txt=hasilTexts[item.id]||'';if(!txt.trim())return;
+    // Update status item di MoM
+    updateItemStatus(momEntry.id,item.id,{hasil:txt,status:'selesai'});
+    // Kirim ke Keputusan & Tracking
+    onAddKeputusan({
+      id:'KP-'+genId(),
+      tanggal:todayStr(),
+      backlogId:null,
+      konteks:momEntry.meetingName.slice(0,50),
+      deskripsi:item.action,
+      fungsiKPI:'operasional',
+      dampak:item.jenis==='Immediately'?'tinggi':'sedang',
+      status:'disampaikan',
+      output:txt,
+      updateTL:'',
+      sumber:'MoM: '+momEntry.meetingName
+    });
+    setHasilTexts(p=>({...p,[item.id]:''}));
+    setExpItemId(null);
+  }
+
+  const STATUS_CFG={
+    pending:{lbl:'Pending',bg:'bg-stone-100',color:'text-stone-500'},
+    'in-progress':{lbl:'Dikerjakan',bg:'bg-amber-50',color:'text-amber-700'},
+    selesai:{lbl:'Selesai',bg:'bg-emerald-50',color:'text-emerald-700'},
+    'perlu-review':{lbl:'Perlu Review CEO',bg:'bg-blue-50',color:'text-blue-700'},
+  };
+
   if(sorted.length===0)return(
     <div className="px-4 py-16 text-center">
       <div className="text-4xl mb-3 opacity-30">📝</div>
@@ -3077,6 +3123,7 @@ function MoMList({mom,onDelete,jadwal}){
       <div className="text-[11px] text-stone-300 mt-1">Import notulensi via Dump → 📥 MoM</div>
     </div>
   );
+
   return(
     <div className="pb-8 afi">
       <div className="px-4 pt-4 pb-2 flex items-center justify-between">
@@ -3088,54 +3135,116 @@ function MoMList({mom,onDelete,jadwal}){
           const isExp=expId===entry.id;
           const actionItems=entry.items.filter(it=>it.jenis!=='Feedback');
           const feedbackItems=entry.items.filter(it=>it.jenis==='Feedback');
-          const doneCount=entry.items.filter(it=>it.status==='done').length;
+          const doneCount=entry.items.filter(it=>it.status==='selesai').length;
+          const reviewCount=entry.items.filter(it=>it.status==='perlu-review').length;
           const dateLabel=new Date(entry.tanggal+'T12:00:00').toLocaleDateString('id-ID',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
           return(
             <div key={entry.id} className="bg-white rounded-2xl border border-stone-200 shadow-soft overflow-hidden">
-              {/* Header row */}
+              {/* Header */}
               <div className="p-4 cursor-pointer hover:bg-stone-50 st" onClick={()=>setExpId(isExp?null:entry.id)}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
-                    <div className="text-[12px] font-extrabold text-stone-900 leading-snug mb-1">{entry.meetingName}</div>
-                    <div className="flex items-center gap-2 flex-wrap">
+                    <div className="text-[12px] font-extrabold text-stone-900 leading-snug mb-1.5">{entry.meetingName}</div>
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="text-[10px] font-mono text-stone-400">{dateLabel}</span>
                       <span className="text-[10px] bg-stone-100 text-stone-500 px-1.5 py-0.5 rounded font-bold">{entry.items.length} item</span>
                       {actionItems.length>0&&<span className="text-[10px] bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded font-bold border border-amber-100">{actionItems.length} action</span>}
-                      {doneCount>0&&<span className="text-[10px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded font-bold border border-emerald-100">{doneCount} done</span>}
+                      {doneCount>0&&<span className="text-[10px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded font-bold border border-emerald-100">✓ {doneCount} selesai</span>}
+                      {reviewCount>0&&<span className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded font-bold border border-blue-100">⚑ {reviewCount} review CEO</span>}
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5 flex-shrink-0">
                     <button className="py-1 px-2 rounded-lg text-[9px] font-bold bg-red-50 text-red-400 border border-red-100 as st" onClick={e=>{e.stopPropagation();if(confirm('Hapus MoM ini?'))onDelete(entry.id);}}>🗑</button>
-                    <span className={`text-[10px] text-stone-400 ${isExp?'rotate-180':''} transition-transform`}>▼</span>
+                    <span className={`text-stone-400 text-[10px] ${isExp?'rotate-180':''}`}>▼</span>
                   </div>
                 </div>
               </div>
-              {/* Expanded detail */}
-              {isExp&&<div className="border-t border-stone-100 afi">
-                {/* Deskripsi Calendar */}
+
+              {/* Expanded */}
+              {isExp&&<div className="border-t border-stone-100">
                 {entry.gcalDesc&&entry.gcalDesc.trim()&&<div className="px-4 py-3 bg-stone-50 border-b border-stone-100">
                   <div className="text-[9px] font-extrabold text-stone-400 uppercase tracking-wider mb-1">Deskripsi Calendar</div>
                   <div className="text-[11px] text-stone-600 leading-relaxed whitespace-pre-wrap">{entry.gcalDesc}</div>
                 </div>}
-                {/* Action items */}
+
+                {/* Action Items — with update per item */}
                 {actionItems.length>0&&<div className="px-4 py-3 border-b border-stone-100">
-                  <div className="text-[9px] font-extrabold text-amber-600 uppercase tracking-wider mb-2">Action Items ({actionItems.length})</div>
-                  <div className="space-y-2">
-                    {actionItems.map((it,i)=>(
-                      <div key={it.id||i} className="flex items-start gap-2.5">
-                        <span className="text-[10px] font-black text-stone-400 flex-shrink-0 mt-0.5">{i+1}.</span>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-[11px] font-semibold text-stone-800 leading-snug">{it.action}</div>
-                          <div className="flex gap-2 mt-0.5 flex-wrap">
-                            {it.pic&&<span className="text-[9px] text-stone-500">👤 {it.pic}</span>}
-                            {it.deadline&&<span className="text-[9px] text-stone-500">📅 {it.deadline}</span>}
-                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${it.jenis==='Immediately'?'bg-red-100 text-red-700':'bg-stone-100 text-stone-500'}`}>{it.jenis}</span>
+                  <div className="text-[9px] font-extrabold text-amber-600 uppercase tracking-wider mb-3">Action Items ({actionItems.length})</div>
+                  <div className="space-y-2.5">
+                    {actionItems.map((it,i)=>{
+                      const st=STATUS_CFG[it.status||'pending']||STATUS_CFG.pending;
+                      const isExpItem=expItemId===it.id;
+                      const hasHasil=it.hasil&&it.hasil.trim();
+                      return(
+                        <div key={it.id||i} className={`rounded-xl border overflow-hidden ${isExpItem?'border-stone-300':'border-stone-200'}`}>
+                          {/* Item header */}
+                          <div className="p-3">
+                            <div className="flex items-start gap-2 mb-1.5">
+                              <span className="text-[10px] font-black text-stone-400 flex-shrink-0 mt-0.5">{i+1}.</span>
+                              <div className="flex-1 min-w-0">
+                                <div className="text-[11px] font-semibold text-stone-800 leading-snug mb-1">{it.action}</div>
+                                <div className="flex gap-1.5 flex-wrap items-center">
+                                  {it.pic&&<span className="text-[9px] text-stone-500">👤 {it.pic}</span>}
+                                  {it.deadline&&<span className="text-[9px] text-stone-500">📅 {it.deadline}</span>}
+                                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${it.jenis==='Immediately'?'bg-red-100 text-red-700':'bg-stone-100 text-stone-500'}`}>{it.jenis}</span>
+                                  {/* Status badge */}
+                                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${st.bg} ${st.color}`}>{st.lbl}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Hasil preview kalau sudah ada */}
+                            {hasHasil&&!isExpItem&&<div className="ml-5 mt-1 px-2.5 py-2 bg-emerald-50 border border-emerald-100 rounded-lg">
+                              <div className="text-[8px] font-extrabold text-emerald-600 uppercase tracking-wider mb-0.5">Hasil dari PIC</div>
+                              <div className="text-[11px] text-emerald-800 font-medium leading-snug">{it.hasil}</div>
+                            </div>}
+
+                            {/* Action buttons */}
+                            <div className="ml-5 mt-2 flex gap-1.5 flex-wrap">
+                              {/* Status quick-change */}
+                              {['in-progress','perlu-review'].map(s=>{
+                                const sc=STATUS_CFG[s];
+                                return(
+                                  <button key={s} className={`py-1 px-2 rounded-lg text-[9px] font-bold border as st ${(it.status||'pending')===s?`${sc.bg} ${sc.color} border-current`:'bg-stone-50 text-stone-400 border-stone-200'}`}
+                                    onClick={()=>updateItemStatus(entry.id,it.id,{status:(it.status||'pending')===s?'pending':s})}>
+                                    {sc.lbl}
+                                  </button>
+                                );
+                              })}
+                              <button className={`py-1 px-2.5 rounded-lg text-[9px] font-bold border as st ${isExpItem?'bg-stone-800 text-white border-stone-800':'bg-stone-100 text-stone-600 border-stone-200'}`}
+                                onClick={()=>{setExpItemId(isExpItem?null:it.id);setHasilTexts(p=>({...p,[it.id]:hasilTexts[it.id]!==undefined?hasilTexts[it.id]:(it.hasil||'');}));}}>
+                                {hasHasil?'✏️ Edit Hasil':'✍️ Input Hasil'}
+                              </button>
+                            </div>
                           </div>
+
+                          {/* Expand: input hasil */}
+                          {isExpItem&&<div className="border-t border-stone-200 p-3 bg-stone-50">
+                            <div className="text-[9px] font-extrabold text-stone-500 uppercase tracking-wider mb-1.5">Hasil / Update dari PIC</div>
+                            <div className="text-[9px] text-stone-400 mb-2">Setelah simpan → otomatis masuk ke Keputusan & Tracking</div>
+                            <textarea
+                              className="w-full px-2.5 py-2 rounded-xl border border-stone-200 bg-white text-[12px] focus:outline-none focus:ring-2 focus:ring-stone-400 resize-y mb-2"
+                              rows={3}
+                              placeholder={'Apa yang sudah dikerjakan PIC?\nContoh: "Laporan cashflow Bekasi sudah dibuat, negatif Rp 120jt, sudah diserahkan 4 Juni"'}
+                              value={hasilTexts[it.id]!==undefined?hasilTexts[it.id]:(it.hasil||'')}
+                              onChange={e=>setHasilTexts(p=>({...p,[it.id]:e.target.value}))}
+                            />
+                            <div className="flex gap-2">
+                              <button className="flex-1 py-2 rounded-xl border border-stone-200 bg-white text-[10px] font-bold text-stone-500 as st"
+                                onClick={()=>setExpItemId(null)}>Batal</button>
+                              <button className={`flex-2 py-2 px-4 rounded-xl text-[10px] font-bold as st ${!(hasilTexts[it.id]||'').trim()?'bg-stone-200 text-stone-400 cursor-not-allowed':'bg-emerald-600 text-white'}`}
+                                onClick={()=>saveHasil(entry,it)}
+                                disabled={!(hasilTexts[it.id]||'').trim()}>
+                                Simpan → Keputusan & Tracking
+                              </button>
+                            </div>
+                          </div>}
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>}
+
                 {/* Feedback */}
                 {feedbackItems.length>0&&<div className="px-4 py-3">
                   <div className="text-[9px] font-extrabold text-stone-400 uppercase tracking-wider mb-2">Feedback / Catatan ({feedbackItems.length})</div>
@@ -3272,6 +3381,7 @@ function App(){
   const updK=(id,patch)=>{const n=keputusan.map(it=>it.id===id?{...it,...patch}:it);setKeputusan(n);sv('keputusan',n);};
   const delK=(id)=>{const n=keputusan.filter(it=>it.id!==id);setKeputusan(n);sv('keputusan',n);};
   const addMom=(entry)=>{const n=[entry,...mom];setMom(n);sv('mom',n);};
+  const updMom=(id,patch)=>{const n=mom.map(it=>it.id===id?{...it,...patch}:it);setMom(n);sv('mom',n);};
   const delMom=(id)=>{const n=mom.filter(it=>it.id!==id);setMom(n);sv('mom',n);};
   const addToJadwal=(date,item)=>{const n={...jadwal};if(!n[date])n[date]=[];n[date]=[...n[date],item];setJadwal(n);sv('jadwal',n);};
   const batchAddToJadwal=(byDate)=>{const n={...jadwal};Object.entries(byDate).forEach(([date,items])=>{if(!n[date])n[date]=[];n[date]=[...(n[date]||[]),...items];});setJadwal(n);sv('jadwal',n);};
@@ -3365,7 +3475,7 @@ function App(){
           {tab==='dump'&&<DumpPage onAdd={addI} onAddKeputusan={addK} onAddJadwal={addToJadwal} onBatchAddJadwal={batchAddToJadwal} onUpdateJadwal={updateJadwal} onResetICSBatch={resetJadwalBatch} onSaveKpiCorp={saveKpiCorp} onSaveKpiCeo={saveKpiCeo} onAddMom={addMom} jadwal={jadwal} backlog={backlog} onDone={()=>{setTab('backlog');setST('backlog','backlog');}}/>}
           {tab==='backlog'&&sub.backlog==='backlog'&&<BacklogList backlog={backlog} onUpdate={updI} onDelete={delI} onAddKeputusan={addK}/>}
           {tab==='backlog'&&sub.backlog==='keputusan'&&<Keputusan keputusan={keputusan} onUpdate={updK} onDelete={delK} onAddKeputusan={addK}/>}
-          {tab==='backlog'&&sub.backlog==='mom'&&<MoMList mom={mom} onDelete={delMom} jadwal={jadwal}/>}
+          {tab==='backlog'&&sub.backlog==='mom'&&<MoMList mom={mom} onDelete={delMom} onUpdateMom={updMom} onAddKeputusan={addK}/>}
           {tab==='resume'&&<AnalisaJadwal backlog={backlog} jadwal={jadwal} onAddJadwal={addToJadwal} onAddBacklog={addI} onUpdateBacklog={updI}/>}
         </div>
 
