@@ -698,7 +698,7 @@ function Keputusan({keputusan,onUpdate,onDelete,onAddKeputusan}){
 }
 
 // ── SETTINGS ──────────────────────────────────────────────────
-function SettingsModal({onClose,gTok,gCalId,gCals,gBusy,onConnect,onPickCal,onForceSync,syncMsg,onResetJadwal,onResetBacklog,onResetKeputusan,onPullGCal,pulling}){
+function SettingsModal({onClose,gTok,gCalId,gCals,gBusy,onConnect,onPickCal,onForceSync,syncMsg,onResetJadwal,onResetBacklog,onResetKeputusan,onPullGCal,pulling,onFixPersonalJenis}){
   const [key,setKey]=useState(localStorage.getItem('rsp_apikey')||'');
   const [showKey,setShowKey]=useState(false);
   const [saved,setSaved]=useState(false);
@@ -821,6 +821,7 @@ function SettingsModal({onClose,gTok,gCalId,gCals,gBusy,onConnect,onPickCal,onFo
                 <button onClick={function(){if(confirm('Hapus SEMUA jadwal?\nBacklog & keputusan tetap aman.')){onResetJadwal();}}} className="text-[10px] font-bold text-orange-500 as underline">🗑 Reset Jadwal</button>
                 <button onClick={function(){if(confirm('Hapus SEMUA backlog?\nJadwal & keputusan tetap aman.')){onResetBacklog();}}} className="text-[10px] font-bold text-orange-500 as underline">🗑 Reset Backlog</button>
                 <button onClick={function(){if(confirm('Hapus SEMUA keputusan?\nJadwal & backlog tetap aman.')){onResetKeputusan();}}} className="text-[10px] font-bold text-orange-500 as underline">🗑 Reset Keputusan</button>
+                <button onClick={function(){onFixPersonalJenis();}} className="text-[10px] font-bold text-blue-600 as underline">🔧 Fix jenis Personal → "Personal"</button>
               </div>
             </div>
             {/* Quick guide link */}
@@ -1426,13 +1427,16 @@ function mapICSEvent(rawSummary){
   else if(['BT','BT & TKB','RSP & BT','BT X TKB'].some(x=>pU===x||pU.endsWith('BT')))kat='BT';
   else if(pU==='TKB'||pU==='HOLDING')kat='TKB';
   const sfU=suffix.toUpperCase();const dtL=detail.toLowerCase();
-  let jenis='Deepwork Strategic';
-  if(sfU.includes('DISCUSSION')||sfU.includes('APPROVAL')||sfU.includes('DECISION')||sfU.includes('BRAINSTORM')||sfU.includes('DISCUSS'))jenis='Meeting Strategic/Problem Solving/Approval';
-  else if(sfU.includes('REVIEW')||sfU.includes('UPDATE')||sfU.includes('EVALUASI'))jenis='Meeting Review Operasional + Evaluasi Tim';
-  else if(sfU.includes('KONTEN')||sfU.includes('MENULIS')||sfU.includes('PODCAST')||dtL.includes('take konten'))jenis='Bikin Konten';
-  else if(sfU.includes('GENBA')||dtL.includes('genba'))jenis='Genba';
-  else if(sfU.includes('DEEP')||sfU.includes('THINKING')||sfU.includes('THINK'))jenis='Deepwork Strategic';
-  else if(kat!=='Personal')jenis='Meeting Review Operasional + Evaluasi Tim';
+  let jenis='Personal';
+  if(kat!=='Personal'){
+    jenis='Meeting Review Operasional + Evaluasi Tim';
+    if(sfU.includes('DISCUSSION')||sfU.includes('APPROVAL')||sfU.includes('DECISION')||sfU.includes('BRAINSTORM')||sfU.includes('DISCUSS'))jenis='Meeting Strategic/Problem Solving/Approval';
+    else if(sfU.includes('REVIEW')||sfU.includes('UPDATE')||sfU.includes('EVALUASI'))jenis='Meeting Review Operasional + Evaluasi Tim';
+    else if(sfU.includes('KONTEN')||sfU.includes('MENULIS')||sfU.includes('PODCAST')||dtL.includes('take konten'))jenis='Bikin Konten';
+    else if(sfU.includes('GENBA')||dtL.includes('genba'))jenis='Genba';
+    else if(sfU.includes('DEEP')||sfU.includes('THINKING')||sfU.includes('THINK'))jenis='Deepwork Strategic';
+    else if(sfU.includes('ENGAGE'))jenis='Employee Engage';
+  }
   let kpi='people';
   if(kat==='RSP'){kpi=jenis==='Genba'?'riset':jenis.includes('Review')?'operasional':'operasional';}
   else if(kat==='BT')kpi='branding';
@@ -3367,7 +3371,19 @@ function App(){
     }).catch(function(){return false;});
   }
   function pushDay(date){if(!gTok||!gCalId){alert('Connect Google Calendar dulu di ⚙️');return;}var its=jadwal[date]||[];var done=0;var chain=Promise.resolve();its.forEach(function(it){chain=chain.then(function(){return upsertGCalEvent(it,gTok,gCalId).then(function(r){if(!r.error){done++;updateJadwal(date,it.id,{gcalEventId:r.id});}});});});chain.then(function(){alert(done+'/'+its.length+' berhasil. Update = tidak numpuk di Calendar!');});}
-  function resetJadwal(){var e={};setJadwal(e);sv('jadwal',e);sbSave('jadwal',e);alert('✓ Semua jadwal dihapus.');}
+  function fixPersonalJenis(){
+    var n={...jadwal};
+    Object.keys(n).forEach(function(date){
+      n[date]=(n[date]||[]).map(function(it){
+        if(it.kategori==='Personal'&&it.jenisKegiatan!=='Personal'){
+          return{...it,jenisKegiatan:'Personal'};
+        }
+        return it;
+      });
+    });
+    setJadwal(n);sv('jadwal',n);sbSave('jadwal',n);
+    alert('✓ Semua item kategori Personal sudah di-update ke jenis Personal!');
+  }
   function resetBacklog(){setBacklog([]);sv('backlog',[]);sbSave('backlog',[]);alert('✓ Semua backlog dihapus.');}
   function resetKeputusan(){setKeputusan([]);sv('keputusan',[]);sbSave('keputusan',[]);alert('✓ Semua keputusan dihapus.');}
   const [pulling,setPulling]=useState(false);
@@ -3501,7 +3517,7 @@ function App(){
 
   return(
     <div id="ac">
-      {showSettings&&<SettingsModal onClose={()=>setShowSettings(false)} gTok={gTok} gCalId={gCalId} gCals={gCals} gBusy={gBusy} onConnect={connectCal} onPickCal={pickCal} onForceSync={forceSyncNow} syncMsg={syncMsg} onResetJadwal={resetJadwal} onResetBacklog={resetBacklog} onResetKeputusan={resetKeputusan} onPullGCal={pullFromGCal} pulling={pulling}/>}
+      {showSettings&&<SettingsModal onClose={()=>setShowSettings(false)} gTok={gTok} gCalId={gCalId} gCals={gCals} gBusy={gBusy} onConnect={connectCal} onPickCal={pickCal} onForceSync={forceSyncNow} syncMsg={syncMsg} onResetJadwal={resetJadwal} onResetBacklog={resetBacklog} onResetKeputusan={resetKeputusan} onPullGCal={pullFromGCal} pulling={pulling} onFixPersonalJenis={fixPersonalJenis}/>}
       {/* ── DESKTOP SIDEBAR ── */}
       <aside className="hidden md:flex md:flex-col md:w-56 md:flex-shrink-0 md:sticky md:top-0 md:h-screen md:border-r md:border-stone-200 md:bg-white md:shadow-[2px_0_12px_rgba(0,0,0,0.04)] md:z-50">
         <Sidebar tab={tab} sub={sub} setTab={setTab} setST={setST} nc={nc} belumCount={belumCount}/>
