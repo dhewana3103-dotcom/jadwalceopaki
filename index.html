@@ -2231,10 +2231,22 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
     );
   }
 
-  const pastItems=dayItems.filter(function(it){return getItemState(it)==='past';});
+  // Past = sudah selesai, bukan lintas tengah malam (jamMulai < jamSelesai)
+  const pastItems=dayItems.filter(function(it){
+    if(getItemState(it)!=='past')return false;
+    // Skip overnight items (jamMulai > jamSelesai, misal 23:00-05:00)
+    if(it.jamMulai&&it.jamSelesai&&timeToMin(it.jamMulai)>timeToMin(it.jamSelesai))return false;
+    return true;
+  });
   const currentItems=dayItems.filter(function(it){return getItemState(it)==='current';});
-  const upcomingItems=dayItems.filter(function(it){return getItemState(it)==='upcoming';});
-  const lastPast=pastItems.length>0?pastItems[pastItems.length-1]:null;
+  const upcomingItems=dayItems.filter(function(it){
+    if(getItemState(it)!=='upcoming')return false;
+    // Skip overnight items shown as upcoming (they already happened)
+    if(it.jamMulai&&it.jamSelesai&&timeToMin(it.jamMulai)>timeToMin(it.jamSelesai))return false;
+    return true;
+  });
+  // lastPast = item dengan jamMulai terbesar (paling dekat ke sekarang)
+  const lastPast=pastItems.length>0?pastItems.slice().sort(function(a,b){return timeToMin(b.jamMulai)-timeToMin(a.jamMulai);})[0]:null;
   const currentItem=currentItems[0]||null;
   const nextItem=upcomingItems[0]||null;
 
