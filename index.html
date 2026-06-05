@@ -2027,8 +2027,11 @@ function getItemState(item){
 }
 
 function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,onUpdate,onAddKeputusan,filter,gcalOn,onPushItem,onPushDay}){
-  const today=todayStr();
-  const dayName=new Date().toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long'});
+  const todayActual=todayStr();
+  const [selectedDate,setSelectedDate]=useState(todayActual);
+  const today=selectedDate; // semua referensi 'today' otomatis pakai tanggal yang dipilih
+  const isToday=selectedDate===todayActual;
+  const dayName=new Date(selectedDate+'T12:00:00').toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
   const dayItemsAll=(jadwal[today]||[]).slice().sort((a,b)=>(a.jamMulai||'').localeCompare(b.jamMulai||''));
   const dayItems=filter?applyJadwalFilter(dayItemsAll,filter):dayItemsAll;
   const hiddenCount=dayItemsAll.length-dayItems.length;
@@ -2252,25 +2255,38 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
 
   return(
     <div className="afi pb-4">
-      <div className="px-5 pt-5 pb-3 md:px-6 flex justify-between items-start relative">
-        <div>
-          <div className="text-xl font-extrabold text-stone-800 tracking-tight">{dayName}</div>
-          <div className="text-[11px] font-medium text-stone-400 mt-0.5">{dayItems.length} kegiatan{hiddenCount>0?` -- ${hiddenCount} disembunyikan`:''} -- {nowStr}</div>
+      <div className="px-4 pt-4 pb-3 md:px-6">
+        {/* Date navigator */}
+        <div className="flex items-center gap-2 mb-2">
+          <button className="w-8 h-8 rounded-xl bg-stone-100 border border-stone-200 text-[14px] font-bold text-stone-600 as st flex items-center justify-center flex-shrink-0" onClick={function(){var d=new Date(selectedDate+'T12:00:00');d.setDate(d.getDate()-1);setSelectedDate(d.toISOString().slice(0,10));}}>‹</button>
+          <div className="flex-1 relative">
+            <input type="date" className="absolute inset-0 opacity-0 cursor-pointer w-full" value={selectedDate} onChange={function(e){if(e.target.value)setSelectedDate(e.target.value);}}/>
+            <div className={`px-3 py-2 rounded-xl border text-center cursor-pointer ${isToday?'bg-stone-900 border-stone-900 text-white':'bg-white border-stone-200 text-stone-700'}`}>
+              <div className="text-[13px] font-extrabold">{dayName}</div>
+              {!isToday&&<div className="text-[9px] font-semibold mt-0.5 opacity-70">Tap untuk ganti tanggal</div>}
+            </div>
+          </div>
+          <button className="w-8 h-8 rounded-xl bg-stone-100 border border-stone-200 text-[14px] font-bold text-stone-600 as st flex items-center justify-center flex-shrink-0" onClick={function(){var d=new Date(selectedDate+'T12:00:00');d.setDate(d.getDate()+1);setSelectedDate(d.toISOString().slice(0,10));}}>›</button>
+          {!isToday&&<button className="px-2.5 py-2 rounded-xl bg-stone-800 text-white text-[10px] font-bold as st flex-shrink-0" onClick={function(){setSelectedDate(todayActual);}}>Hari ini</button>}
         </div>
-        <div className="flex-shrink-0 relative flex items-center gap-2">
-          {gcalOn&&<button className="px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-200 text-[10px] font-bold text-blue-600 as st" onClick={function(){onPushDay(today);}}>Push Semua</button>}
-          <button className="px-3 py-1.5 rounded-xl bg-stone-100 border border-stone-200 text-[10px] font-bold text-stone-600 as st flex items-center gap-1" onClick={function(){setShowExport(function(p){return !p;});}}>Export</button>
-          {showExport&&<div className="absolute right-0 mt-1 bg-white border border-stone-200 rounded-2xl shadow-float z-30 overflow-hidden afi" style={{minWidth:160}}>
-            <div className="px-3 py-2 text-[9px] font-extrabold text-stone-400 uppercase tracking-wider border-b border-stone-100">Export Jadwal CSV</div>
-            {[['today','Hari ini'],['week','Minggu ini'],['all','Semua data']].map(function(r){return(
-              <button key={r[0]} className="w-full text-left px-3 py-2.5 text-[11px] font-medium text-stone-700 hover:bg-stone-50 border-b border-stone-100 last:border-0 as" onClick={function(){exportJadwalCSV(jadwal,backlog,r[0]);setShowExport(false);}}>{r[1]}</button>
-            );})}
-          </div>}
+        {/* Meta info */}
+        <div className="flex justify-between items-center">
+          <div className="text-[11px] font-medium text-stone-400">{dayItems.length} kegiatan{hiddenCount>0?' · '+hiddenCount+' disembunyikan':''}{isToday?' · '+nowStr:''}</div>
+          <div className="flex items-center gap-2">
+            {gcalOn&&<button className="px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200 text-[10px] font-bold text-blue-600 as st" onClick={function(){onPushDay(today);}}>📅 Push</button>}
+            <button className="px-2.5 py-1 rounded-lg bg-stone-100 border border-stone-200 text-[10px] font-bold text-stone-600 as st" onClick={function(){setShowExport(function(p){return !p;});}}>⬇️ Export</button>
+            {showExport&&<div className="absolute right-4 mt-1 bg-white border border-stone-200 rounded-2xl shadow-float z-30 overflow-hidden afi" style={{minWidth:160}}>
+              <div className="px-3 py-2 text-[9px] font-extrabold text-stone-400 uppercase tracking-wider border-b border-stone-100">Export Jadwal CSV</div>
+              {[['today','Hari ini'],['week','Minggu ini'],['all','Semua data']].map(function(r){return(
+                <button key={r[0]} className="w-full text-left px-3 py-2.5 text-[11px] font-medium text-stone-700 hover:bg-stone-50 border-b border-stone-100 last:border-0 as" onClick={function(){exportJadwalCSV(jadwal,backlog,r[0]);setShowExport(false);}}>{r[1]}</button>
+              );})}
+            </div>}
+          </div>
         </div>
       </div>
 
-      {/* TIMELINE — 3 card: 1 past, 1 current/idle, 1 upcoming */}
-      <div className="px-4 md:px-6 mb-4">
+      {/* TIMELINE — hanya tampil kalau lihat hari ini */}
+      {isToday&&<div className="px-4 md:px-6 mb-4">
         <div className="flex items-center gap-3 mb-2.5">
           <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-stone-300"/><span className="text-[10px] text-stone-400">Selesai</span></div>
           <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"/><span className="text-[10px] text-stone-400">Berlangsung</span></div>
@@ -2297,8 +2313,8 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
         {/* Upcoming — hanya 1 berikutnya */}
         {nextItem&&<JadwalCard key={nextItem.id} item={nextItem}/>}
 
-        {dayItems.length===0&&<div className="py-8 text-center"><div className="text-3xl mb-2 opacity-30">📅</div><div className="text-[12px] font-bold text-stone-400">Belum ada kegiatan hari ini</div><div className="text-[10px] text-stone-300 mt-1">Tambah via blok waktu di bawah</div></div>}
-      </div>
+        {dayItems.length===0&&<div className="py-6 text-center"><div className="text-3xl mb-2 opacity-30">📅</div><div className="text-[12px] font-bold text-stone-400">Belum ada kegiatan hari ini</div></div>}
+      </div>}
 
       <div className="h-px bg-stone-200 mx-4 md:mx-6 mb-4"/>
 
