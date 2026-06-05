@@ -161,7 +161,7 @@ async function callAI(messages,maxTokens=1200){
   });
   const data=await res.json();
   if(data.error)throw new Error(data.error.message);
-  return data.content?.map(b=>b.text||'').join('')||'';
+  return data.content&&data.content.map(b=>b.text||'').join('')||'';
 }
 const todayStr=()=>new Date().toISOString().slice(0,10);
 const calcScore=(w)=>{if(!w)return null;let t=0;GROUPS.forEach(g=>{g.items.forEach(i=>{const d=w[i.id];if(d)t+=(Math.min(d.pct,100)/100)*i.bobot;});});return Math.round(t);};
@@ -172,7 +172,7 @@ function getWeekKey(dateStr){const d=new Date(dateStr+'T12:00:00');const day=d.g
 function getWeekLabel(mondayStr){const mon=new Date(mondayStr+'T12:00:00');const sat=new Date(mondayStr+'T12:00:00');sat.setDate(mon.getDate()+5);return`${mon.getDate()}–${sat.getDate()} ${mon.toLocaleDateString('id-ID',{month:'short'})}`;}
 function getDur(jamMulai,jamSelesai){if(!jamMulai||!jamSelesai)return 0;const[h1,m1]=jamMulai.split(':').map(Number);const[h2,m2]=jamSelesai.split(':').map(Number);return Math.max(0,Math.round(((h2*60+m2)-(h1*60+m1))/60*10)/10);}
 function computeAnalisa(jadwal){
-  const allItems=Object.entries(jadwal).flatMap(([date,items])=>(items||[]).filter(it=>it.outputKeputusan?.trim()).map(it=>({...it,date})));
+  const allItems=Object.entries(jadwal).flatMap(([date,items])=>(items||[]).filter(it=>(it.outputKeputusan||"").trim()).map(it=>({...it,date})));
   if(!allItems.length)return null;
   const weekKeys=[...new Set(allItems.map(it=>getWeekKey(it.date)))].sort();
   // By jenis × week (hours)
@@ -186,7 +186,7 @@ function computeAnalisa(jadwal){
   // Matrix: fungsi × jenis
   const matrix={};
   KPI5.forEach(k=>{matrix[k.id]={};JENIS_KEGIATAN.forEach(j=>{matrix[k.id][j]={count:0,hours:0};});});
-  allItems.forEach(it=>{if(matrix[it.relateMilestone]?.[it.jenisKegiatan]){matrix[it.relateMilestone][it.jenisKegiatan].count++;matrix[it.relateMilestone][it.jenisKegiatan].hours=Math.round((matrix[it.relateMilestone][it.jenisKegiatan].hours+getDur(it.jamMulai,it.jamSelesai))*10)/10;}});
+  allItems.forEach(it=>{if(matrix[it.relateMilestone]&&matrix[it.relateMilestone][it.jenisKegiatan]){matrix[it.relateMilestone][it.jenisKegiatan].count++;matrix[it.relateMilestone][it.jenisKegiatan].hours=Math.round((matrix[it.relateMilestone][it.jenisKegiatan].hours+getDur(it.jamMulai,it.jamSelesai))*10)/10;}});
   // Totals per week
   const totals={};weekKeys.forEach(w=>{totals[w]=Math.round(allItems.filter(it=>getWeekKey(it.date)===w).reduce((s,it)=>s+getDur(it.jamMulai,it.jamSelesai),0)*10)/10;});
   // Distribusi (total hours per jenis)
@@ -307,10 +307,10 @@ function BacklogCard({item,onUpdate,onDelete,onAddKeputusan,isActOpen,actType,on
 
   return(
     <div className="bg-white rounded-2xl border border-stone-200 shadow-soft overflow-hidden relative afi">
-      <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${k?.bg||'bg-stone-200'}`}/>
+      <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${k?k.bg:'bg-stone-200'}`}/>
       <div className="p-4 pl-5">
         {/* Konteks */}
-        <div className={`text-[9px] font-extrabold uppercase tracking-widest mb-1 ${k?.color||'text-stone-400'}`}>{item.konteks}</div>
+        <div className={`text-[9px] font-extrabold uppercase tracking-widest mb-1 ${k?k.color:'text-stone-400'}`}>{item.konteks}</div>
         {/* Isi/Issue */}
         <div className="text-[13px] font-bold text-stone-800 leading-snug mb-2.5">{item.isi}</div>
         {/* Action */}
@@ -440,7 +440,7 @@ function BacklogList({backlog,onUpdate,onDelete,onAddKeputusan}){
   const [fs,setFs]=useState('all');
   const [actItem,setActItem]=useState(null);
   const [actType,setActType]=useState(null);
-  function openAct(item,type){if(actItem?.id===item?.id&&actType===type){setActItem(null);setActType(null);}else{setActItem(item);setActType(type);}}
+  function openAct(item,type){if(actItem&&actItem.id===item&&item.id&&actType===type){setActItem(null);setActType(null);}else{setActItem(item);setActType(type);}}
 
   const nc=backlog.filter(x=>x.status==='baru').length;
   const np=backlog.filter(x=>x.status==='postponed').length;
@@ -533,7 +533,7 @@ function BacklogList({backlog,onUpdate,onDelete,onAddKeputusan}){
             </div>}
             <div className="space-y-3 md:grid md:grid-cols-2 md:gap-4 md:space-y-0 md:items-start">
               {g.items.map(function(item){return(
-                <BacklogCard key={item.id} item={item} onUpdate={onUpdate} onDelete={onDelete} onAddKeputusan={onAddKeputusan} isActOpen={actItem?.id===item.id} actType={actType} onOpenAct={openAct}/>
+                <BacklogCard key={item.id} item={item} onUpdate={onUpdate} onDelete={onDelete} onAddKeputusan={onAddKeputusan} isActOpen={actItem&&actItem.id===item.id} actType={actType} onOpenAct={openAct}/>
               );})}
             </div>
           </div>
@@ -586,10 +586,10 @@ function Keputusan({keputusan,onUpdate,onDelete,onAddKeputusan}){
     const statusBelum=kpt.status==='disampaikan'||kpt.status==='proses';
     return(
       <div className="bg-white rounded-xl border border-stone-200 overflow-hidden relative mb-2 afi">
-        <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${k?.bg||'bg-stone-200'}`}/>
+        <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${k?k.bg:'bg-stone-200'}`}/>
         <div className="p-3.5 pl-5">
           {/* Konteks */}
-          {kpt.konteks&&<div className={`text-[9px] font-extrabold uppercase tracking-widest mb-1 ${k?.color||'text-stone-400'}`}>{kpt.konteks}</div>}
+          {kpt.konteks&&<div className={`text-[9px] font-extrabold uppercase tracking-widest mb-1 ${k?k.color:'text-stone-400'}`}>{kpt.konteks}</div>}
           {/* Deskripsi keputusan */}
           <div className="flex gap-2 justify-between items-start mb-2.5">
             <div className="text-[12px] font-bold text-stone-800 leading-snug flex-1">{kpt.deskripsi}</div>
@@ -664,7 +664,7 @@ function Keputusan({keputusan,onUpdate,onDelete,onAddKeputusan}){
             {groups.map(({src,items})=>{
               const pendingCnt=items.filter(k=>k.status==='disampaikan'||k.status==='proses').length;
               const isOpen=expGroup===src;
-              const srcKPI=KPI5.find(k=>k.id===items[0]?.fungsiKPI);
+              const srcKPI=KPI5.find(k=>k.id===items[0]&&items[0].fungsiKPI);
               return(
                 <div key={src} className="bg-white rounded-2xl border border-stone-200 shadow-soft overflow-hidden">
                   <div className={`p-3.5 flex justify-between items-center cursor-pointer st hover:bg-stone-50 ${isOpen?'border-b border-stone-100':''}`} onClick={()=>setExpGroup(isOpen?null:src)}>
@@ -979,7 +979,7 @@ function exportJadwalCSV(jadwal,backlog,range){
     (items||[]).sort((a,b)=>(a.jamMulai||'').localeCompare(b.jamMulai||'')).forEach(it=>{
       const bl=it.masalahBacklogId?backlog.find(b=>b.id===it.masalahBacklogId):null;
       const masalah=bl?`${bl.konteks}: ${bl.isi}`:(it.masalahText||'');
-      const kpiLabel=KPI5.find(k=>k.id===it.relateMilestone)?.label||it.relateMilestone||'';
+      const kpiLabel=(KPI5.find(function(k){return k.id===it.relateMilestone;})||{}).label||it.relateMilestone||'';
       rows.push([date,it.jamMulai||'',it.jamSelesai||'',masalah,it.kategori||'',it.jenisKegiatan||'',it.detailKegiatan||'',kpiLabel,it.outputKeputusan||'']);
     });
   });
@@ -1129,7 +1129,7 @@ function ImportMoM({onAddMom,onAddKeputusan,backlog,jadwal,onUpdateJadwal}){
         ):(
           <div>
             <input type="file" accept=".csv,.tsv,.txt" ref={fileRef} onChange={handleFile} className="hidden"/>
-            <div className="border-2 border-dashed border-stone-300 rounded-2xl p-6 text-center cursor-pointer hover:border-stone-400 hover:bg-stone-50 st" onClick={()=>fileRef.current?.click()}>
+            <div className="border-2 border-dashed border-stone-300 rounded-2xl p-6 text-center cursor-pointer hover:border-stone-400 hover:bg-stone-50 st" onClick={()=>fileRef.current&&fileRef.current.click()}>
               <div className="text-2xl mb-1.5">📁</div>
               <div className="text-[12px] font-bold text-stone-600">Klik untuk pilih file CSV</div>
             </div>
@@ -1305,7 +1305,7 @@ function ImportJadwal({onAddJadwal,onBatchAddJadwal}){
       ):(
         <div className="mb-4">
           <input type="file" accept=".csv,.tsv,.txt" ref={fileRef} onChange={handleFile} className="hidden"/>
-          <div className="border-2 border-dashed border-stone-300 rounded-2xl p-8 text-center cursor-pointer hover:border-stone-400 hover:bg-stone-50 st" onClick={()=>fileRef.current?.click()}>
+          <div className="border-2 border-dashed border-stone-300 rounded-2xl p-8 text-center cursor-pointer hover:border-stone-400 hover:bg-stone-50 st" onClick={()=>fileRef.current&&fileRef.current.click()}>
             <div className="text-3xl mb-2">📁</div>
             <div className="text-[12px] font-bold text-stone-600">Klik untuk pilih file CSV</div>
             <div className="text-[10px] text-stone-400 mt-1">.csv · .tsv · .txt</div>
@@ -1559,7 +1559,7 @@ function ImportICS({onBatchAddJadwal,onResetICSBatch}){
       </div>}
 
       <input type="file" accept=".ics" ref={fileRef} onChange={handleFile} className="hidden"/>
-      <div className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer st mb-4 ${icsText?'border-violet-400 bg-violet-50':'border-stone-300 hover:border-violet-400 hover:bg-violet-50'}`} onClick={()=>fileRef.current?.click()}>
+      <div className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer st mb-4 ${icsText?'border-violet-400 bg-violet-50':'border-stone-300 hover:border-violet-400 hover:bg-violet-50'}`} onClick={()=>fileRef.current&&fileRef.current.click()}>
         <div className="text-3xl mb-2">{icsText?'✅':'📁'}</div>
         {icsText?(
           <div><div className="text-[12px] font-bold text-violet-700">File terbaca</div><div className="text-[10px] text-violet-500 mt-1">{icsText.split('BEGIN:VEVENT').length-1} events dalam file</div></div>
@@ -1721,13 +1721,13 @@ function KPICorpImport({onSave}){
       {preview&&<div className="afi">
         <div className="flex items-center justify-between mb-3"><div className="text-[12px] font-bold text-stone-800">{preview.rows.length} sub-indikator — cek skor</div><button className="text-[10px] text-stone-400 as" onClick={()=>setPreview(null)}>✕</button></div>
         <div className="grid grid-cols-4 gap-2 mb-4">
-          {['W1','W2','W3','W4'].map(w=>{const t=preview.totals[w];return(<div key={w} className={`bg-white border rounded-xl p-3 text-center shadow-soft ${t?.skor>=80?'border-emerald-200':t?.skor>=60?'border-amber-200':t?.skor?'border-red-200':'border-stone-200'}`}><div className="text-[10px] font-bold text-stone-400 mb-1">{w}</div>{t?<><div className={`text-xl font-black ${t.skor>=80?'text-emerald-600':t.skor>=60?'text-amber-600':'text-red-600'}`}>{t.skor}%</div><div className="text-[9px] text-stone-400">bobot {t.bobot}%</div></>:<div className="text-xl font-black text-stone-300">—</div>}</div>);})}
+          {['W1','W2','W3','W4'].map(w=>{const t=preview.totals[w];return(<div key={w} className={`bg-white border rounded-xl p-3 text-center shadow-soft ${t&&t.skor>=80?'border-emerald-200':t&&t.skor>=60?'border-amber-200':t&&t.skor?'border-red-200':'border-stone-200'}`}><div className="text-[10px] font-bold text-stone-400 mb-1">{w}</div>{t?<><div className={`text-xl font-black ${t.skor>=80?'text-emerald-600':t.skor>=60?'text-amber-600':'text-red-600'}`}>{t.skor}%</div><div className="text-[9px] text-stone-400">bobot {t.bobot}%</div></>:<div className="text-xl font-black text-stone-300">—</div>}</div>);})}
         </div>
         <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden shadow-soft mb-4 overflow-x-auto">
           <table className="w-full text-[10px]" style={{minWidth:480}}><thead><tr className="bg-stone-50 border-b border-stone-200 text-[9px] text-stone-400 uppercase"><th className="px-3 py-2 text-left">Sub Indikator</th><th className="px-2 py-2 text-center">W1%</th><th className="px-2 py-2 text-center">W2%</th><th className="px-2 py-2 text-center">W3%</th><th className="px-2 py-2 text-center">W4%</th></tr></thead>
           <tbody className="divide-y divide-stone-100">{preview.rows.slice(0,12).map((r,i)=>(
             <tr key={i} className="hover:bg-stone-50"><td className="px-3 py-2 font-medium text-stone-700 max-w-[180px]">{r.sub}</td>
-            {['w1','w2','w3','w4'].map(w=>{const p=parsePct(r[w]?.pct);return<td key={w} className="px-2 py-2 text-center"><span className={`text-[10px] font-bold ${p>=80?'text-emerald-600':p>=60?'text-amber-600':p>0?'text-red-600':'text-stone-300'}`}>{r[w]?.pct||'—'}</span></td>;})}
+            {['w1','w2','w3','w4'].map(w=>{const p=parsePct(r[w]&&r[w].pct);return<td key={w} className="px-2 py-2 text-center"><span className={`text-[10px] font-bold ${p>=80?'text-emerald-600':p>=60?'text-amber-600':p>0?'text-red-600':'text-stone-300'}`}>{r[w]&&r[w].pct||'—'}</span></td>;})}
             </tr>
           ))}</tbody></table>
         </div>
@@ -1894,7 +1894,7 @@ Return HANYA JSON array valid, tidak ada teks lain, tidak ada markdown fences:
         {imgSrc&&<div className="mb-4 relative inline-block"><img src={imgSrc} alt="" className="h-20 w-auto rounded-xl border border-stone-200 shadow-sm object-cover"/><button onClick={removeImg} className="absolute -top-2 -right-2 bg-stone-900 text-white w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold shadow-md">✕</button></div>}
         <div className="flex gap-2 mb-4">
           <input type="file" accept="image/*" ref={fileRef} onChange={handleImg} className="hidden"/>
-          <button className="flex-1 py-2.5 px-4 rounded-xl border border-stone-200 bg-white text-[11px] font-bold text-stone-700 as st flex items-center justify-center gap-2" onClick={()=>fileRef.current?.click()}><span>📎</span> Lampirkan Screenshot / MOM</button>
+          <button className="flex-1 py-2.5 px-4 rounded-xl border border-stone-200 bg-white text-[11px] font-bold text-stone-700 as st flex items-center justify-center gap-2" onClick={()=>fileRef.current&&fileRef.current.click()}><span>📎</span> Lampirkan Screenshot / MOM</button>
         </div>
         {err&&<div className="p-3 rounded-xl bg-red-50 border border-red-100 text-[11px] text-red-600 mb-4">⚠️ {err}</div>}
         <div className="flex items-start gap-2.5 p-3 rounded-xl bg-blue-50 border border-blue-100 mb-4">
@@ -1915,9 +1915,9 @@ Return HANYA JSON array valid, tidak ada teks lain, tidak ada markdown fences:
           <div className="space-y-3 mb-4">
             {preview.map((item,i)=>{const k=KPI5.find(x=>x.id===item.fungsiKPI);return(
               <div key={i} className="bg-white rounded-2xl border border-stone-200 shadow-sm overflow-hidden relative">
-                <div className={`absolute left-0 top-0 bottom-0 w-1 ${k?.bg||'bg-stone-200'}`}/>
+                <div className={`absolute left-0 top-0 bottom-0 w-1 ${k?k.bg:'bg-stone-200'}`}/>
                 <div className="p-3.5 pl-4">
-                  <div className={`text-[9px] font-extrabold uppercase tracking-widest mb-1 ${k?.color||'text-stone-400'}`}>{item.konteks}</div>
+                  <div className={`text-[9px] font-extrabold uppercase tracking-widest mb-1 ${k?k.color:'text-stone-400'}`}>{item.konteks}</div>
                   <div className="text-[12px] font-bold text-stone-800 leading-snug mb-2">{item.isi}</div>
                   {item.action&&<div className="flex items-start gap-1.5 bg-amber-50 rounded-lg p-2 border border-amber-100 mb-2.5"><span className="text-amber-500 text-xs mt-0.5">⚡</span><div className="text-[10px] font-semibold text-amber-800">{item.action}</div></div>}
                   <div className="flex gap-1.5 flex-wrap"><KC id={item.fungsiKPI} sm/><BC id={item.blokWaktu}/><PriBadge p={item.prioritas}/></div>
@@ -1939,7 +1939,7 @@ function Dashboard({weekly,kpiCorp,dashMonth,onChangeMonth}){
   const active=WEEKS.filter(w=>weekly[w]);
   const last=weekly[active[active.length-1]];
   const crits=[];
-  if(last){if((last.booking?.pct||0)<50)crits.push({l:'Booking',p:last.booking?.pct,k:'finansial'});if(last.fraud?.pct===0)crits.push({l:'Temuan Fraud',note:'ada 1.29%',k:'operasional'});if((last.lahan_baru?.pct||0)===0)crits.push({l:'Lahan Baru',p:0,k:'riset'});if((last.sdm_rekrut?.pct||0)<50)crits.push({l:'SDM Rekrut',p:last.sdm_rekrut?.pct,k:'people'});}
+  if(last){if((last.booking&&last.booking.pct||0)<50)crits.push({l:'Booking',p:last.booking&&last.booking.pct,k:'finansial'});if(last.fraud&&last.fraud.pct===0)crits.push({l:'Temuan Fraud',note:'ada 1.29%',k:'operasional'});if((last.lahan_baru&&last.lahan_baru.pct||0)===0)crits.push({l:'Lahan Baru',p:0,k:'riset'});if((last.sdm_rekrut&&last.sdm_rekrut.pct||0)<50)crits.push({l:'SDM Rekrut',p:last.sdm_rekrut&&last.sdm_rekrut.pct,k:'people'});}
   const SC={y:'text-amber-600',r:'text-red-600',g:'text-emerald-600'};
   const scC=(s)=>s>=80?'text-emerald-600':s>=60?'text-amber-600':'text-red-600';
   return(
@@ -2689,7 +2689,7 @@ function AnalisaJadwal({backlog,jadwal,onAddJadwal,onBatchAddJadwal,onAddBacklog
     for(let i=0;i<=dUntilSat;i++){const d=new Date(today);d.setDate(today.getDate()+i);if(d.getDay()===0)continue;days.push({dateStr:d.toISOString().slice(0,10),dayName:d.toLocaleDateString('id-ID',{weekday:'short',day:'numeric',month:'short'})});}
     return days;
   },[]);
-  const satStr=remainDays[remainDays.length-1]?.dateStr||todayStr();
+  const satStr=remainDays.length>0?remainDays[remainDays.length-1].dateStr:todayStr()||todayStr();
 
   function syncBin(arr){setRecycleBin(arr);try{localStorage.setItem('rsp_recycle_bin',JSON.stringify(arr));}catch(e){}}
   function addToBin(item){syncBin([...recycleBin,{...item,rejectedAt:todayStr()}]);}
@@ -2759,7 +2759,7 @@ Buat 5-8 rekomendasi. Prioritas: backlog tinggi+postpone>=3, lalu gap KPI, lalu 
 
   function handleTake(r){
     setTakingId(r.id);
-    setTakeForm({tanggal:r.suggestTanggal||remainDays[0]?.dateStr||todayStr(),jamMulai:r.suggestJam||'08:00',jamSelesai:r.suggestJamSelesai||'10:00',kategori:r.kategori||'RSP',detailKegiatan:r.kegiatan,jenisKegiatan:r.jenisKegiatan,relateMilestone:r.fungsiKPI});
+    setTakeForm({tanggal:r.suggestTanggal||remainDays[0]&&remainDays[0].dateStr||todayStr(),jamMulai:r.suggestJam||'08:00',jamSelesai:r.suggestJamSelesai||'10:00',kategori:r.kategori||'RSP',detailKegiatan:r.kegiatan,jenisKegiatan:r.jenisKegiatan,relateMilestone:r.fungsiKPI});
   }
   function confirmTake(r){
     const item={id:'SJ-'+genId(),tanggal:takeForm.tanggal,jamMulai:takeForm.jamMulai,jamSelesai:takeForm.jamSelesai,kategori:takeForm.kategori,jenisKegiatan:takeForm.jenisKegiatan,detailKegiatan:takeForm.detailKegiatan,masalahBacklogId:r.fromBacklogId||'',masalahText:'',relateMilestone:takeForm.relateMilestone,outputKeputusan:''};
@@ -2769,7 +2769,7 @@ Buat 5-8 rekomendasi. Prioritas: backlog tinggi+postpone>=3, lalu gap KPI, lalu 
   }
   function handlePostpone(r){
     const bl=r.fromBacklogId?backlog.find(b=>b.id===r.fromBacklogId):null;
-    const newCount=(bl?.postponeCount||0)+1;
+    const newCount=(bl&&bl.postponeCount||0)+1;
     if(newCount>=3&&!confirm(`Postpone ke-${newCount}x. Sudah melampaui batas — lanjutkan?`))return;
     if(bl){onUpdateBacklog(bl.id,{postponeCount:newCount});}
     else{onAddBacklog([{id:'BL-'+genId(),sumber:'AI',tanggal:todayStr(),konteks:'Rekomendasi AI',isi:r.kegiatan,action:r.kegiatan,ekspektasi:'',pic:null,deadline:null,fungsiKPI:r.fungsiKPI,kategori:r.jenisKegiatan,blokWaktu:'sore-review',prioritas:r.prioritas,status:'baru',postponeCount:1,notes:'Dari rekomendasi AI — postponed'}]);}
@@ -2948,13 +2948,13 @@ Buat 5-8 rekomendasi. Prioritas: backlog tinggi+postpone>=3, lalu gap KPI, lalu 
         {aiLoading&&<div className="text-center py-8"><div className="w-8 h-8 border-2 border-stone-300 border-t-stone-600 rounded-full animate-spin mx-auto mb-3"/><div className="text-[12px] text-stone-400">Menganalisis pola + merancang rekomendasi...</div></div>}
         {aiResult&&!aiLoading&&<>
           {/* Ringkasan */}
-          {aiResult.ringkasan?.length>0&&<div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-5">
+          {aiResult.ringkasan&&aiResult.ringkasan.length>0&&<div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-5">
             {aiResult.ringkasan.map((c,i)=>(<div key={i} className={`bg-white rounded-xl p-4 border ${typeBorderMap[c.type]||'border-stone-200'} shadow-soft relative overflow-hidden`}><div className={`absolute top-0 right-0 w-1.5 h-full ${typeBgMap[c.type]||'bg-stone-300'}`}/><div className={`text-[10px] font-extrabold tracking-wider uppercase mb-1 ${typeMap[c.type]?.split(' ')[1]||'text-stone-500'}`}>{c.tag}</div><div className="text-xl font-black text-stone-900 mb-0.5">{c.value}</div><div className="text-[12px] font-bold text-stone-700 mb-1">{c.label}</div><div className="text-[11px] text-stone-500">{c.sub}</div></div>))}
           </div>}
           {/* Temuan */}
-          {aiResult.temuan?.length>0&&<div className="bg-white rounded-2xl border border-stone-200 shadow-soft overflow-hidden mb-5"><table className="w-full text-[11px]"><tbody className="divide-y divide-stone-100">{aiResult.temuan.map((t,i)=>(<tr key={i} className={t.type==='danger'?'bg-red-50/30':'hover:bg-stone-50'}><td className="p-3 font-bold text-stone-800 align-top w-1/4 whitespace-nowrap">{t.fungsi}</td><td className="p-3 align-top"><span className={`inline-flex px-2 py-1 rounded text-[9px] font-bold ${typeMap[t.type]||'bg-stone-100 text-stone-600'}`}>{t.status}</span></td><td className="p-3 text-stone-600 align-top leading-relaxed">{t.txt}</td></tr>))}</tbody></table></div>}
+          {aiResult.temuan&&aiResult.temuan.length>0&&<div className="bg-white rounded-2xl border border-stone-200 shadow-soft overflow-hidden mb-5"><table className="w-full text-[11px]"><tbody className="divide-y divide-stone-100">{aiResult.temuan.map((t,i)=>(<tr key={i} className={t.type==='danger'?'bg-red-50/30':'hover:bg-stone-50'}><td className="p-3 font-bold text-stone-800 align-top w-1/4 whitespace-nowrap">{t.fungsi}</td><td className="p-3 align-top"><span className={`inline-flex px-2 py-1 rounded text-[9px] font-bold ${typeMap[t.type]||'bg-stone-100 text-stone-600'}`}>{t.status}</span></td><td className="p-3 text-stone-600 align-top leading-relaxed">{t.txt}</td></tr>))}</tbody></table></div>}
           {/* Pola */}
-          {aiResult.pola?.length>0&&<div className="space-y-3 mb-5">{aiResult.pola.map((p,i)=>(<div key={i} className="bg-white border border-stone-200 rounded-xl p-3.5 border-l-4 border-l-amber-400"><div className="text-[12px] font-bold text-stone-800 mb-1.5">{p.slot}</div><div className="text-[11px] text-stone-600 mb-2"><strong>Temuan:</strong> {p.issue}</div><div className="text-[11px] text-emerald-700 bg-emerald-50 p-2 rounded-lg border border-emerald-100"><strong>Harusnya:</strong> {p.fix}</div></div>))}</div>}
+          {aiResult.pola&&aiResult.pola.length>0&&<div className="space-y-3 mb-5">{aiResult.pola.map((p,i)=>(<div key={i} className="bg-white border border-stone-200 rounded-xl p-3.5 border-l-4 border-l-amber-400"><div className="text-[12px] font-bold text-stone-800 mb-1.5">{p.slot}</div><div className="text-[11px] text-stone-600 mb-2"><strong>Temuan:</strong> {p.issue}</div><div className="text-[11px] text-emerald-700 bg-emerald-50 p-2 rounded-lg border border-emerald-100"><strong>Harusnya:</strong> {p.fix}</div></div>))}</div>}
           {/* Postpone Pola */}
           {aiResult.postponePola&&aiResult.postponePola.total>0&&<div className="bg-orange-50 border border-orange-200 rounded-2xl p-4 mb-5">
             <div className="text-[12px] font-extrabold text-orange-800 mb-2">⏩ Pola Postpone CEO — {aiResult.postponePola.total}x</div>
@@ -3212,7 +3212,8 @@ function MoMList({mom,onDelete,onUpdateMom,onAddKeputusan}){
                                 );
                               })}
                               <button className={`py-1 px-2.5 rounded-lg text-[9px] font-bold border as st ${isExpItem?'bg-stone-800 text-white border-stone-800':'bg-stone-100 text-stone-600 border-stone-200'}`}
-                                onClick={()=>{setExpItemId(isExpItem?null:it.id);setHasilTexts(p=>({...p,[it.id]:hasilTexts[it.id]!==undefined?hasilTexts[it.id]:(it.hasil||'');}));}}>
+                              onClick={function(){var cur=hasilTexts[it.id]!==undefined?hasilTexts[it.id]:(it.hasil||'');setExpItemId(isExpItem?null:it.id);setHasilTexts(function(p){var n={...p};n[it.id]=cur;return n;});}}>
+
                                 {hasHasil?'✏️ Edit Hasil':'✍️ Input Hasil'}
                               </button>
                             </div>
@@ -3335,7 +3336,7 @@ function App(){
   const [dashMonth,setDashMonth]=useState(()=>new Date().toISOString().slice(0,7));
   function saveKpiCorp(month,data){const n={...kpiCorp,[month]:data};setKpiCorp(n);sv('kpi_corp',n);setDashMonth(month);}
   function saveKpiCeo(month,items){const n={...kpiCeo,[month]:items};setKpiCeo(n);sv('kpi_ceo',n);}
-  const dashWeekly=kpiCorp[dashMonth]?.weekly||INIT_W;
+  const dashWeekly=kpiCorp[dashMonth]&&kpiCorp[dashMonth].weekly||INIT_W;
   const [weekly]=useState(INIT_W);
   const [backlog,setBacklog]=useState([]);
   const [keputusan,setKeputusan]=useState([]);
@@ -3440,7 +3441,7 @@ function App(){
             </div>
             {/* Desktop: show current tab name */}
             <div className="hidden md:block">
-              <div className="text-[18px] font-extrabold text-stone-900 tracking-tight">{AT?.id==='dashboard'?'Dashboard KPI':AT?.id==='jadwal'?'Jadwal CEO':AT?.id==='dump'?'Dump Think':AT?.id==='backlog'?'Backlog':AT?.id==='resume'?'Resume Agenda':'CEO GTD OS'}</div>
+              <div className="text-[18px] font-extrabold text-stone-900 tracking-tight">{AT&&AT.id==='dashboard'?'Dashboard KPI':AT&&AT.id==='jadwal'?'Jadwal CEO':AT&&AT.id==='dump'?'Dump Think':AT&&AT.id==='backlog'?'Backlog':AT&&AT.id==='resume'?'Resume Agenda':'CEO GTD OS'}</div>
               <div className="text-[11px] text-stone-400 font-medium mt-0.5">{new Date().toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</div>
             </div>
             <div className="flex items-center gap-2">
@@ -3453,7 +3454,7 @@ function App(){
             </div>
           </div>
           {/* Sub-tabs */}
-          {AT?.subs&&(
+          {AT&&AT.subs&&(
             <div className="flex bg-stone-50/80 border-t border-stone-200 md:px-2">
               {AT.subs.map(s=>(
                 <button key={s.id} className={`flex-1 md:flex-none md:px-6 py-2.5 text-[11px] font-bold st relative flex items-center justify-center gap-1.5 ${sub[tab]===s.id?'text-stone-900':'text-stone-400'}`} onClick={()=>setST(tab,s.id)}>
