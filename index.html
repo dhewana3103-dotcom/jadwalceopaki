@@ -821,7 +821,7 @@ function SettingsModal({onClose,gTok,gCalId,gCals,gBusy,onConnect,onPickCal,onFo
                 <button onClick={function(){if(confirm('Hapus SEMUA jadwal?\nBacklog & keputusan tetap aman.')){onResetJadwal();}}} className="text-[10px] font-bold text-orange-500 as underline">🗑 Reset Jadwal</button>
                 <button onClick={function(){if(confirm('Hapus SEMUA backlog?\nJadwal & keputusan tetap aman.')){onResetBacklog();}}} className="text-[10px] font-bold text-orange-500 as underline">🗑 Reset Backlog</button>
                 <button onClick={function(){if(confirm('Hapus SEMUA keputusan?\nJadwal & backlog tetap aman.')){onResetKeputusan();}}} className="text-[10px] font-bold text-orange-500 as underline">🗑 Reset Keputusan</button>
-                <button onClick={function(){onFixPersonalJenis();}} className="text-[10px] font-bold text-blue-600 as underline">🔧 Fix jenis Personal → "Personal"</button>
+                <button onClick={function(){onFixPersonalJenis();}} className="text-[10px] font-bold text-blue-600 as underline">Fix jenis Personal</button>
               </div>
             </div>
             {/* Quick guide link */}
@@ -3384,6 +3384,7 @@ function App(){
     setJadwal(n);sv('jadwal',n);sbSave('jadwal',n);
     alert('✓ Semua item kategori Personal sudah di-update ke jenis Personal!');
   }
+  function resetJadwal(){var e={};setJadwal(e);sv('jadwal',e);sbSave('jadwal',e);alert('✓ Semua jadwal dihapus.');}
   function resetBacklog(){setBacklog([]);sv('backlog',[]);sbSave('backlog',[]);alert('✓ Semua backlog dihapus.');}
   function resetKeputusan(){setKeputusan([]);sv('keputusan',[]);sbSave('keputusan',[]);alert('✓ Semua keputusan dihapus.');}
   const [pulling,setPulling]=useState(false);
