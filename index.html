@@ -198,18 +198,9 @@ function computeAnalisa(jadwal){
 }
 const PIC_OPTIONS=['Pak Andyka (COO)','Pak Angga (CMO)','Zafan (Konten)','Mba Viky (PA)','Tim Legal','Tim HR','Tim Finance','CEO Langsung'];
 const KATEGORI_ORG=['Personal','RSP','TKB','BT'];
-const JENIS_KEGIATAN=[
-  'Deepwork Strategic',
-  'Meeting Strategic/Problem Solving/Approval',
-  'Meeting Review Operasional + Evaluasi Tim',
-  'Ketemu External',
-  'Bikin Konten',
-  'Genba',
-  'Employee Engage',
-];
-const JENIS_SHORT={'Deepwork Strategic':'Deepwork','Meeting Strategic/Problem Solving/Approval':'Meet. Strategic','Meeting Review Operasional + Evaluasi Tim':'Meet. Review','Ketemu External':'External','Bikin Konten':'Konten','Genba':'Genba','Employee Engage':'Engage'};
-const JENIS_COLOR={'Deepwork Strategic':'bg-purple-100 text-purple-700','Meeting Strategic/Problem Solving/Approval':'bg-pink-100 text-pink-700','Meeting Review Operasional + Evaluasi Tim':'bg-amber-100 text-amber-700','Ketemu External':'bg-violet-100 text-violet-700','Bikin Konten':'bg-blue-100 text-blue-700','Genba':'bg-emerald-100 text-emerald-700','Employee Engage':'bg-rose-100 text-rose-700'};
-const KATEGORI_COLOR={'Personal':'bg-stone-100 text-stone-600','RSP':'bg-blue-600 text-white','TKB':'bg-amber-600 text-white','BT':'bg-emerald-600 text-white'};
+const JENIS_KEGIATAN=['Deepwork Strategic','Meeting Strategic/Problem Solving/Approval','Meeting Review Operasional + Evaluasi Tim','Ketemu External','Bikin Konten','Genba','Employee Engage','Personal'];
+const JENIS_SHORT={'Deepwork Strategic':'Deepwork','Meeting Strategic/Problem Solving/Approval':'Meet. Strategic','Meeting Review Operasional + Evaluasi Tim':'Meet. Review','Ketemu External':'External','Bikin Konten':'Konten','Genba':'Genba','Employee Engage':'Engage','Personal':'Personal'};
+const JENIS_COLOR={'Deepwork Strategic':'bg-purple-100 text-purple-700','Meeting Strategic/Problem Solving/Approval':'bg-pink-100 text-pink-700','Meeting Review Operasional + Evaluasi Tim':'bg-amber-100 text-amber-700','Ketemu External':'bg-violet-100 text-violet-700','Bikin Konten':'bg-blue-100 text-blue-700','Genba':'bg-emerald-100 text-emerald-700','Employee Engage':'bg-rose-100 text-rose-700','Personal':'bg-stone-100 text-stone-600'};const KATEGORI_COLOR={'Personal':'bg-stone-100 text-stone-600','RSP':'bg-blue-600 text-white','TKB':'bg-amber-600 text-white','BT':'bg-emerald-600 text-white'};
 const PRE_CHECKLIST={
   'Deepwork Strategic':[
     {id:'dw1',item:'Definisi akar masalah utama yang akan dipikirkan (disesuaikan divisi terkait)',pic:'PA',wajib:true},
@@ -2189,7 +2180,7 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div><div className="text-[9px] font-bold text-stone-400 uppercase mb-1">Kategori</div><select className="w-full px-2 py-2 rounded-xl border border-stone-200 text-[11px] focus:outline-none focus:ring-2 focus:ring-stone-400" value={ef.kategori} onChange={function(e){setEf(function(p){return {...p,kategori:e.target.value};});}}>{['RSP','BT','TKB','Personal'].map(function(k){return<option key={k}>{k}</option>;})}</select></div>
-                <div><div className="text-[9px] font-bold text-stone-400 uppercase mb-1">Jenis</div><select className="w-full px-2 py-2 rounded-xl border border-stone-200 text-[11px] focus:outline-none focus:ring-2 focus:ring-stone-400" value={ef.jenisKegiatan} onChange={function(e){setEf(function(p){return {...p,jenisKegiatan:e.target.value};});}}>{JENIS_KEGIATAN.map(function(j){return<option key={j} value={j}>{JENIS_SHORT[j]||j}</option>;})}</select></div>
+                <div><div className="text-[9px] font-bold text-stone-400 uppercase mb-1">Jenis</div><select className="w-full px-2 py-2 rounded-xl border border-stone-200 text-[11px] focus:outline-none focus:ring-2 focus:ring-stone-400" value={ef.jenisKegiatan} onChange={function(e){setEf(function(p){return {...p,jenisKegiatan:e.target.value};});}}>{(ef.kategori==='Personal'?['Personal']:JENIS_KEGIATAN.filter(function(j){return j!=='Personal';})).map(function(j){return<option key={j} value={j}>{JENIS_SHORT[j]||j}</option>;})}</select></div>
               </div>
               <div><div className="text-[9px] font-bold text-stone-400 uppercase mb-1">Detail Kegiatan</div><input className="w-full px-2.5 py-2 rounded-xl border border-stone-200 text-[12px] focus:outline-none focus:ring-2 focus:ring-stone-400" value={ef.detailKegiatan} onChange={function(e){setEf(function(p){return {...p,detailKegiatan:e.target.value};});}}/></div>
               <div><div className="text-[9px] font-bold text-stone-400 uppercase mb-1">Relate KPI</div><select className="w-full px-2 py-2 rounded-xl border border-stone-200 text-[11px] focus:outline-none focus:ring-2 focus:ring-stone-400" value={ef.relateMilestone} onChange={function(e){setEf(function(p){return {...p,relateMilestone:e.target.value};});}}>{KPI5.map(function(k){return<option key={k.id} value={k.id}>{k.label}</option>;})}</select></div>
@@ -2222,8 +2213,8 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
           <div className="flex-1"><div className="text-[9px] font-bold text-stone-500 uppercase mb-1">Jam Mulai</div><input type="time" className="w-full px-2 py-1.5 rounded-lg border border-stone-200 bg-white text-[12px] font-mono focus:outline-none focus:ring-1 focus:ring-stone-400" value={lf.jamMulai} onChange={function(e){upd('jamMulai',e.target.value);}}/></div>
           <div className="flex-1"><div className="text-[9px] font-bold text-stone-500 uppercase mb-1">Jam Selesai</div><input type="time" className="w-full px-2 py-1.5 rounded-lg border border-stone-200 bg-white text-[12px] font-mono focus:outline-none focus:ring-1 focus:ring-stone-400" value={lf.jamSelesai} onChange={function(e){upd('jamSelesai',e.target.value);}}/></div>
         </div>
-        <div className="mb-3"><div className="text-[9px] font-bold text-stone-500 uppercase mb-1.5">Kategori</div><div className="flex gap-1.5 flex-wrap">{KATEGORI_ORG.map(function(k){return<button key={k} className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border st as ${lf.kategori===k?'bg-stone-800 text-white border-stone-800 shadow-sm':'bg-white text-stone-600 border-stone-200'}`} onClick={function(){upd('kategori',k);}}>{k}</button>;})}</div></div>
-        <div className="mb-3"><div className="text-[9px] font-bold text-stone-500 uppercase mb-1.5">Jenis Kegiatan</div><select className="w-full px-2.5 py-2 rounded-xl border border-stone-200 bg-white text-[11px] font-medium focus:outline-none" value={lf.jenisKegiatan} onChange={function(e){upd('jenisKegiatan',e.target.value);}}>{JENIS_KEGIATAN.map(function(j){return<option key={j} value={j}>{j}</option>;})}</select></div>
+        <div className="mb-3"><div className="text-[9px] font-bold text-stone-500 uppercase mb-1.5">Kategori</div><div className="flex gap-1.5 flex-wrap">{KATEGORI_ORG.map(function(k){return<button key={k} className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border st as ${lf.kategori===k?'bg-stone-800 text-white border-stone-800 shadow-sm':'bg-white text-stone-600 border-stone-200'}`} onClick={function(){upd('kategori',k);if(k==='Personal')upd('jenisKegiatan','Personal');else if(lf.jenisKegiatan==='Personal')upd('jenisKegiatan','Deepwork Strategic');}}>{k}</button>;})}</div></div>
+        <div className="mb-3"><div className="text-[9px] font-bold text-stone-500 uppercase mb-1.5">Jenis Kegiatan</div><select className="w-full px-2.5 py-2 rounded-xl border border-stone-200 bg-white text-[11px] font-medium focus:outline-none" value={lf.jenisKegiatan} onChange={function(e){upd('jenisKegiatan',e.target.value);}}>{(lf.kategori==='Personal'?['Personal']:JENIS_KEGIATAN.filter(function(j){return j!=='Personal';})).map(function(j){return<option key={j} value={j}>{j}</option>;})}</select></div>
         <div className="mb-3"><div className="text-[9px] font-bold text-stone-500 uppercase mb-1.5">Detail Kegiatan *</div><textarea className="w-full px-2.5 py-2 rounded-xl border border-stone-200 bg-white text-[12px] focus:outline-none focus:ring-1 focus:ring-stone-400 resize-none" rows={2} placeholder="Apa yang akan dilakukan?" value={lf.detailKegiatan} onChange={function(e){upd('detailKegiatan',e.target.value);}}/></div>
         <div className="mb-4"><div className="text-[9px] font-bold text-stone-500 uppercase mb-1.5">Relate KPI</div><div className="flex gap-1.5 flex-wrap">{KPI5.map(function(k){return<button key={k.id} className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold border st as ${lf.relateMilestone===k.id?`${k.bg} ${k.color} ${k.border} shadow-sm`:'bg-white text-stone-500 border-stone-200'}`} onClick={function(){upd('relateMilestone',k.id);}}>{k.short}</button>;})}</div></div>
         <div className="flex gap-2">
@@ -2355,75 +2346,134 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
 
 // ── JADWAL MINGGUAN ───────────────────────────────────────────
 function JadwalMingguan({backlog,jadwal,filter}){
-  const [selDate,setSelDate]=useState(null);
-  // Week offset: 0=this week, -1=last week, +1=next week etc
   const [weekOffset,setWeekOffset]=useState(0);
-  const getMon=(offset)=>{const mon=new Date();const diff=mon.getDay()===0?6:mon.getDay()-1;mon.setDate(mon.getDate()-diff+offset*7);return mon;};
+  const [selDates,setSelDates]=useState({}); // {date: true} = selected
+  const getMon=function(offset){var mon=new Date();var diff=mon.getDay()===0?6:mon.getDay()-1;mon.setDate(mon.getDate()-diff+offset*7);return mon;};
   const mon=getMon(weekOffset);
-  const days=Array.from({length:7},(_,i)=>{const d=new Date(mon);d.setDate(mon.getDate()+i);return{date:d.toISOString().slice(0,10),lbl:d.toLocaleDateString('id-ID',{weekday:'short'}).slice(0,3),num:d.getDate(),month:d.getMonth(),isToday:d.toISOString().slice(0,10)===todayStr()};});
-  const weekLabel=(()=>{const s=days[0];const e=days[6];const sm=new Date(s.date+'T12:00:00').toLocaleDateString('id-ID',{month:'short'});const em=new Date(e.date+'T12:00:00').toLocaleDateString('id-ID',{month:'short'});return s.month===e.month?`${s.num}–${e.num} ${sm}`:`${s.num} ${sm} – ${e.num} ${em}`;})();
-  const blSched=backlog.filter(it=>it.status==='dijadwalkan');
-  const filtDays=selDate?days.filter(d=>d.date===selDate):days;
+  const days=Array.from({length:7},function(_,i){var d=new Date(mon);d.setDate(mon.getDate()+i);return{date:d.toISOString().slice(0,10),lbl:d.toLocaleDateString('id-ID',{weekday:'short',day:'numeric',month:'short'}),isToday:d.toISOString().slice(0,10)===todayStr(),dow:d.getDay()};});
+  const weekLabel=(function(){var s=days[0];var e=days[6];var sm=new Date(s.date+'T12:00:00').toLocaleDateString('id-ID',{month:'short'});var em=new Date(e.date+'T12:00:00').toLocaleDateString('id-ID',{month:'short'});var sn=new Date(s.date+'T12:00:00').getDate();var en=new Date(e.date+'T12:00:00').getDate();return s.date.slice(0,7)===e.date.slice(0,7)?sn+'–'+en+' '+sm:sn+' '+sm+' – '+en+' '+em;})();
+
+  // Reset filter saat ganti minggu
+  function goWeek(dir){setWeekOffset(function(p){return p+dir;});setSelDates({});}
+  function goToday(){setWeekOffset(0);setSelDates({});}
+
+  var anySelected=Object.values(selDates).some(function(v){return v;});
+  function toggleDate(date){setSelDates(function(p){var n={...p};n[date]=!n[date];return n;});}
+  function clearDates(){setSelDates({});}
+
+  // Flatten all items, filtered by selDates if any selected
+  var allRows=[];
+  days.forEach(function(d){
+    if(anySelected&&!selDates[d.date])return; // skip if not selected
+    var its=filter?applyJadwalFilter(jadwal[d.date]||[],filter):(jadwal[d.date]||[]);
+    its.slice().sort(function(a,b){return (a.jamMulai||'').localeCompare(b.jamMulai||'');}).forEach(function(it){
+      allRows.push({...it,_date:d.date,_lbl:d.lbl,_isToday:d.isToday,_dow:d.dow});
+    });
+  });
+
+  var totalItems=allRows.length;
+  var adaOutput=allRows.filter(function(it){return it.outputKeputusan&&it.outputKeputusan.trim();}).length;
+
   return(
-    <div className="afi pb-4">
+    <div className="afi pb-8">
       {/* Week navigator */}
-      <div className="px-4 pt-4 pb-2 flex justify-between items-center">
-        <div className="text-[11px] font-extrabold text-stone-500 uppercase tracking-widest">Jadwal Mingguan</div>
+      <div className="px-4 pt-4 pb-3 flex items-center justify-between">
+        <div>
+          <div className="text-[13px] font-extrabold text-stone-800">{weekLabel}</div>
+          <div className="text-[10px] text-stone-400 mt-0.5">{totalItems} kegiatan · {adaOutput} ada output{anySelected?' · filter aktif':''}</div>
+        </div>
         <div className="flex items-center gap-1">
-          <button onClick={()=>{setWeekOffset(p=>p-1);setSelDate(null);}} className="w-7 h-7 rounded-lg bg-stone-100 border border-stone-200 text-[12px] font-bold text-stone-600 as st flex items-center justify-center">‹</button>
-          <button onClick={()=>{setWeekOffset(0);setSelDate(null);}} className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border as st ${weekOffset===0?'bg-stone-800 text-white border-stone-800':'bg-white text-stone-600 border-stone-200'}`}>{weekOffset===0?'Minggu ini':weekLabel}</button>
-          <button onClick={()=>{setWeekOffset(p=>p+1);setSelDate(null);}} className="w-7 h-7 rounded-lg bg-stone-100 border border-stone-200 text-[12px] font-bold text-stone-600 as st flex items-center justify-center">›</button>
+          <button onClick={function(){goWeek(-1);}} className="w-8 h-8 rounded-xl bg-stone-100 border border-stone-200 text-[13px] font-bold text-stone-600 as st flex items-center justify-center">‹</button>
+          {weekOffset!==0&&<button onClick={goToday} className="px-2.5 py-1.5 rounded-lg text-[10px] font-bold border as st bg-stone-800 text-white border-stone-800">Minggu ini</button>}
+          <button onClick={function(){goWeek(1);}} className="w-8 h-8 rounded-xl bg-stone-100 border border-stone-200 text-[13px] font-bold text-stone-600 as st flex items-center justify-center">›</button>
         </div>
       </div>
-      <div className="grid grid-cols-7 gap-1 px-4 mb-4">
-        {days.map(d=>{const dj=filter?applyJadwalFilter(jadwal[d.date]||[],filter):(jadwal[d.date]||[]);const byB=BLOKS.map(b=>({b,items:[...dj.filter(it=>getBlokFromTime(it.jamMulai)===b.id),...blSched.filter(it=>it.tanggal===d.date&&it.blokWaktu===b.id)]}));const isWE=new Date(d.date+'T12:00:00').getDay();const isSel=selDate===d.date;return(
-          <div key={d.date} onClick={()=>setSelDate(p=>p===d.date?null:d.date)} className={`rounded-xl overflow-hidden border cursor-pointer st as flex flex-col ${isWE===0||isWE===6?'opacity-60':''} ${isSel?'border-stone-800 shadow-md':d.isToday?'border-blue-300 shadow-sm':'border-stone-200'}`}>
-            <div className={`text-center py-1 border-b ${isSel?'bg-stone-800 text-white border-stone-800':d.isToday?'bg-blue-600 text-white border-blue-600':'bg-stone-100 text-stone-600 border-stone-200'}`}><div className="text-[8px] font-bold uppercase">{d.lbl}</div><div className="text-[13px] font-black">{d.num}</div></div>
-            <div className="flex-1 p-0.5 bg-white">{byB.map(({b,items})=><div key={b.id} className={`mb-0.5 rounded-sm h-4 flex items-center justify-center ${items.length?b.bg:'bg-transparent'}`}>{items.length>0&&<div className={`w-1 h-1 rounded-full ${b.color.replace('text-','bg-')}`}/>}</div>)}</div>
-          </div>
-        );})}
+
+      {/* Day filter pills */}
+      <div className="px-4 mb-3">
+        <div className="flex gap-1.5 overflow-x-auto pb-1">
+          {anySelected&&<button onClick={clearDates} className="flex-shrink-0 px-2.5 py-1.5 rounded-lg border text-[10px] font-bold as st bg-stone-800 text-white border-stone-800">✕ Reset</button>}
+          {days.map(function(d){
+            var count=(filter?applyJadwalFilter(jadwal[d.date]||[],filter):(jadwal[d.date]||[])).length;
+            var isSel=!!selDates[d.date];
+            var isWE=d.dow===0||d.dow===6;
+            return(
+              <button key={d.date} onClick={function(){toggleDate(d.date);}}
+                className={`flex-shrink-0 px-2.5 py-1.5 rounded-lg border text-center as st ${
+                  isSel?'bg-stone-900 border-stone-900 text-white shadow-sm':
+                  d.isToday?'bg-blue-50 border-blue-300 text-blue-700':
+                  count>0?'bg-white border-stone-200 text-stone-700 hover:bg-stone-50':
+                  'bg-stone-50 border-stone-100 text-stone-300'
+                } ${isWE&&!isSel?'opacity-60':''}`}>
+                <div className="text-[9px] font-bold whitespace-nowrap">{d.lbl}</div>
+                <div className="text-[11px] font-black">{count>0?count:'–'}</div>
+              </button>
+            );
+          })}
+        </div>
+        {anySelected&&<div className="text-[9px] text-stone-400 mt-1.5">
+          Menampilkan: {days.filter(function(d){return selDates[d.date];}).map(function(d){return d.lbl;}).join(', ')}
+        </div>}
       </div>
-      <div className="px-4 pb-4 border-b border-stone-200 flex flex-wrap gap-1.5 justify-center">
-        {selDate&&<button onClick={()=>setSelDate(null)} className="px-2.5 py-1 rounded-lg text-[9px] font-bold bg-stone-800 text-white as st mr-2">✕ Semua</button>}
-        {BLOKS.map(b=><span key={b.id} className={`text-[9px] font-bold px-2 py-0.5 rounded-md ${b.color} ${b.bg}`}>{b.time}</span>)}
-      </div>
-      <div className="pt-2">
-        {filtDays.map(d=>{
-          const dj=filter?applyJadwalFilter(jadwal[d.date]||[],filter):(jadwal[d.date]||[]);const blI=blSched.filter(it=>it.tanggal===d.date);const allI=[...dj,...blI];if(!allI.length)return selDate?<div key={d.date} className="p-8 text-center text-[12px] text-stone-400">Tidak ada agenda hari ini.</div>:null;
-          return(
-            <div key={d.date} className="mb-6 afi">
-              <div className="px-5 mb-3 flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-stone-400"/><div className="text-[13px] font-extrabold text-stone-800">{d.lbl}, {d.num}</div></div>
-              <div className="space-y-2 px-4">
-                {BLOKS.map(b=>{const items=[...dj.filter(it=>getBlokFromTime(it.jamMulai)===b.id),...blI.filter(it=>it.blokWaktu===b.id)];if(!items.length)return null;return(
-                  <div key={b.id} className="bg-white rounded-2xl border border-stone-200 shadow-sm overflow-hidden">
-                    <div className={`px-3 py-1.5 border-b ${b.bg} ${b.border}`}><span className={`text-[10px] font-bold uppercase tracking-wider ${b.color}`}>{b.time} {b.label}</span></div>
-                    <div className="divide-y divide-stone-100">
-                      {items.map((it,i)=>{
-                        const kpi=KPI5.find(x=>x.id==(it.relateMilestone||it.fungsiKPI));
-                        const isNew=!!it.jenisKegiatan;
-                        const jColor=JENIS_COLOR[it.jenisKegiatan]||'bg-stone-100 text-stone-600';
-                        const kColor=KATEGORI_COLOR[it.kategori]||'bg-stone-100 text-stone-600';
-                        return(
-                        <div key={i} className="p-3 pl-4 relative">
-                          <div className={`absolute left-0 top-0 bottom-0 w-1 ${kpi&&kpi.bg?kpi.bg:'bg-stone-200'}`}/>
-                          <div className="flex items-center gap-1.5 flex-wrap mb-1">
-                            {isNew&&<span className="text-[11px] font-black text-stone-700 tabular-nums">{it.jamMulai}–{it.jamSelesai}</span>}
-                            {isNew&&<span className={`px-1.5 py-0.5 rounded-full text-[8px] font-bold ${kColor}`}>{it.kategori}</span>}
-                            <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold ${isNew?jColor:'bg-stone-100 text-stone-500'}`}>{isNew?(JENIS_SHORT[it.jenisKegiatan]||it.jenisKegiatan):(it.kategori||'–')}</span>
-                          </div>
-                          <div className="text-[12px] font-semibold text-stone-800 leading-snug mb-1.5">{isNew?it.detailKegiatan:(it.isi||it.deskripsi)}</div>
-                          {kpi&&<KC id={kpi.id} sm/>}
-                          {isNew&&it.outputKeputusan&&<div className="mt-1.5 text-[10px] text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-100">✅ {it.outputKeputusan.slice(0,60)}{it.outputKeputusan.length>60?'...':''}</div>}
-                        </div>
-                      );})}
-                    </div>
-                  </div>
+
+      {/* Table */}
+      {allRows.length===0
+        ?<div className="px-4 py-12 text-center"><div className="text-3xl mb-2 opacity-30">📅</div><div className="text-[12px] font-bold text-stone-400">{anySelected?'Tidak ada kegiatan di tanggal yang dipilih':'Tidak ada kegiatan minggu ini'}</div></div>
+        :<div className="mx-4 rounded-2xl border border-stone-200 overflow-hidden shadow-soft overflow-x-auto">
+          <table className="w-full" style={{minWidth:720}}>
+            <thead>
+              <tr className="bg-stone-50 border-b border-stone-200">
+                {['Tanggal','Jam','Kategori','Jenis','Detail Kegiatan','KPI','Output'].map(function(h){return(
+                  <th key={h} className="px-3 py-2.5 text-left text-[9px] font-extrabold text-stone-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
                 );})}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+              </tr>
+            </thead>
+            <tbody>
+              {allRows.map(function(it,i){
+                var kpi=KPI5.find(function(k){return k.id===it.relateMilestone;});
+                var jColor=JENIS_COLOR[it.jenisKegiatan]||'bg-stone-100 text-stone-600';
+                var kColor=KATEGORI_COLOR[it.kategori]||'bg-stone-100 text-stone-600';
+                var hasOut=it.outputKeputusan&&it.outputKeputusan.trim();
+                var isFirst=i===0||allRows[i-1]._date!==it._date;
+                var dayCount=allRows.filter(function(r){return r._date===it._date;}).length;
+                return(
+                  <tr key={it.id||i} className={`border-b border-stone-100 last:border-0 ${it._isToday?'bg-blue-50/30':i%2===0?'bg-white':'bg-stone-50/40'} hover:bg-stone-50 st`}>
+                    <td className="px-3 py-2.5 align-top whitespace-nowrap">
+                      {isFirst&&<div>
+                        <div className={`text-[11px] font-extrabold ${it._isToday?'text-blue-700':'text-stone-800'}`}>{it._lbl}</div>
+                        {dayCount>1&&<div className="text-[9px] text-stone-400">{dayCount} kegiatan</div>}
+                      </div>}
+                    </td>
+                    <td className="px-3 py-2.5 whitespace-nowrap">
+                      <span className="text-[11px] font-black text-stone-700 tabular-nums">{it.jamMulai||'–'}</span>
+                      {it.jamSelesai&&<><span className="text-[9px] text-stone-300 mx-0.5">–</span><span className="text-[10px] text-stone-400 tabular-nums">{it.jamSelesai}</span></>}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold whitespace-nowrap ${kColor}`}>{it.kategori||'–'}</span>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold whitespace-nowrap ${jColor}`}>{JENIS_SHORT[it.jenisKegiatan]||it.jenisKegiatan||'–'}</span>
+                    </td>
+                    <td className="px-3 py-2.5 max-w-[220px]">
+                      <div className="text-[11px] font-semibold text-stone-800 leading-snug">{it.detailKegiatan||'–'}</div>
+                      {it.gcalDesc&&it.gcalDesc.trim()&&<div className="text-[9px] text-stone-400 mt-0.5 leading-snug" style={{display:'-webkit-box',WebkitLineClamp:1,WebkitBoxOrient:'vertical',overflow:'hidden'}}>{it.gcalDesc}</div>}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      {kpi?<KC id={kpi.id} sm/>:<span className="text-[9px] text-stone-300">–</span>}
+                    </td>
+                    <td className="px-3 py-2.5 max-w-[180px]">
+                      {hasOut
+                        ?<div className="flex items-start gap-1"><span className="text-emerald-500 flex-shrink-0 text-[10px] mt-0.5">✓</span><span className="text-[10px] text-emerald-700 leading-snug" style={{display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden'}}>{it.outputKeputusan}</span></div>
+                        :<span className="text-[9px] text-stone-300 italic">Belum diisi</span>
+                      }
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      }
     </div>
   );
 }
