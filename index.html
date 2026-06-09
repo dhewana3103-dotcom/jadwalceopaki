@@ -381,6 +381,8 @@ function BacklogCard({item,onUpdate,onDelete,onAddKeputusan,isActOpen,actType,on
         {item.needFeedback&&!item.feedbackStatus&&<div className="mt-1.5 flex items-center gap-2"><span className="text-[9px] font-bold text-violet-600 bg-violet-50 border border-violet-200 px-2 py-1 rounded-xl">⚑ Menunggu Feedback CEO</span><button className="text-[9px] text-stone-400 as underline" onClick={function(){onUpdate(item.id,{needFeedback:false,feedbackStatus:null,feedbackBrief:null});}}>Batal</button></div>}
         {item.feedbackStatus==='ceo_done'&&<div className="mt-1.5 flex items-center gap-1.5"><span className="text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-1 rounded-xl">⏳ Feedback CEO done — menunggu PDCA</span></div>}
         {item.momDone&&<div className="mt-1.5"><span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-xl">✓ Sudah di-MoM</span></div>}
+        {!item.pdcaFlag&&!item.needFeedback&&<button className="mt-1 w-full py-1.5 rounded-xl text-[9px] font-bold border st as bg-stone-50 text-stone-500 border-stone-200" onClick={function(){onUpdate(item.id,{pdcaFlag:true});}}>📊 Flag ke Kamar PDCA</button>}
+        {item.pdcaFlag&&<div className="mt-1 flex items-center gap-2"><span className="text-[9px] font-bold text-stone-600 bg-stone-100 border border-stone-200 px-2 py-1 rounded-xl">📊 Di Kamar PDCA</span><button className="text-[9px] text-stone-400 as underline" onClick={function(){onUpdate(item.id,{pdcaFlag:false});}}>Batal</button></div>}
       </div>
 
       {/* Schedule panel */}
@@ -482,10 +484,11 @@ function BacklogCard({item,onUpdate,onDelete,onAddKeputusan,isActOpen,actType,on
 }
 
 // ── NEED FEEDBACK TAB ─────────────────────────────────────────
-function NeedFeedbackTab({backlog,onUpdate,onAddKeputusan,mom,onUpdateMom}){
+function NeedFeedbackTab({backlog,onUpdate,onAddKeputusan,mom,onUpdateMom,onAddBacklog}){
   const [expandCeo,setExpandCeo]=useState(null);
   const [ceoTexts,setCeoTexts]=useState({});
   const [momOutcome,setMomOutcome]=useState({});
+  const [momTindakLanjut,setMomTindakLanjut]=useState({});
   const [showDone,setShowDone]=useState(false);
 
   function qKey(item){return item._type==='mom'?'m_'+item._momEntryId+'_'+item.id:item.id;}
@@ -502,14 +505,17 @@ function NeedFeedbackTab({backlog,onUpdate,onAddKeputusan,mom,onUpdateMom}){
   function submitFeedback(item,outcome){
     var k=qKey(item);var txt=ceoTexts[k]||'';if(!txt.trim())return;
     var brief=item._type==='mom'?(item.ceoReviewBrief||{}):(item.feedbackBrief||{});
+    var tl=momTindakLanjut[k]||null;
     if(item._type==='mom'){
-      var rSt=outcome||'reviewed_ok';
+      var rSt=outcome==='reviewed_ok'?'reviewed_ok':tl==='meeting'?'meeting-scheduled':tl==='tasklist'?'perlu-tasklist':tl==='info-tambahan'?'info-tambahan':'perlu-tindak-lanjut';
       var entry2=(mom||[]).find(function(m){return m.id===item._momEntryId;});
       if(entry2){var ni=entry2.items.map(function(i){return i.id===item.id?{...i,ceoReviewStatus:rSt,ceoReviewFeedback:txt,ceoReviewTs:new Date().toISOString()}:i;});onUpdateMom(entry2.id,{items:ni});}
+      if(tl==='meeting'&&onAddBacklog){onAddBacklog([{id:'BL-'+genId(),sumber:'CEO Feedback',tanggal:todayStr(),konteks:item._momEntryName,isi:'Meeting: '+(item.action||'').slice(0,60),action:'PA Office arrange jadwal meeting CEO',ekspektasi:txt,pic:null,deadline:null,fungsiKPI:item.fungsiKPI||'operasional',kategori:'RSP',blokWaktu:'sore-review',prioritas:'tinggi',status:'baru',notes:txt,postponeHistory:[]}]);}
+      if(tl!=='info-tambahan'){onAddKeputusan({id:'KP-'+genId(),tanggal:todayStr(),backlogId:null,konteks:item._momEntryName,deskripsi:item.action||'',fungsiKPI:item.fungsiKPI||'operasional',dampak:'sedang',status:outcome==='reviewed_ok'?'sesuai':'proses',output:txt,updateTL:'',sumber:'MoM: '+item._momEntryName,evalStatus:outcome==='reviewed_ok'?'sesuai':'belum',ekspektasiY:brief.pertimbangan||'',needMoMPDCA:tl==='tasklist'});}
     }else{
       onUpdate(item.id,{feedbackStatus:'ceo_done',ceoFeedback:txt,feedbackTs:new Date().toISOString()});
+      onAddKeputusan({id:'KP-'+genId(),tanggal:todayStr(),backlogId:item.id,konteks:item.konteks||'',deskripsi:item.isi||'',fungsiKPI:item.fungsiKPI||'operasional',dampak:item.prioritas==='tinggi'?'tinggi':'sedang',status:'proses',output:txt,updateTL:'',sumber:'CEO Feedback',evalStatus:'belum',ekspektasiY:brief.pertimbangan||''});
     }
-    onAddKeputusan({id:'KP-'+genId(),tanggal:todayStr(),backlogId:item._type==='backlog'?item.id:null,konteks:item._type==='mom'?item._momEntryName:item.konteks||'',deskripsi:item.action||item.isi||'',fungsiKPI:item.fungsiKPI||'operasional',dampak:item.prioritas==='tinggi'?'tinggi':'sedang',status:outcome==='reviewed_ok'?'sesuai':'proses',output:txt,updateTL:'',sumber:item._type==='mom'?'MoM: '+item._momEntryName:'CEO Feedback',evalStatus:outcome==='reviewed_ok'?'sesuai':'belum',ekspektasiY:brief.pertimbangan||''});
     setExpandCeo(null);
   }
   function markMoM(item){onUpdate(item.id,{momDone:true,feedbackStatus:'pdca_done'});}
@@ -538,7 +544,8 @@ function NeedFeedbackTab({backlog,onUpdate,onAddKeputusan,mom,onUpdateMom}){
           var k=qKey(item);var isExp=expandCeo===k;
           var brief=item._type==='mom'?item.ceoReviewBrief:item.feedbackBrief;
           var isMom=item._type==='mom';
-          var canSubmit=(ceoTexts[k]||'').trim()&&(!isMom||momOutcome[k]);
+          var tl=momTindakLanjut[k]||null;
+          var canSubmit=(ceoTexts[k]||'').trim()&&(!isMom||momOutcome[k])&&(!(isMom&&momOutcome[k]==='perlu-tindak-lanjut')||tl);
           return(
             <div key={k} className="bg-white border border-violet-200 rounded-2xl shadow-soft overflow-hidden">
               <div className="p-4">
@@ -555,13 +562,20 @@ function NeedFeedbackTab({backlog,onUpdate,onAddKeputusan,mom,onUpdateMom}){
                   {isMom&&<>
                     <div className="text-[9px] font-bold text-stone-400 uppercase mb-1.5">Outcome</div>
                     <div className="flex gap-2 mb-2">
-                      <button className={'flex-1 py-2 rounded-xl text-[10px] font-bold border as st '+(momOutcome[k]==='reviewed_ok'?'bg-emerald-600 text-white border-emerald-600':'bg-emerald-50 text-emerald-700 border-emerald-200')} onClick={function(){setMomOutcome(function(p){var n={...p};n[k]='reviewed_ok';return n;});}}>✓ OK</button>
-                      <button className={'flex-1 py-2 rounded-xl text-[10px] font-bold border as st '+(momOutcome[k]==='perlu-tindak-lanjut'?'bg-red-500 text-white border-red-500':'bg-red-50 text-red-600 border-red-200')} onClick={function(){setMomOutcome(function(p){var n={...p};n[k]='perlu-tindak-lanjut';return n;});}}>⚠️ Perlu Tindak Lanjut</button>
+                      <button className={'flex-1 py-2 rounded-xl text-[10px] font-bold border as st '+(momOutcome[k]==='reviewed_ok'?'bg-emerald-600 text-white border-emerald-600':'bg-emerald-50 text-emerald-700 border-emerald-200')} onClick={function(){setMomOutcome(function(p){var n={...p};n[k]='reviewed_ok';return n;});setMomTindakLanjut(function(p){var n={...p};delete n[k];return n;});}}>✓ OK</button>
+                      <button className={'flex-1 py-2 rounded-xl text-[10px] font-bold border as st '+(momOutcome[k]==='perlu-tindak-lanjut'?'bg-red-500 text-white border-red-500':'bg-red-50 text-red-600 border-red-200')} onClick={function(){setMomOutcome(function(p){var n={...p};n[k]='perlu-tindak-lanjut';return n;});}}>⚠️ Tindak Lanjut</button>
                     </div>
+                    {momOutcome[k]==='perlu-tindak-lanjut'&&<>
+                      <div className="text-[9px] font-bold text-stone-400 uppercase mb-1.5">Jenis Tindak Lanjut</div>
+                      <div className="space-y-1.5 mb-2">
+                        {[['meeting','📅 Jadwalkan Meeting','Masuk Backlog → PA Office arrange'],['tasklist','📋 Perlu Tasklist Baru','Masuk Keputusan → PDCA input ke Trusmiverse'],['info-tambahan','🔍 Perlu Info Tambahan','Masuk Kamar PDCA → investigasi ulang']].map(function(opt){var id=opt[0],lbl=opt[1],desc=opt[2];var isA=tl===id;return(<button key={id} className={'w-full py-2 px-3 rounded-xl text-left text-[10px] font-bold border as st '+(isA?'bg-stone-800 text-white border-stone-800':'bg-white text-stone-700 border-stone-200')} onClick={function(){setMomTindakLanjut(function(p){var n={...p};n[k]=id;return n;});}}>
+                          <div>{lbl}</div><div className={'text-[9px] font-normal mt-0.5 '+(isA?'text-stone-300':'text-stone-400')}>{desc}</div>
+                        </button>);})}</div>
+                    </>}
                   </>}
                   <div className="flex gap-2">
                     <button className="flex-1 py-2 rounded-xl border border-stone-200 text-[10px] font-bold text-stone-500 as st" onClick={function(){setExpandCeo(null);}}>Batal</button>
-                    <button className={'flex-1 py-2 rounded-xl text-[10px] font-bold as st '+(canSubmit?'bg-violet-600 text-white':'bg-stone-200 text-stone-400')} disabled={!canSubmit} onClick={function(){submitFeedback(item,isMom?momOutcome[k]:undefined);}}>Submit → Keputusan</button>
+                    <button className={'flex-1 py-2 rounded-xl text-[10px] font-bold as st '+(canSubmit?'bg-violet-600 text-white':'bg-stone-200 text-stone-400')} disabled={!canSubmit} onClick={function(){submitFeedback(item,isMom?momOutcome[k]:undefined);}}>Submit → {isMom&&tl==='info-tambahan'?'Kamar PDCA':isMom&&tl==='meeting'?'Backlog + Keputusan':'Keputusan'}</button>
                   </div>
                 </div>}
               </div>
@@ -606,6 +620,41 @@ function NeedFeedbackTab({backlog,onUpdate,onAddKeputusan,mom,onUpdateMom}){
       </>}
     </div>
   );
+}
+
+// ── PDCA TAB ──────────────────────────────────────────────────
+function PdcaTab({backlog,onUpdateBacklog,mom,onUpdateMom}){
+  const [noteTexts,setNoteTexts]=useState({});
+  const momItems=[];
+  (mom||[]).forEach(function(entry){(entry.items||[]).forEach(function(item){if(item.ceoReviewStatus==='info-tambahan'||item.pdcaFlag){momItems.push({...item,_momEntryId:entry.id,_momEntryName:entry.meetingName});}});});
+  const blItems=backlog.filter(function(it){return it.pdcaFlag;});
+  const empty=momItems.length===0&&blItems.length===0;
+  function updateMomItem(mid,iid,patch){var e2=(mom||[]).find(function(m){return m.id===mid;});if(!e2)return;var ni=e2.items.map(function(i){return i.id===iid?{...i,...patch}:i;});onUpdateMom(e2.id,{items:ni});}
+  function reflagNF(item,type){if(type==='mom'){updateMomItem(item._momEntryId,item.id,{ceoReviewStatus:'queue',pdcaFlag:false});}else{onUpdateBacklog(item.id,{needFeedback:true,feedbackStatus:null,pdcaFlag:false});}}
+  function resolve(item,type){if(type==='mom'){updateMomItem(item._momEntryId,item.id,{pdcaFlag:false,ceoReviewStatus:null});}else{onUpdateBacklog(item.id,{pdcaFlag:false});}}
+  function ItemCard({item,type}){
+    var nk=type==='mom'?'m_'+item._momEntryId+'_'+item.id:item.id;
+    return(<div className="bg-white border border-stone-200 rounded-2xl shadow-soft overflow-hidden">
+      <div className="p-4">
+        {type==='mom'?<><div className="text-[10px] font-bold text-blue-500 mb-0.5">MoM · {item._momEntryName}</div><div className="text-[13px] font-bold text-stone-900 leading-snug mb-2">{item.action}</div></>:<><div className="text-[10px] font-bold text-stone-400 mb-0.5">{item.id} · {item.konteks}</div><div className="text-[13px] font-bold text-stone-900 leading-snug mb-2">{item.isi}</div></>}
+        {item.ceoReviewFeedback&&<div className="p-2.5 bg-violet-50 border border-violet-100 rounded-xl mb-3"><div className="text-[9px] font-bold text-violet-500 uppercase mb-0.5">Feedback CEO</div><div className="text-[11px] text-violet-800 leading-snug">{item.ceoReviewFeedback}</div></div>}
+        {item.ceoReviewStatus==='info-tambahan'&&<div className="text-[9px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 mb-3">🔍 CEO minta info tambahan</div>}
+        <div className="text-[9px] font-bold text-stone-500 uppercase mb-1">Catatan PDCA</div>
+        <textarea className="w-full px-2.5 py-2 rounded-xl border border-stone-200 bg-stone-50 text-[11px] focus:outline-none focus:ring-2 focus:ring-stone-400 resize-none mb-3" rows={2} placeholder="Temuan investigasi, info tambahan..." value={noteTexts[nk]||''} onChange={function(e){var v=e.target.value;setNoteTexts(function(p){var n={...p};n[nk]=v;return n;});}}/>
+        <div className="flex gap-2">
+          <button className="flex-1 py-2.5 rounded-xl bg-violet-600 text-white text-[10px] font-bold as st" onClick={function(){reflagNF(item,type);}}>↑ Re-flag ke Need Feedback CEO</button>
+          <button className="py-2.5 px-3 rounded-xl border border-stone-200 text-[10px] font-bold text-stone-400 as st" onClick={function(){resolve(item,type);}}>✓ Selesai</button>
+        </div>
+      </div>
+    </div>);
+  }
+  return(<div className="pb-8 px-4 pt-4 md:px-6">
+    <div className="text-[10px] font-extrabold text-stone-400 uppercase tracking-widest mb-1">📊 Kamar PDCA</div>
+    <div className="text-[10px] text-stone-400 mb-4">Items yang perlu investigasi/follow-up PDCA sebelum kembali ke CEO</div>
+    {empty&&<div className="bg-stone-50 border border-stone-200 rounded-2xl p-6 text-center"><div className="text-3xl mb-2 opacity-20">📊</div><div className="text-[12px] font-bold text-stone-400 mb-1">Kamar PDCA kosong</div><div className="text-[10px] text-stone-300">Muncul saat CEO pilih "Info Tambahan" atau PDCA flag dari Backlog</div></div>}
+    {momItems.length>0&&<><div className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-2">Dari MoM ({momItems.length})</div><div className="space-y-3 mb-5">{momItems.map(function(item){return<ItemCard key={'m_'+item._momEntryId+'_'+item.id} item={item} type="mom"/>;})}</div></>}
+    {blItems.length>0&&<><div className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-2">Dari Backlog ({blItems.length})</div><div className="space-y-3">{blItems.map(function(item){return<ItemCard key={item.id} item={item} type="backlog"/>;})}</div></>}
+  </div>);
 }
 
 function BacklogList({backlog,onUpdate,onDelete,onAddKeputusan}){
@@ -4119,7 +4168,7 @@ function App(){
     {id:'dashboard',ico:'📊',lbl:'Dash'},
     {id:'jadwal',ico:'📅',lbl:'Jadwal',subs:[{id:'harian',lbl:'Harian'},{id:'mingguan',lbl:'Mingguan'},{id:'bulanan',lbl:'Bulanan'}]},
     {id:'dump'},
-    {id:'backlog',ico:'📋',lbl:'Backlog',subs:[{id:'need_feedback',lbl:'Need Feedback'},{id:'backlog',lbl:'Backlog'},{id:'keputusan',lbl:'Keputusan & Tracking'},{id:'mom',lbl:'MoM'}]},
+    {id:'backlog',ico:'📋',lbl:'Backlog',subs:[{id:'need_feedback',lbl:'Need Feedback'},{id:'backlog',lbl:'Backlog'},{id:'keputusan',lbl:'Keputusan & Tracking'},{id:'mom',lbl:'MoM'},{id:'pdca',lbl:'PDCA'}]},
     {id:'resume',ico:'📈',lbl:'Resume',subs:[{id:'analisa',lbl:'Analisa'},{id:'rekomendasi',lbl:'Rekomendasi'}]},
   ];
   const AT=TABS.find(t=>t.id===tab);
@@ -4189,10 +4238,11 @@ function App(){
           {tab==='jadwal'&&sub.jadwal==='mingguan'&&<JadwalMingguan backlog={backlog} jadwal={jadwal} filter={jadwalFilter}/>}
           {tab==='jadwal'&&sub.jadwal==='bulanan'&&<JadwalBulanan jadwal={jadwal} filter={jadwalFilter}/>}
           {tab==='dump'&&<DumpPage onAdd={addI} onAddKeputusan={addK} onAddJadwal={addToJadwal} onBatchAddJadwal={batchAddToJadwal} onUpdateJadwal={updateJadwal} onResetICSBatch={resetJadwalBatch} onSaveKpiCorp={saveKpiCorp} onSaveKpiCeo={saveKpiCeo} onSaveBooking={saveBooking} onAddMom={addMom} jadwal={jadwal} backlog={backlog} onDone={()=>{setTab('backlog');setST('backlog','backlog');}}/>}
-          {tab==='backlog'&&sub.backlog==='need_feedback'&&<NeedFeedbackTab backlog={backlog} onUpdate={updI} onAddKeputusan={addK} mom={mom} onUpdateMom={updMom}/>}
+          {tab==='backlog'&&sub.backlog==='need_feedback'&&<NeedFeedbackTab backlog={backlog} onUpdate={updI} onAddKeputusan={addK} mom={mom} onUpdateMom={updMom} onAddBacklog={addI}/>}
           {tab==='backlog'&&sub.backlog==='backlog'&&<BacklogList backlog={backlog} onUpdate={updI} onDelete={delI} onAddKeputusan={addK}/>}
           {tab==='backlog'&&sub.backlog==='keputusan'&&<Keputusan keputusan={keputusan} onUpdate={updK} onDelete={delK} onAddKeputusan={addK}/>}
           {tab==='backlog'&&sub.backlog==='mom'&&<MoMList mom={mom} onDelete={delMom} onUpdateMom={updMom} onAddKeputusan={addK}/>}
+          {tab==='backlog'&&sub.backlog==='pdca'&&<PdcaTab backlog={backlog} onUpdateBacklog={updI} mom={mom} onUpdateMom={updMom}/>}
           {tab==='resume'&&sub.resume==='analisa'&&<AnalisaTab backlog={backlog} jadwal={jadwal} kpiCorp={kpiCorp} dashMonth={dashMonth} mom={mom}/>}
           {tab==='resume'&&sub.resume==='rekomendasi'&&<AnalisaJadwal backlog={backlog} jadwal={jadwal} onAddJadwal={addToJadwal} onAddBacklog={addI} onUpdateBacklog={updI}/>}
         </div>
