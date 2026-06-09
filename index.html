@@ -219,6 +219,7 @@ const DOMAINS=[
   {id:'project',label:'Project / Ops',kpiId:'operasional',kpiCorpGroup:'cp',color:'text-amber-700',bg:'bg-amber-50'},
   {id:'hr',label:'HR / Rekrut',kpiId:'people',kpiCorpGroup:'hrit',color:'text-pink-700',bg:'bg-pink-50'},
 ];
+const TIPE_BRIEF={decision:{lbl:'Decision',c:'text-red-600',bg:'bg-red-50'},approval:{lbl:'Approval',c:'text-amber-600',bg:'bg-amber-50'},info:{lbl:'Need Info',c:'text-blue-600',bg:'bg-blue-50'},fyi:{lbl:'FYI',c:'text-stone-500',bg:'bg-stone-50'}};
 const PRE_CHECKLIST={
   'Deepwork Strategic':[
     {id:'dw1',item:'Definisi akar masalah utama yang akan dipikirkan (disesuaikan divisi terkait)',pic:'PA',wajib:true},
@@ -286,9 +287,15 @@ function BacklogCard({item,onUpdate,onDelete,onAddKeputusan,isActOpen,actType,on
   const [showPICDrop,setShowPICDrop]=useState(false);
   // Postpone state
   const [postAlasan,setPostAlasan]=useState('');
-  const [postTipe,setPostTipe]=useState('unclear'); // 'clear'|'unclear'
+  const [postTipe,setPostTipe]=useState('unclear');
   const [postTanggal,setPostTanggal]=useState(todayStr());
   const [postJam,setPostJam]=useState('08:00');
+  const [flagTipe,setFlagTipe]=useState('decision');
+  const [flagKonteks,setFlagKonteks]=useState('');
+  const [flagPert,setFlagPert]=useState('');
+  const [flagOpsi,setFlagOpsi]=useState('');
+  const [flagLink,setFlagLink]=useState('');
+  const [flagTA,setFlagTA]=useState('');
 
   const SN={baru:'dijadwalkan',dijadwalkan:'selesai',selesai:'baru',postponed:'dijadwalkan'};
   const SL={baru:'Baru',dijadwalkan:'Dijadwalkan',selesai:'Selesai',postponed:'Postponed'};
@@ -312,6 +319,11 @@ function BacklogCard({item,onUpdate,onDelete,onAddKeputusan,isActOpen,actType,on
     if(postTipe==='clear'){patch.tanggal=postTanggal;patch.blokWaktu=item.blokWaktu;}
     onUpdate(item.id,patch);
     onOpenAct(null,null);setPostAlasan('');setPostTipe('unclear');
+  }
+  function doFlag(){
+    if(!flagTipe||!flagKonteks.trim())return;
+    onUpdate(item.id,{needFeedback:true,feedbackStatus:null,feedbackBrief:{tipe:flagTipe,konteks:flagKonteks,pertimbangan:flagPert,opsi:flagOpsi,link:flagLink,noTApproval:flagTA}});
+    onOpenAct(null,null);setFlagKonteks('');setFlagPert('');setFlagOpsi('');setFlagLink('');setFlagTA('');
   }
 
   return(
@@ -364,6 +376,11 @@ function BacklogCard({item,onUpdate,onDelete,onAddKeputusan,isActOpen,actType,on
           <button className={`py-2 rounded-xl text-[10px] font-bold flex items-center justify-center gap-1 st as border ${isActOpen&&actType==='output'?'bg-emerald-600 text-white border-emerald-600 shadow-md':'bg-emerald-50 text-emerald-700 border-emerald-100'}`} onClick={()=>onOpenAct(item,'output')}>✍️ Output</button>
           <button className="py-2 rounded-xl text-[10px] font-bold flex items-center justify-center st as border bg-red-50 text-red-600 border-red-100" onClick={()=>{if(confirm('Hapus item ini?'))onDelete(item.id);}}>🗑</button>
         </div>
+        {/* Flag button */}
+        {!item.needFeedback&&<button className={'mt-1.5 w-full py-1.5 rounded-xl text-[9px] font-bold border st as '+(isActOpen&&actType==='flag'?'bg-violet-600 text-white border-violet-600':'bg-violet-50 text-violet-700 border-violet-100')} onClick={function(){onOpenAct(item,'flag');}}>⚑ Perlu Feedback CEO</button>}
+        {item.needFeedback&&!item.feedbackStatus&&<div className="mt-1.5 flex items-center gap-2"><span className="text-[9px] font-bold text-violet-600 bg-violet-50 border border-violet-200 px-2 py-1 rounded-xl">⚑ Menunggu Feedback CEO</span><button className="text-[9px] text-stone-400 as underline" onClick={function(){onUpdate(item.id,{needFeedback:false,feedbackStatus:null,feedbackBrief:null});}}>Batal</button></div>}
+        {item.feedbackStatus==='ceo_done'&&<div className="mt-1.5 flex items-center gap-1.5"><span className="text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-1 rounded-xl">⏳ Feedback CEO done — menunggu PDCA</span></div>}
+        {item.momDone&&<div className="mt-1.5"><span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-xl">✓ Sudah di-MoM</span></div>}
       </div>
 
       {/* Schedule panel */}
@@ -439,6 +456,123 @@ function BacklogCard({item,onUpdate,onDelete,onAddKeputusan,isActOpen,actType,on
           <button className={`w-full py-2.5 rounded-xl text-[12px] font-bold shadow-md as st ${!outText.trim()?'bg-emerald-300 cursor-not-allowed':'bg-emerald-600 text-white hover:bg-emerald-700'}`} onClick={doOutput} disabled={!outText.trim()}>Simpan Output → Keputusan</button>
         </div>
       )}
+
+      {/* Flag panel */}
+      {isActOpen&&actType==='flag'&&(
+        <div className="border-t border-violet-100 bg-violet-50 p-4 afi">
+          <div className="text-[10px] font-bold text-violet-800 uppercase tracking-wider mb-3">⚑ Flag untuk Feedback CEO</div>
+          <div className="text-[9px] font-bold text-stone-500 uppercase mb-1.5">Tipe</div>
+          <div className="flex gap-1.5 flex-wrap mb-3">
+            {[['decision','Need Decision','bg-red-500 text-white'],['approval','Need Approval','bg-amber-500 text-white'],['info','Need Info','bg-blue-500 text-white'],['fyi','FYI','bg-stone-500 text-white']].map(function(opt){var id=opt[0],lbl=opt[1],actC=opt[2];return(<button key={id} className={'px-2.5 py-1.5 rounded-xl text-[10px] font-bold border st as '+(flagTipe===id?actC+' border-transparent':'bg-white text-stone-600 border-stone-200')} onClick={function(){setFlagTipe(id);}}>{lbl}</button>);})}
+          </div>
+          <div className="text-[9px] font-bold text-stone-500 uppercase mb-1">Konteks / Latar Belakang *</div>
+          <textarea className="w-full p-2.5 rounded-xl border border-violet-200 bg-white text-[12px] focus:outline-none focus:ring-2 focus:ring-violet-400 mb-3 resize-none" rows={2} placeholder="Kenapa perlu feedback CEO? Rangkum dari brief pengaju." value={flagKonteks} onChange={function(e){setFlagKonteks(e.target.value);}}/>
+          <div className="text-[9px] font-bold text-stone-500 uppercase mb-1">Pertimbangan</div>
+          <textarea className="w-full p-2.5 rounded-xl border border-violet-200 bg-white text-[12px] focus:outline-none focus:ring-2 focus:ring-violet-400 mb-3 resize-none" rows={2} placeholder="Analisa singkat PA dari hasil investigasi ke PIC..." value={flagPert} onChange={function(e){setFlagPert(e.target.value);}}/>
+          {flagTipe==='decision'&&<><div className="text-[9px] font-bold text-stone-500 uppercase mb-1">Opsi + Rekomendasi</div><textarea className="w-full p-2.5 rounded-xl border border-violet-200 bg-white text-[12px] focus:outline-none focus:ring-2 focus:ring-violet-400 mb-3 resize-none" rows={2} placeholder="Opsi A: ... | Opsi B: ... | Rekomendasi: ..." value={flagOpsi} onChange={function(e){setFlagOpsi(e.target.value);}}/></>}
+          <div className="text-[9px] font-bold text-stone-500 uppercase mb-1">Link Dokumen</div>
+          <input className="w-full px-3 py-2 rounded-xl border border-violet-200 bg-white text-[12px] focus:outline-none focus:ring-2 focus:ring-violet-400 mb-3" placeholder="https://..." value={flagLink} onChange={function(e){setFlagLink(e.target.value);}}/>
+          <div className="text-[9px] font-bold text-stone-500 uppercase mb-1">No. T-Approval <span className="normal-case font-normal text-stone-400">(jika ada)</span></div>
+          <input className="w-full px-3 py-2 rounded-xl border border-violet-200 bg-white text-[12px] focus:outline-none focus:ring-2 focus:ring-violet-400 mb-4" placeholder="TA-XXXX" value={flagTA} onChange={function(e){setFlagTA(e.target.value);}}/>
+          <button className={'w-full py-2.5 rounded-xl text-[12px] font-bold shadow-md as st '+(!flagTipe||!flagKonteks.trim()?'bg-stone-200 text-stone-400 cursor-not-allowed':'bg-violet-600 text-white')} onClick={doFlag} disabled={!flagTipe||!flagKonteks.trim()}>⚑ Masukkan ke Need Feedback Queue</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── NEED FEEDBACK TAB ─────────────────────────────────────────
+function NeedFeedbackTab({backlog,onUpdate,onAddKeputusan}){
+  const [expandCeo,setExpandCeo]=useState(null);
+  const [ceoTexts,setCeoTexts]=useState({});
+  const [showDone,setShowDone]=useState(false);
+
+  const queue=backlog.filter(function(it){return it.needFeedback&&!it.feedbackStatus;});
+  const waiting=backlog.filter(function(it){return it.feedbackStatus==='ceo_done'&&!it.momDone;});
+  const done=backlog.filter(function(it){return it.momDone;});
+
+  function submitFeedback(item){
+    var txt=ceoTexts[item.id]||'';if(!txt.trim())return;
+    onUpdate(item.id,{feedbackStatus:'ceo_done',ceoFeedback:txt,feedbackTs:new Date().toISOString()});
+    onAddKeputusan({id:'KP-'+genId(),tanggal:todayStr(),backlogId:item.id,konteks:item.konteks||'',deskripsi:item.isi||'',fungsiKPI:item.fungsiKPI||'operasional',dampak:item.prioritas==='tinggi'?'tinggi':'sedang',status:'proses',output:txt,updateTL:'',sumber:'CEO Feedback',evalStatus:'belum',ekspektasiY:(item.feedbackBrief||{}).pertimbangan||''});
+    setExpandCeo(null);
+  }
+  function markMoM(item){onUpdate(item.id,{momDone:true,feedbackStatus:'pdca_done'});}
+  function scheduleMeeting(item){onUpdate(item.id,{needFeedback:false,feedbackStatus:'scheduled'});}
+  function dismiss(item){onUpdate(item.id,{needFeedback:false,feedbackStatus:'dismissed'});}
+
+  function Brief({brief}){
+    if(!brief)return null;
+    var tc=TIPE_BRIEF[brief.tipe]||TIPE_BRIEF.fyi;
+    return(<div className="mt-2 space-y-1.5">
+      {brief.tipe&&<span className={'text-[9px] font-extrabold px-2 py-0.5 rounded uppercase '+tc.bg+' '+tc.c}>{tc.lbl}</span>}
+      {brief.konteks&&<div className="text-[11px] text-stone-700 leading-snug"><span className="text-[9px] font-bold text-stone-400 uppercase tracking-wide">Konteks </span>{brief.konteks}</div>}
+      {brief.pertimbangan&&<div className="text-[11px] text-stone-700 leading-snug"><span className="text-[9px] font-bold text-stone-400 uppercase tracking-wide">Pertimbangan </span>{brief.pertimbangan}</div>}
+      {brief.tipe==='decision'&&brief.opsi&&<div className="text-[11px] text-stone-700 leading-snug"><span className="text-[9px] font-bold text-stone-400 uppercase tracking-wide">Opsi </span>{brief.opsi}</div>}
+      {brief.link&&<div><a href={brief.link} target="_blank" className="text-[11px] text-blue-600 underline break-all">🔗 {brief.link}</a></div>}
+      {brief.noTApproval&&<div className="text-[10px] text-stone-400">T-Approval: <span className="font-bold text-stone-600">{brief.noTApproval}</span></div>}
+    </div>);
+  }
+
+  return(
+    <div className="pb-8 px-4 pt-4 md:px-6">
+      {/* SECTION 1: Queue */}
+      <div className="text-[10px] font-extrabold text-stone-400 uppercase tracking-widest mb-3">💬 Queue — {queue.length} menunggu feedback</div>
+      {queue.length===0
+        ?<div className="bg-stone-50 border border-stone-200 rounded-2xl p-6 text-center mb-5"><div className="text-3xl mb-2 opacity-20">✓</div><div className="text-[12px] font-bold text-stone-400 mb-1">Queue kosong</div><div className="text-[10px] text-stone-300">Flag backlog item dari tab Backlog → ⚑ Perlu Feedback</div></div>
+        :<div className="space-y-3 mb-5">{queue.map(function(item){
+          var isExp=expandCeo===item.id;
+          return(
+            <div key={item.id} className="bg-white border border-violet-200 rounded-2xl shadow-soft overflow-hidden">
+              <div className="p-4">
+                <div className="flex items-start justify-between gap-2 mb-1"><div className="text-[10px] font-bold text-violet-500">{item.id} · {item.kategori}</div><KC id={item.fungsiKPI} sm/></div>
+                <div className="text-[13px] font-bold text-stone-900 leading-snug mb-1">{item.isi}</div>
+                <Brief brief={item.feedbackBrief}/>
+                {isExp&&<div className="mt-3 pt-3 border-t border-violet-100">
+                  <div className="text-[9px] font-extrabold text-stone-400 uppercase mb-1.5">Feedback CEO</div>
+                  <textarea className="w-full px-3 py-2 rounded-xl border border-stone-200 bg-stone-50 text-[12px] focus:outline-none focus:ring-2 focus:ring-violet-400 resize-y mb-2" rows={3} placeholder="Arahan, keputusan, atau catatan Pak Ibnu..." value={ceoTexts[item.id]||''} onChange={function(e){var v=e.target.value;setCeoTexts(function(p){var n={...p};n[item.id]=v;return n;});}}/>
+                  <div className="flex gap-2">
+                    <button className="flex-1 py-2 rounded-xl border border-stone-200 text-[10px] font-bold text-stone-500 as st" onClick={function(){setExpandCeo(null);}}>Batal</button>
+                    <button className={'flex-1 py-2 rounded-xl text-[10px] font-bold as st '+((ceoTexts[item.id]||'').trim()?'bg-violet-600 text-white':'bg-stone-200 text-stone-400')} disabled={!(ceoTexts[item.id]||'').trim()} onClick={function(){submitFeedback(item);}}>Submit → Keputusan</button>
+                  </div>
+                </div>}
+              </div>
+              {!isExp&&<div className="px-4 pb-4 flex gap-2">
+                <button className="flex-1 py-2.5 rounded-xl bg-violet-600 text-white text-[10px] font-bold as st" onClick={function(){setExpandCeo(item.id);}}>💬 Tulis Feedback</button>
+                <button className="py-2.5 px-3 rounded-xl border border-stone-200 text-[10px] font-bold text-stone-600 as st" onClick={function(){scheduleMeeting(item);}}>📅 Meeting</button>
+                <button className="py-2.5 px-3 rounded-xl border border-stone-200 text-[10px] font-bold text-stone-400 as st" onClick={function(){dismiss(item);}}>✕</button>
+              </div>}
+            </div>
+          );
+        })}</div>
+      }
+
+      {/* SECTION 2: Menunggu PDCA */}
+      {waiting.length>0&&<>
+        <div className="text-[10px] font-extrabold text-stone-400 uppercase tracking-widest mb-3">⏳ Menunggu PDCA — {waiting.length} item</div>
+        <div className="space-y-3 mb-5">{waiting.map(function(item){return(
+          <div key={item.id} className="bg-white border border-amber-200 rounded-2xl shadow-soft overflow-hidden">
+            <div className="p-4">
+              <div className="text-[10px] font-bold text-amber-500 mb-1">{item.id}</div>
+              <div className="text-[13px] font-bold text-stone-900 leading-snug mb-2">{item.isi}</div>
+              {item.ceoFeedback&&<div className="p-3 bg-violet-50 border border-violet-100 rounded-xl"><div className="text-[9px] font-extrabold text-violet-500 uppercase mb-1">Feedback CEO</div><div className="text-[12px] text-violet-800 leading-snug">{item.ceoFeedback}</div></div>}
+            </div>
+            <div className="px-4 pb-4"><button className="w-full py-2.5 rounded-xl bg-emerald-600 text-white text-[10px] font-bold as st" onClick={function(){markMoM(item);}}>✓ Sudah dimasukkan ke Trusmiverse MoM</button></div>
+          </div>
+        );})}</div>
+      </>}
+
+      {/* SECTION 3: Done */}
+      {done.length>0&&<>
+        <button className="text-[10px] font-bold text-stone-400 mb-3 flex items-center gap-1 as" onClick={function(){setShowDone(function(p){return!p;});}}>{showDone?'▾':'▸'} Done — {done.length} item</button>
+        {showDone&&<div className="space-y-2 mb-5">{done.map(function(item){return(
+          <div key={item.id} className="bg-stone-50 border border-stone-200 rounded-xl p-3 opacity-60">
+            <div className="text-[10px] font-bold text-stone-400">{item.id}</div>
+            <div className="text-[12px] font-semibold text-stone-600">{item.isi}</div>
+            {item.ceoFeedback&&<div className="text-[10px] text-stone-500 mt-1 line-clamp-1">{item.ceoFeedback}</div>}
+          </div>
+        );})}</div>}
+      </>}
     </div>
   );
 }
@@ -579,8 +713,9 @@ function Keputusan({keputusan,onUpdate,onDelete,onAddKeputusan}){
 
   // Flat list filter
   const [fk,setFk]=useState('all');
+  const [srcF,setSrcF]=useState('all');
   const DC={};KPI5.forEach(k=>{DC[k.id]=keputusan.filter(x=>x.fungsiKPI===k.id).length;});
-  const shown=keputusan.filter(it=>fk==='all'||it.fungsiKPI===fk);
+  const shown=keputusan.filter(function(it){return(fk==='all'||it.fungsiKPI===fk)&&(srcF==='all'||(it.sumber||'Manual')===srcF);});
 
   function saveUpdate(kpt){
     const txt=updateTexts[kpt.id]||'';if(!txt.trim())return;
@@ -705,9 +840,12 @@ function Keputusan({keputusan,onUpdate,onDelete,onAddKeputusan}){
             <button className={`flex-shrink-0 px-3 py-1.5 rounded-xl text-[11px] font-bold st as border ${fk==='all'?'bg-stone-800 text-white border-stone-800 shadow-md':'bg-white text-stone-600 border-stone-200'}`} onClick={()=>setFk('all')}>Semua ({keputusan.length})</button>
             {KPI5.filter(k=>DC[k.id]>0).map(k=><button key={k.id} className={`flex-shrink-0 px-3 py-1.5 rounded-xl text-[11px] font-bold st as border ${fk===k.id?'bg-stone-800 text-white border-stone-800 shadow-md':`${k.bg} ${k.color} ${k.border}`}`} onClick={()=>setFk(fk===k.id?'all':k.id)}>{k.short} ({DC[k.id]})</button>)}
           </div>
+          <div className="px-4 pb-2 flex gap-1.5 overflow-x-auto scrollbar-hide">
+            {['all','CEO Feedback','MoM: action item','Manual'].map(function(s){var isA=srcF===s;var lbl=s==='all'?'Semua sumber':s;return(<button key={s} className={'flex-shrink-0 px-2.5 py-1 rounded-lg text-[9px] font-bold border st as '+(isA?'bg-violet-600 text-white border-violet-600':'bg-white text-stone-500 border-stone-200')} onClick={function(){setSrcF(s);}}>{lbl}</button>);})}
+          </div>
           <div className="px-4 pt-2 md:px-6">
             {shown.length===0?<div className="py-12 text-center"><div className="text-4xl mb-3 opacity-40">📝</div><div className="text-[13px] font-bold text-stone-400">Tidak ada keputusan</div></div>
-            :<div className="md:grid md:grid-cols-2 md:gap-3 md:items-start">{shown.map(kpt=><KptCard key={kpt.id} kpt={kpt}/>)}</div>}
+            :<div className="md:grid md:grid-cols-2 md:gap-3 md:items-start">{shown.map(function(kpt){return<KptCard key={kpt.id} kpt={kpt}/>;})}</div>}
           </div>
         </div>
       )}
@@ -2420,13 +2558,38 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
         {/* Current / Idle */}
         {currentItem
           ?<JadwalCard key={currentItem.id} item={currentItem}/>
-          :<div className="bg-stone-50 border border-dashed border-stone-200 rounded-xl p-3 mb-2 flex items-center gap-3">
-            <span className="w-2 h-2 rounded-full bg-stone-300 flex-shrink-0"/>
-            <div>
-              <div className="text-[11px] font-bold text-stone-500">Tidak ada kegiatan saat ini</div>
-              {nextItem&&<div className="text-[10px] text-stone-400">Berikutnya: <strong>{nextItem.detailKegiatan}</strong> jam {nextItem.jamMulai}</div>}
-              {!nextItem&&pastItems.length>0&&<div className="text-[10px] text-stone-400">Semua kegiatan hari ini sudah selesai</div>}
-            </div>
+          :<div className="mb-2">
+            {(function(){
+              var nfQ=backlog.filter(function(it){return it.needFeedback&&!it.feedbackStatus;});
+              if(nfQ.length===0)return(
+                <div className="bg-stone-50 border border-dashed border-stone-200 rounded-xl p-3 flex items-center gap-3">
+                  <span className="w-2 h-2 rounded-full bg-stone-300 flex-shrink-0"/>
+                  <div><div className="text-[11px] font-bold text-stone-500">Tidak ada kegiatan saat ini</div>
+                  {nextItem&&<div className="text-[10px] text-stone-400">Berikutnya: <strong>{nextItem.detailKegiatan}</strong> jam {nextItem.jamMulai}</div>}
+                  {!nextItem&&pastItems.length>0&&<div className="text-[10px] text-stone-400">Semua kegiatan hari ini sudah selesai</div>}</div>
+                </div>
+              );
+              return(
+                <div className="bg-violet-50 border border-violet-200 rounded-xl p-3">
+                  <div className="flex items-center gap-2.5 mb-2.5">
+                    <span className="w-2 h-2 rounded-full bg-violet-500 flex-shrink-0"/>
+                    <div className="flex-1"><div className="text-[11px] font-bold text-violet-700">Slot kosong — Need Feedback menunggu</div></div>
+                    <span className="text-[9px] font-black bg-violet-600 text-white px-2 py-0.5 rounded-full">{nfQ.length}</span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {nfQ.slice(0,2).map(function(item){
+                      var tc=(item.feedbackBrief&&TIPE_BRIEF[item.feedbackBrief.tipe])||TIPE_BRIEF.fyi;
+                      return(<div key={item.id} className="bg-white border border-violet-100 rounded-xl p-2.5">
+                        <div className="flex items-center gap-1.5 mb-0.5"><span className={'text-[8px] font-extrabold px-1.5 py-0.5 rounded uppercase '+tc.bg+' '+tc.c}>{tc.lbl}</span><span className="text-[9px] text-stone-400">{item.id}</span></div>
+                        <div className="text-[11px] font-bold text-stone-800 leading-snug">{item.isi}</div>
+                        {item.feedbackBrief&&item.feedbackBrief.konteks&&<div className="text-[10px] text-stone-500 mt-0.5 line-clamp-1">{item.feedbackBrief.konteks}</div>}
+                      </div>);
+                    })}
+                    {nfQ.length>2&&<div className="text-[9px] text-violet-500 font-bold text-center pt-1">+{nfQ.length-2} lainnya → buka tab Need Feedback</div>}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         }
 
@@ -3791,8 +3954,8 @@ function App(){
   function forceSyncNow(){setSyncMsg('Syncing...');var p=[];if(backlog.length>0)p.push(new Promise(function(res){sbSave('backlog',backlog);res();}));if(keputusan.length>0)p.push(new Promise(function(res){sbSave('keputusan',keputusan);res();}));if(Object.keys(jadwal).length>0)p.push(new Promise(function(res){sbSave('jadwal',jadwal);res();}));Promise.all(p).then(function(){setSyncMsg('✓ Sync selesai!');setTimeout(function(){setSyncMsg('');},3000);});}
   const [kpiCorp,setKpiCorp]=useState(()=>ld('kpi_corp')||{});
   const [kpiCeo,setKpiCeo]=useState(()=>ld('kpi_ceo')||{});
-  const [dashMonth,setDashMonth]=useState(()=>new Date().toISOString().slice(0,7));
-  function saveKpiCorp(month,data){const n={...kpiCorp,[month]:data};setKpiCorp(n);sv('kpi_corp',n);setDashMonth(month);}
+  const [dashMonth,setDashMonth]=useState(()=>{try{var s=localStorage.getItem('rsp_dash_month');return s||new Date().toISOString().slice(0,7);}catch(e){return new Date().toISOString().slice(0,7);}});
+  function saveKpiCorp(month,data){const n={...kpiCorp,[month]:data};setKpiCorp(n);sv('kpi_corp',n);setDashMonth(month);try{localStorage.setItem('rsp_dash_month',month);}catch(e){}}
   function saveKpiCeo(month,items){const n={...kpiCeo,[month]:items};setKpiCeo(n);sv('kpi_ceo',n);}
   const [booking,setBooking]=useState(()=>ld('booking')||{actuals:{},targets:{}});
   function saveBooking(data){var n={actuals:{...booking.actuals,...(data.actuals||{})},targets:{...booking.targets,...(data.targets||{})}};setBooking(n);sv('booking',n);}
@@ -3822,6 +3985,10 @@ function App(){
         sbLoad('backlog').then(function(v){if(v!==null){setBacklog(v);try{localStorage.setItem('rsp_backlog',JSON.stringify(v));}catch(e){}}else if(localBL.length>0){sbSave('backlog',localBL);}});
         sbLoad('keputusan').then(function(v){if(v!==null){setKeputusan(v);try{localStorage.setItem('rsp_keputusan',JSON.stringify(v));}catch(e){}}else if(localKE.length>0){sbSave('keputusan',localKE);}});
         sbLoad('jadwal').then(function(v){if(v!==null){setJadwal(v);try{localStorage.setItem('rsp_jadwal',JSON.stringify(v));}catch(e){}}else if(Object.keys(localJA).length>0){sbSave('jadwal',localJA);}});
+        var localKC=ld('kpi_corp')||{};
+        sbLoad('kpi_corp').then(function(v){if(v!==null){setKpiCorp(v);try{localStorage.setItem('rsp_kpi_corp',JSON.stringify(v));}catch(e){}}else if(Object.keys(localKC).length>0){sbSave('kpi_corp',localKC);}});
+        var localMom=ld('mom')||[];
+        sbLoad('mom').then(function(v){if(v!==null){setMom(v);try{localStorage.setItem('rsp_mom',JSON.stringify(v));}catch(e){}}else if(localMom.length>0){sbSave('mom',localMom);}});
         var sb2=getSB();
         if(!sb2)return;
         sb2.channel('rsp_live').on('postgres_changes',{event:'*',schema:'public',table:'app_data'},function(pl){
@@ -3829,6 +3996,8 @@ function App(){
             if(key==='backlog'){setBacklog(val);try{localStorage.setItem('rsp_backlog',JSON.stringify(val));}catch(e){}}
             else if(key==='keputusan'){setKeputusan(val);try{localStorage.setItem('rsp_keputusan',JSON.stringify(val));}catch(e){}}
             else if(key==='jadwal'){setJadwal(val);try{localStorage.setItem('rsp_jadwal',JSON.stringify(val));}catch(e){}}
+            else if(key==='kpi_corp'){setKpiCorp(val);try{localStorage.setItem('rsp_kpi_corp',JSON.stringify(val));}catch(e){}}
+            else if(key==='mom'){setMom(val);try{localStorage.setItem('rsp_mom',JSON.stringify(val));}catch(e){}}
           }catch(e){}
         }).subscribe();
       },800);
@@ -3840,6 +4009,8 @@ function App(){
     sbLoad('backlog').then(function(v){if(v!==null){setBacklog(v);try{localStorage.setItem('rsp_backlog',JSON.stringify(v));}catch(e){}}});
     sbLoad('keputusan').then(function(v){if(v!==null){setKeputusan(v);try{localStorage.setItem('rsp_keputusan',JSON.stringify(v));}catch(e){}}});
     sbLoad('jadwal').then(function(v){if(v!==null){setJadwal(v);try{localStorage.setItem('rsp_jadwal',JSON.stringify(v));}catch(e){}}});
+    sbLoad('kpi_corp').then(function(v){if(v!==null){setKpiCorp(v);try{localStorage.setItem('rsp_kpi_corp',JSON.stringify(v));}catch(e){}}});
+    sbLoad('mom').then(function(v){if(v!==null){setMom(v);try{localStorage.setItem('rsp_mom',JSON.stringify(v));}catch(e){}}});
   }
   useEffect(()=>{
     var t=setInterval(function(){if(getSB())pullFromSB();},30000);
@@ -3874,7 +4045,7 @@ function App(){
     {id:'dashboard',ico:'📊',lbl:'Dash'},
     {id:'jadwal',ico:'📅',lbl:'Jadwal',subs:[{id:'harian',lbl:'Harian'},{id:'mingguan',lbl:'Mingguan'},{id:'bulanan',lbl:'Bulanan'}]},
     {id:'dump'},
-    {id:'backlog',ico:'📋',lbl:'Backlog',subs:[{id:'backlog',lbl:'Backlog'},{id:'keputusan',lbl:'Keputusan & Tracking'},{id:'mom',lbl:'MoM'}]},
+    {id:'backlog',ico:'📋',lbl:'Backlog',subs:[{id:'need_feedback',lbl:'Need Feedback'},{id:'backlog',lbl:'Backlog'},{id:'keputusan',lbl:'Keputusan & Tracking'},{id:'mom',lbl:'MoM'}]},
     {id:'resume',ico:'📈',lbl:'Resume',subs:[{id:'analisa',lbl:'Analisa'},{id:'rekomendasi',lbl:'Rekomendasi'}]},
   ];
   const AT=TABS.find(t=>t.id===tab);
@@ -3944,6 +4115,7 @@ function App(){
           {tab==='jadwal'&&sub.jadwal==='mingguan'&&<JadwalMingguan backlog={backlog} jadwal={jadwal} filter={jadwalFilter}/>}
           {tab==='jadwal'&&sub.jadwal==='bulanan'&&<JadwalBulanan jadwal={jadwal} filter={jadwalFilter}/>}
           {tab==='dump'&&<DumpPage onAdd={addI} onAddKeputusan={addK} onAddJadwal={addToJadwal} onBatchAddJadwal={batchAddToJadwal} onUpdateJadwal={updateJadwal} onResetICSBatch={resetJadwalBatch} onSaveKpiCorp={saveKpiCorp} onSaveKpiCeo={saveKpiCeo} onSaveBooking={saveBooking} onAddMom={addMom} jadwal={jadwal} backlog={backlog} onDone={()=>{setTab('backlog');setST('backlog','backlog');}}/>}
+          {tab==='backlog'&&sub.backlog==='need_feedback'&&<NeedFeedbackTab backlog={backlog} onUpdate={updI} onAddKeputusan={addK}/>}
           {tab==='backlog'&&sub.backlog==='backlog'&&<BacklogList backlog={backlog} onUpdate={updI} onDelete={delI} onAddKeputusan={addK}/>}
           {tab==='backlog'&&sub.backlog==='keputusan'&&<Keputusan keputusan={keputusan} onUpdate={updK} onDelete={delK} onAddKeputusan={addK}/>}
           {tab==='backlog'&&sub.backlog==='mom'&&<MoMList mom={mom} onDelete={delMom} onUpdateMom={updMom} onAddKeputusan={addK}/>}
