@@ -3224,7 +3224,7 @@ function Heatmap({backlog}){
 }
 
 // ── ANALISA TAB ───────────────────────────────────────────────
-function AnalisaTab({backlog,jadwal,kpiCorp,dashMonth,mom}){
+function AnalisaTab({backlog,jadwal,kpiCorp,dashMonth,mom,kpiCeo}){
   const [entityFilter,setEntityFilter]=useState('all');
   const stats=computeAnalisaFiltered(jadwal||{},entityFilter);
   const today=todayStr();
@@ -3265,6 +3265,29 @@ function AnalisaTab({backlog,jadwal,kpiCorp,dashMonth,mom}){
     if(lastW3&&weekly[lastW3]&&corpGroup){yScore=Math.round(corpGroup.items.reduce(function(s,i){var v=weekly[lastW3][i.id];return s+(v?Math.min(v.pct,100)*i.bobot/corpGroup.bobot:0);},0));}
     return{d:d,decs:decs,sesuai:sesuai,total:total,pct:pct,jam:jam,yScore:yScore};
   });
+
+  // ── D2: Personal Branding ──
+  var kpiCeoMonth=(kpiCeo&&kpiCeo[dashMonth])?kpiCeo[dashMonth]:KPI_CEO_DEFAULT;
+  var d2Items=kpiCeoMonth.filter(function(it){return it.fn==='branding';});
+  var kontentPerWeek={};
+  var kontentJamTotal=0;
+  Object.entries(jadwal||{}).forEach(function(e){var date=e[0],items=e[1];(items||[]).forEach(function(it){if(it.jenisKegiatan==='Bikin Konten'){var w=getWeekKey(date);if(!kontentPerWeek[w])kontentPerWeek[w]={count:0,hours:0};kontentPerWeek[w].count++;kontentPerWeek[w].hours=Math.round((kontentPerWeek[w].hours+getDur(it.jamMulai,it.jamSelesai))*10)/10;kontentJamTotal=Math.round((kontentJamTotal+getDur(it.jamMulai,it.jamSelesai))*10)/10;}});});
+  // ── D3: Networking ──
+  var d3PerWeek={};
+  var d3Total=0;
+  var d3JamTotal=0;
+  var d3AllItems=[];
+  Object.entries(jadwal||{}).forEach(function(e){var date=e[0],items=e[1];(items||[]).forEach(function(it){if(it.jenisKegiatan==='Ketemu External'){var w=getWeekKey(date);if(!d3PerWeek[w])d3PerWeek[w]={count:0,hours:0};d3PerWeek[w].count++;d3PerWeek[w].hours=Math.round((d3PerWeek[w].hours+getDur(it.jamMulai,it.jamSelesai))*10)/10;d3Total++;d3JamTotal=Math.round((d3JamTotal+getDur(it.jamMulai,it.jamSelesai))*10)/10;d3AllItems.push({...it,date:date});}});});
+  var d3Weeks=Object.keys(d3PerWeek).sort();
+  // ── D4: Budaya Organisasi ──
+  var d4PerWeek={};
+  var d4Total=0;
+  var d4JamTotal=0;
+  var d4AllItems=[];
+  Object.entries(jadwal||{}).forEach(function(e){var date=e[0],items=e[1];(items||[]).forEach(function(it){if(it.jenisKegiatan==='Employee Engage'){var w=getWeekKey(date);if(!d4PerWeek[w])d4PerWeek[w]={count:0,hours:0};d4PerWeek[w].count++;d4PerWeek[w].hours=Math.round((d4PerWeek[w].hours+getDur(it.jamMulai,it.jamSelesai))*10)/10;d4Total++;d4JamTotal=Math.round((d4JamTotal+getDur(it.jamMulai,it.jamSelesai))*10)/10;d4AllItems.push({...it,date:date});}});});
+  var d4MonthTarget=2;
+  var d4OKFlag=d4Total>=d4MonthTarget;
+  var allJadwalWeeks=[...new Set(Object.keys(jadwal||{}).map(function(d){return getWeekKey(d);}))].sort();
 
   function heatCls(v){if(!v)return'bg-stone-100 text-stone-400';if(v<=3)return'bg-sky-100 text-sky-800';if(v<=7)return'bg-sky-300 text-sky-900';if(v<=12)return'bg-sky-500 text-white';return'bg-sky-700 text-white';}
 
@@ -3354,6 +3377,186 @@ function AnalisaTab({backlog,jadwal,kpiCorp,dashMonth,mom}){
             </div>
           </div>
         }
+      </div>
+
+      {/* ── D2: PERSONAL BRANDING ── */}
+      <div className="px-4 md:px-6 mb-5">
+        <div className="text-[10px] font-extrabold text-stone-400 uppercase tracking-widest mb-0.5">📢 D2 · Personal Branding CEO</div>
+        <div className="text-[10px] text-stone-400 mb-3">KPI branding aktual vs target · jam produksi konten dari jadwal · lag effect 2–4 minggu ke engagement</div>
+        <div className="bg-white rounded-2xl border border-stone-200 shadow-soft p-4">
+          {d2Items.length===0?<div className="text-center py-4 text-[12px] text-stone-400">Data KPI Branding belum diisi</div>:
+            <div className="space-y-3 mb-4">
+              {d2Items.map(function(item){
+                var s=(item.skor!==''&&item.skor!==undefined&&item.skor!==null)?parseFloat(item.skor):null;
+                var pv=s!==null?Math.round(s/item.target*100):null;
+                var bCls=pv===null?'bg-stone-200':pv>=80?'bg-purple-500':pv>=50?'bg-amber-400':'bg-red-400';
+                var tCls=pv===null?'text-stone-300':pv>=80?'text-emerald-600':pv>=50?'text-amber-600':'text-red-600';
+                var lbl=item.goals.replace('Personal Branding: ','');
+                return(
+                  <div key={item.no}>
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-[11px] font-bold text-purple-700">{lbl}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[9px] text-stone-400 bg-stone-100 px-1.5 py-0.5 rounded">{item.freq}</span>
+                        {s!==null?<span className={'text-[13px] font-black '+tCls}>{s}<span className="text-[9px] font-normal text-stone-400 ml-0.5">/{item.target}</span></span>:<span className="text-[10px] text-stone-300 italic">belum diisi</span>}
+                      </div>
+                    </div>
+                    <div className="relative w-full h-2.5 bg-stone-100 rounded-full overflow-hidden">
+                      {s!==null&&<div className={'h-full rounded-full '+bCls} style={{width:Math.min(pv,100)+'%'}}/>}
+                      <div className="absolute inset-y-0 w-0.5 bg-stone-500 opacity-30" style={{left:'80%'}}/>
+                    </div>
+                    <div className="text-[9px] text-stone-400 mt-0.5 truncate">{item.caraukur}</div>
+                  </div>
+                );
+              })}
+            </div>
+          }
+          <div className="border-t border-stone-100 pt-3">
+            <div className="text-[10px] font-bold text-stone-500 mb-2">⏱ Jam Produksi Konten per Minggu (dari Jadwal)</div>
+            {allJadwalWeeks.length>0?
+              <div className="flex gap-2 flex-wrap">
+                {allJadwalWeeks.map(function(w){
+                  var kw=kontentPerWeek[w]||{count:0,hours:0};
+                  var hasData=kw.hours>0;
+                  return(
+                    <div key={w} className={'rounded-xl px-3 py-2 text-center min-w-[70px] '+(hasData?'bg-purple-50':'bg-stone-50')}>
+                      <div className={'text-[9px] font-bold mb-1 '+(hasData?'text-purple-400':'text-stone-300')}>{getWeekLabel(w)}</div>
+                      <div className={'text-[16px] font-black '+(hasData?'text-purple-700':'text-stone-300')}>{kw.hours||0}h</div>
+                      <div className={'text-[9px] '+(hasData?'text-purple-500':'text-stone-300')}>{kw.count||0} sesi</div>
+                    </div>
+                  );
+                })}
+              </div>
+            :<div className="text-[11px] text-stone-400 italic">Belum ada jadwal tersimpan</div>}
+            {kontentJamTotal>0&&<div className="mt-2 text-[9px] text-stone-400">Total: <strong className="text-purple-700">{kontentJamTotal}h</strong> produksi konten · Dampak ke engagement/reach lag ~2–4 minggu</div>}
+          </div>
+        </div>
+      </div>
+
+      {/* ── D3: NETWORKING ── */}
+      <div className="px-4 md:px-6 mb-5">
+        <div className="text-[10px] font-extrabold text-stone-400 uppercase tracking-widest mb-0.5">🤝 D3 · Networking CEO</div>
+        <div className="text-[10px] text-stone-400 mb-3">Volume pertemuan eksternal dari jadwal · D3 = volume signal only, tidak ada kausalitas langsung ke Y KPI</div>
+        <div className="bg-white rounded-2xl border border-stone-200 shadow-soft p-4">
+          {d3Total===0?
+            <div className="text-center py-5">
+              <div className="text-3xl mb-2 opacity-20">🤝</div>
+              <div className="text-[12px] font-bold text-stone-400 mb-1">Belum ada Ketemu External di jadwal</div>
+              <div className="text-[10px] text-stone-400">Tambahkan kegiatan "Ketemu External" di tab Jadwal</div>
+            </div>
+          :
+            <div>
+              <div className="grid grid-cols-3 gap-2 mb-4">
+                <div className="bg-violet-50 rounded-xl p-3 text-center">
+                  <div className="text-[9px] font-bold text-violet-400 uppercase mb-1">Pertemuan</div>
+                  <div className="text-[24px] font-black text-violet-700">{d3Total}</div>
+                  <div className="text-[9px] text-violet-400">sesi</div>
+                </div>
+                <div className="bg-violet-50 rounded-xl p-3 text-center">
+                  <div className="text-[9px] font-bold text-violet-400 uppercase mb-1">Total Jam</div>
+                  <div className="text-[24px] font-black text-violet-700">{d3JamTotal}</div>
+                  <div className="text-[9px] text-violet-400">jam</div>
+                </div>
+                <div className="bg-violet-50 rounded-xl p-3 text-center">
+                  <div className="text-[9px] font-bold text-violet-400 uppercase mb-1">Avg/Minggu</div>
+                  <div className="text-[24px] font-black text-violet-700">{d3Weeks.length>0?Math.round(d3Total/d3Weeks.length*10)/10:0}</div>
+                  <div className="text-[9px] text-violet-400">pertemuan</div>
+                </div>
+              </div>
+              <div className="text-[10px] font-bold text-stone-400 mb-2">Volume per Minggu</div>
+              <div className="flex gap-2 flex-wrap mb-4">
+                {allJadwalWeeks.map(function(w){
+                  var dw=d3PerWeek[w]||{count:0,hours:0};
+                  var hasData=dw.count>0;
+                  return(
+                    <div key={w} className={'rounded-xl px-3 py-2 text-center min-w-[70px] '+(hasData?'bg-violet-50':'bg-stone-50')}>
+                      <div className={'text-[9px] font-bold mb-1 '+(hasData?'text-violet-400':'text-stone-300')}>{getWeekLabel(w)}</div>
+                      <div className={'text-[18px] font-black '+(hasData?'text-violet-700':'text-stone-300')}>{dw.count||0}</div>
+                      <div className={'text-[9px] '+(hasData?'text-violet-500':'text-stone-300')}>{dw.hours||0}h</div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="text-[10px] font-bold text-stone-400 mb-1.5">Detail Pertemuan</div>
+              <div className="space-y-0 max-h-36 overflow-y-auto">
+                {d3AllItems.map(function(it,idx){
+                  return(
+                    <div key={idx} className="flex justify-between items-start text-[10px] py-2 border-b border-stone-50 last:border-0">
+                      <div className="flex-1 min-w-0">
+                        <span className="text-stone-400 mr-2 shrink-0">{it.date}</span>
+                        <span className="text-stone-700 font-semibold">{it.namaKegiatan||'Ketemu External'}</span>
+                        {it.outputKeputusan&&<div className="text-stone-400 text-[9px] truncate mt-0.5">{it.outputKeputusan}</div>}
+                      </div>
+                      <span className="text-violet-600 font-bold ml-2 shrink-0">{getDur(it.jamMulai,it.jamSelesai)}h</span>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="mt-3 pt-2 border-t border-stone-100 text-[9px] text-amber-600 font-medium">⚠️ D3 = sinyal volume. Kualitas jaringan dilihat dari D1 (keputusan sukses per domain, bukan dari frekuensi pertemuan).</div>
+            </div>
+          }
+        </div>
+      </div>
+
+      {/* ── D4: BUDAYA ORGANISASI ── */}
+      <div className="px-4 md:px-6 mb-5">
+        <div className="text-[10px] font-extrabold text-stone-400 uppercase tracking-widest mb-0.5">🎙 D4 · Budaya Organisasi</div>
+        <div className="text-[10px] text-stone-400 mb-3">Frekuensi Employee Engage dari jadwal · KPI no.14: ≥{d4MonthTarget}x/bulan (speech + bedah buku)</div>
+        <div className={'bg-white rounded-2xl border shadow-soft p-4 '+(d4OKFlag?'border-emerald-100':'border-stone-200')}>
+          <div className="flex items-center gap-3 mb-4">
+            <div className={'w-14 h-14 rounded-2xl flex items-center justify-center text-2xl shrink-0 '+(d4OKFlag?'bg-emerald-50':'bg-amber-50')}>
+              {d4OKFlag?'✅':'⚠️'}
+            </div>
+            <div className="flex-1">
+              <div className={'text-[26px] font-black leading-none '+(d4OKFlag?'text-emerald-600':'text-amber-600')}>
+                {d4Total}<span className="text-[12px] font-normal text-stone-400 ml-1">dari {d4MonthTarget}x target/bulan</span>
+              </div>
+              <div className={'text-[11px] font-semibold mt-0.5 '+(d4OKFlag?'text-emerald-500':'text-amber-500')}>{d4OKFlag?'Target keterlaksanaan budaya tercapai ✓':'Perlu tambah sesi engage dengan tim'}</div>
+            </div>
+            <div className="text-right shrink-0">
+              <div className="text-[14px] font-black text-stone-700">{d4JamTotal}h</div>
+              <div className="text-[9px] text-stone-400">total jam</div>
+            </div>
+          </div>
+          {d4Total===0?
+            <div className="text-center py-3 border-t border-stone-100">
+              <div className="text-[12px] font-bold text-stone-400 mb-1">Belum ada Employee Engage di jadwal</div>
+              <div className="text-[10px] text-stone-400">Tambahkan: speech tim, bedah buku, mentoring, town hall</div>
+            </div>
+          :
+            <div>
+              <div className="text-[10px] font-bold text-stone-400 mb-2">Per Minggu</div>
+              <div className="flex gap-2 flex-wrap mb-4">
+                {allJadwalWeeks.map(function(w){
+                  var ew=d4PerWeek[w]||{count:0,hours:0};
+                  var hasData=ew.count>0;
+                  return(
+                    <div key={w} className={'rounded-xl px-3 py-2 text-center min-w-[70px] '+(hasData?'bg-rose-50':'bg-stone-50')}>
+                      <div className={'text-[9px] font-bold mb-1 '+(hasData?'text-rose-400':'text-stone-300')}>{getWeekLabel(w)}</div>
+                      <div className={'text-[18px] font-black '+(hasData?'text-rose-600':'text-stone-300')}>{ew.count||0}</div>
+                      <div className={'text-[9px] '+(hasData?'text-rose-400':'text-stone-300')}>{ew.hours||0}h</div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="text-[10px] font-bold text-stone-400 mb-1.5">Detail Sesi</div>
+              <div className="space-y-0 max-h-28 overflow-y-auto">
+                {d4AllItems.map(function(it,idx){
+                  return(
+                    <div key={idx} className="flex justify-between items-center text-[10px] py-2 border-b border-stone-50 last:border-0">
+                      <div>
+                        <span className="text-stone-400 mr-2">{it.date}</span>
+                        <span className="text-stone-700 font-semibold">{it.namaKegiatan||'Employee Engage'}</span>
+                        {it.outputKeputusan&&<div className="text-[9px] text-stone-400 truncate">{it.outputKeputusan}</div>}
+                      </div>
+                      <span className="text-rose-600 font-bold ml-2 shrink-0">{getDur(it.jamMulai,it.jamSelesai)}h</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          }
+        </div>
       </div>
 
       {/* ── COVERAGE VS TARGET ── */}
@@ -4387,7 +4590,7 @@ function App(){
           {tab==='backlog'&&sub.backlog==='mom'&&<MoMList mom={mom} onDelete={delMom} onUpdateMom={updMom} onAddKeputusan={addK}/>}
           {tab==='backlog'&&sub.backlog==='pdca'&&<PdcaTab backlog={backlog} onUpdateBacklog={updI} mom={mom} onUpdateMom={updMom}/>}
           {tab==='backlog'&&sub.backlog==='arsip'&&<RiwayatSampahTab sampah={sampah} onRestore={restoreSampah} onHardDel={hardDelSampah}/>}
-          {tab==='resume'&&sub.resume==='analisa'&&<AnalisaTab backlog={backlog} jadwal={jadwal} kpiCorp={kpiCorp} dashMonth={dashMonth} mom={mom}/>}
+          {tab==='resume'&&sub.resume==='analisa'&&<AnalisaTab backlog={backlog} jadwal={jadwal} kpiCorp={kpiCorp} dashMonth={dashMonth} mom={mom} kpiCeo={kpiCeo}/>}
           {tab==='resume'&&sub.resume==='rekomendasi'&&<AnalisaJadwal backlog={backlog} jadwal={jadwal} onAddJadwal={addToJadwal} onAddBacklog={addI} onUpdateBacklog={updI}/>}
         </div>
 
