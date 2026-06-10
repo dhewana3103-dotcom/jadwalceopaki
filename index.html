@@ -794,7 +794,12 @@ function Keputusan({keputusan,onUpdate,onDelete,onAddKeputusan}){
   const [fk,setFk]=useState('all');
   const [srcF,setSrcF]=useState('all');
   const DC={};KPI5.forEach(k=>{DC[k.id]=keputusan.filter(x=>x.fungsiKPI===k.id).length;});
-  const shown=keputusan.filter(function(it){return(fk==='all'||it.fungsiKPI===fk)&&(srcF==='all'||(it.sumber||'Manual')===srcF);});
+  const momPdcaCount=keputusan.filter(function(it){return it.needMoMPDCA;}).length;
+  const shown=keputusan.filter(function(it){
+    var fkMatch=fk==='all'||it.fungsiKPI===fk;
+    var srcMatch=srcF==='all'?true:srcF==='mom-pdca'?it.needMoMPDCA:(it.sumber||'Manual')===srcF;
+    return fkMatch&&srcMatch;
+  });
 
   function saveUpdate(kpt){
     const txt=updateTexts[kpt.id]||'';if(!txt.trim())return;
@@ -920,7 +925,7 @@ function Keputusan({keputusan,onUpdate,onDelete,onAddKeputusan}){
             {KPI5.filter(k=>DC[k.id]>0).map(k=><button key={k.id} className={`flex-shrink-0 px-3 py-1.5 rounded-xl text-[11px] font-bold st as border ${fk===k.id?'bg-stone-800 text-white border-stone-800 shadow-md':`${k.bg} ${k.color} ${k.border}`}`} onClick={()=>setFk(fk===k.id?'all':k.id)}>{k.short} ({DC[k.id]})</button>)}
           </div>
           <div className="px-4 pb-2 flex gap-1.5 overflow-x-auto scrollbar-hide">
-            {['all','CEO Feedback','MoM: action item','Manual'].map(function(s){var isA=srcF===s;var lbl=s==='all'?'Semua sumber':s;return(<button key={s} className={'flex-shrink-0 px-2.5 py-1 rounded-lg text-[9px] font-bold border st as '+(isA?'bg-violet-600 text-white border-violet-600':'bg-white text-stone-500 border-stone-200')} onClick={function(){setSrcF(s);}}>{lbl}</button>);})}
+            {['all','CEO Feedback','MoM: action item','Manual','mom-pdca'].map(function(s){var isA=srcF===s;var lbl=s==='all'?'Semua':s==='mom-pdca'?'📋 Perlu di-MoM PDCA'+(momPdcaCount>0?' ('+momPdcaCount+')':''):s;return(<button key={s} className={'flex-shrink-0 px-2.5 py-1 rounded-lg text-[9px] font-bold border st as '+(isA?'bg-violet-600 text-white border-violet-600':'bg-white text-stone-500 border-stone-200')} onClick={function(){setSrcF(s);}}>{lbl}</button>);})}
           </div>
           <div className="px-4 pt-2 md:px-6">
             {shown.length===0?<div className="py-12 text-center"><div className="text-4xl mb-3 opacity-40">📝</div><div className="text-[13px] font-bold text-stone-400">Tidak ada keputusan</div></div>
@@ -3890,6 +3895,8 @@ function MoMList({mom,onDelete,onUpdateMom,onAddKeputusan}){
                               </button>
                               {!it.isDecision&&<button className={`py-1 px-2 rounded-lg text-[9px] font-bold border as st ${decisionExpId===it.id?'bg-violet-600 text-white border-violet-600':'bg-violet-50 text-violet-600 border-violet-200'}`} onClick={function(){setDecisionExpId(decisionExpId===it.id?null:it.id);}}>⊛ Decision</button>}
                               {it.isDecision&&<button className="py-1 px-2 rounded-lg text-[9px] font-bold border bg-violet-100 text-violet-600 border-violet-200 as st" onClick={function(){removeDecision(entry,it);}}>⊛ Hapus</button>}
+                              {!it.pdcaFlag&&<button className="py-1 px-2 rounded-lg text-[9px] font-bold border bg-stone-50 text-stone-500 border-stone-200 as st" onClick={function(){updateItemStatus(entry.id,it.id,{pdcaFlag:true});}}>📊 PDCA</button>}
+                              {it.pdcaFlag&&<button className="py-1 px-2 rounded-lg text-[9px] font-bold border bg-stone-200 text-stone-600 border-stone-300 as st" onClick={function(){updateItemStatus(entry.id,it.id,{pdcaFlag:false});}}>📊 ✓</button>}
                             </div>
                           </div>
 
@@ -4163,6 +4170,8 @@ function App(){
 
   const nc=backlog.filter(it=>it.status==='baru').length;
   const belumCount=keputusan.filter(k=>k.status==='disampaikan'||k.status==='proses').length;
+  const nfCount=backlog.filter(function(it){return it.needFeedback&&!it.feedbackStatus;}).length+(function(){var c=0;(mom||[]).forEach(function(e){(e.items||[]).forEach(function(i){if(i.needCeoReview&&i.ceoReviewStatus==='queue')c++;});});return c;})();
+  const pdcaCount=backlog.filter(function(it){return it.pdcaFlag;}).length+(function(){var c=0;(mom||[]).forEach(function(e){(e.items||[]).forEach(function(i){if(i.ceoReviewStatus==='info-tambahan'||i.pdcaFlag)c++;});});return c;})();
 
   const TABS=[
     {id:'dashboard',ico:'📊',lbl:'Dash'},
@@ -4214,6 +4223,8 @@ function App(){
                 <button key={s.id} className={`flex-1 md:flex-none md:px-6 py-2.5 text-[11px] font-bold st relative flex items-center justify-center gap-1.5 ${sub[tab]===s.id?'text-stone-900':'text-stone-400'}`} onClick={()=>setST(tab,s.id)}>
                   {s.lbl}
                   {s.id==='keputusan'&&belumCount>0&&<span className="inline-flex items-center justify-center w-4 h-4 bg-amber-500 text-white text-[8px] font-black rounded-full">{belumCount}</span>}
+                  {s.id==='need_feedback'&&nfCount>0&&<span className="inline-flex items-center justify-center w-4 h-4 bg-violet-600 text-white text-[8px] font-black rounded-full">{nfCount}</span>}
+                  {s.id==='pdca'&&pdcaCount>0&&<span className="inline-flex items-center justify-center w-4 h-4 bg-stone-600 text-white text-[8px] font-black rounded-full">{pdcaCount}</span>}
                   {sub[tab]===s.id&&<div className="absolute bottom-0 left-1/4 right-1/4 md:left-4 md:right-4 h-0.5 bg-stone-800 rounded-t-md"/>}
                 </button>
               ))}
