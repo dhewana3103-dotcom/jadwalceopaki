@@ -275,7 +275,29 @@ const Pct=({p,sm})=>{let c='bg-stone-100 text-stone-400';if(p!==null&&p!==undefi
 const KC=({id,sm})=>{const k=KPI5.find(x=>x.id===id);if(!k)return null;return<span className={`inline-block px-2 py-0.5 rounded-md font-bold whitespace-nowrap ${k.bg} ${k.color} ${sm?'text-[9px]':'text-[10px]'}`}>{sm?k.short:k.label}</span>;};
 const BC=({id})=>{const b=BLOKS.find(x=>x.id===id);if(!b)return null;return<span className={`inline-block px-2 py-0.5 rounded-md font-bold whitespace-nowrap text-[9px] ${b.bg} ${b.color}`}>{b.time} {b.label}</span>;};
 const PriBadge=({p})=>{const c=p==='tinggi'?'bg-red-100 text-red-700':p==='sedang'?'bg-amber-100 text-amber-700':'bg-emerald-100 text-emerald-700';return<span className={`px-1.5 py-0.5 rounded font-bold text-[9px] ${c}`}>{p}</span>;};
-
+// ── COMPONENT RIWAYAT TIMELINE DISKUSI ─────────────────────────
+function FlowHistoryTimeline({ history }) {
+  if (!history || history.length === 0) return null;
+  return (
+    <div className="mt-3 bg-stone-50 border border-stone-200 rounded-xl p-3 space-y-2 text-left">
+      <div className="text-[9px] font-extrabold text-stone-400 uppercase tracking-wider">📜 Riwayat Diskusi (CEO ⇄ PDCA)</div>
+      <div className="space-y-2 relative border-l border-stone-200 ml-1.5 pl-3 pt-1">
+        {history.map((h, i) => (
+          <div key={i} className="relative text-[11px]">
+            <span className={`absolute -left-[16.5px] top-0.5 w-2 h-2 rounded-full border ${h.role === 'CEO' ? 'bg-violet-500 border-violet-200' : 'bg-stone-600 border-stone-300'}`} />
+            <div className="flex justify-between items-center mb-0.5">
+              <span className={`font-bold text-[9px] ${h.role === 'CEO' ? 'text-violet-600' : 'text-stone-600'}`}>
+                {h.role === 'CEO' ? '💬 Feedback CEO' : '📊 Klarifikasi PDCA'}
+              </span>
+              <span className="text-[9px] text-stone-400 font-mono">{h.tanggal}</span>
+            </div>
+            <div className="text-stone-700 leading-snug bg-white px-2 py-1.5 rounded-lg border border-stone-150 shadow-sm">{h.teks}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 // ── BACKLOG CARD ──────────────────────────────────────────────
 function BacklogCard({item,onUpdate,onDelete,onAddKeputusan,isActOpen,actType,onOpenAct}){
   const k=KPI5.find(x=>x.id===item.fungsiKPI);
@@ -364,6 +386,7 @@ function BacklogCard({item,onUpdate,onDelete,onAddKeputusan,isActOpen,actType,on
         <div className="text-[9px] font-medium text-stone-400 font-mono flex items-center gap-2 mb-4">
           <span>{item.sumber}</span>•<span>{item.tanggal}</span>•<span>{item.id}</span>
         </div>
+        <FlowHistoryTimeline history={item.flowHistory} />
         {/* Status toggle */}
         <div className="flex items-center justify-between mb-3">
           <button className={`px-2.5 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider border st as ${SC[item.status]||SC.baru}`} onClick={()=>onUpdate(item.id,{status:SN[item.status]||'baru'})}>{SL[item.status]||item.status}</button>
@@ -511,15 +534,16 @@ function NeedFeedbackTab({backlog,onUpdate,onAddKeputusan,mom,onUpdateMom,onAddB
       var entry2=(mom||[]).find(function(m){return m.id===item._momEntryId;});
       if(entry2){var ni=entry2.items.map(function(i){return i.id===item.id?{...i,ceoReviewStatus:rSt,ceoReviewFeedback:txt,ceoReviewTs:new Date().toISOString()}:i;});onUpdateMom(entry2.id,{items:ni});}
       if(tl==='meeting'&&onAddBacklog){onAddBacklog([{id:'BL-'+genId(),sumber:'CEO Feedback',tanggal:todayStr(),konteks:item._momEntryName,isi:'Meeting: '+(item.action||'').slice(0,60),action:'PA Office arrange jadwal meeting CEO',ekspektasi:txt,pic:null,deadline:null,fungsiKPI:item.fungsiKPI||'operasional',kategori:'RSP',blokWaktu:'sore-review',prioritas:'tinggi',status:'baru',notes:txt,postponeHistory:[]}]);}
-      if(tl!=='info-tambahan'){onAddKeputusan({id:'KP-'+genId(),tanggal:todayStr(),backlogId:null,konteks:item._momEntryName,deskripsi:item.action||'',fungsiKPI:item.fungsiKPI||'operasional',dampak:'sedang',status:outcome==='reviewed_ok'?'sesuai':'proses',output:txt,updateTL:'',sumber:'MoM: '+item._momEntryName,evalStatus:outcome==='reviewed_ok'?'sesuai':'belum',ekspektasiY:brief.pertimbangan||'',needMoMPDCA:tl==='tasklist'});}
+      if(tl!=='info-tambahan'&&tl!=='meeting'){onAddKeputusan({id:'KP-'+genId(),tanggal:todayStr(),backlogId:null,konteks:item._momEntryName,deskripsi:item.action||'',fungsiKPI:item.fungsiKPI||'operasional',dampak:'sedang',status:outcome==='reviewed_ok'?'sesuai':'proses',output:txt,updateTL:'',sumber:'MoM: '+item._momEntryName,evalStatus:outcome==='reviewed_ok'?'sesuai':'belum',ekspektasiY:brief.pertimbangan||'',needMoMPDCA:tl==='tasklist'});}
     }else{
-      onUpdate(item.id,{feedbackStatus:'ceo_done',ceoFeedback:txt,feedbackTs:new Date().toISOString()});
+      var newHist = [...(item.flowHistory || []), { role: 'CEO', tanggal: todayStr(), teks: txt }];
+      onUpdate(item.id,{feedbackStatus:'ceo_done',ceoFeedback:txt,feedbackTs:new Date().toISOString(), flowHistory: newHist});
       onAddKeputusan({id:'KP-'+genId(),tanggal:todayStr(),backlogId:item.id,konteks:item.konteks||'',deskripsi:item.isi||'',fungsiKPI:item.fungsiKPI||'operasional',dampak:item.prioritas==='tinggi'?'tinggi':'sedang',status:'proses',output:txt,updateTL:'',sumber:'CEO Feedback',evalStatus:'belum',ekspektasiY:brief.pertimbangan||''});
     }
     setExpandCeo(null);
   }
   function markMoM(item){onUpdate(item.id,{momDone:true,feedbackStatus:'pdca_done'});}
-  function scheduleMeeting(item){onUpdate(item.id,{needFeedback:false,feedbackStatus:'scheduled'});}
+  function scheduleMeeting(item){onUpdate(item.id,{needFeedback:false,status:'baru',feedbackStatus:null});}
   function dismiss(item){onUpdate(item.id,{needFeedback:false,feedbackStatus:'dismissed'});}
 
   function Brief({brief}){
@@ -557,6 +581,7 @@ function NeedFeedbackTab({backlog,onUpdate,onAddKeputusan,mom,onUpdateMom,onAddB
                 {isMom&&item.hasil&&<div className="mt-2 p-2.5 bg-emerald-50 border border-emerald-100 rounded-xl"><div className="text-[9px] font-bold text-emerald-600 uppercase mb-0.5">Hasil PIC</div><div className="text-[11px] text-emerald-800 leading-snug">{item.hasil}</div></div>}
                 {item.pdcaNotes&&<div className="mt-2 p-2.5 bg-stone-50 border border-stone-200 rounded-xl"><div className="text-[9px] font-bold text-stone-400 uppercase mb-0.5">📊 Catatan PDCA</div><div className="text-[11px] text-stone-700 leading-snug">{item.pdcaNotes}</div></div>}
                 <Brief brief={brief}/>
+                <FlowHistoryTimeline history={item.flowHistory} />
                 {isExp&&<div className="mt-3 pt-3 border-t border-violet-100">
                   <div className="text-[9px] font-extrabold text-stone-400 uppercase mb-1.5">Feedback CEO</div>
                   <textarea className="w-full px-3 py-2 rounded-xl border border-stone-200 bg-stone-50 text-[12px] focus:outline-none focus:ring-2 focus:ring-violet-400 resize-y mb-2" rows={3} placeholder="Arahan, keputusan, atau catatan Pak Ibnu..." value={ceoTexts[k]||''} onChange={function(e){var v=e.target.value;setCeoTexts(function(p){var n={...p};n[k]=v;return n;});}}/>
@@ -634,7 +659,10 @@ function PdcaTab({backlog,onUpdateBacklog,mom,onUpdateMom}){
   function reflagNF(item,type,nk){
     var notes=noteTexts[nk]||'';
     if(type==='mom'){updateMomItem(item._momEntryId,item.id,{ceoReviewStatus:'queue',pdcaFlag:false,pdcaNotes:notes});}
-    else{onUpdateBacklog(item.id,{needFeedback:true,feedbackStatus:null,pdcaFlag:false,pdcaNotes:notes});}
+    else{
+      var newHist = [...(item.flowHistory || []), { role: 'PDCA', tanggal: todayStr(), teks: notes }];
+      onUpdateBacklog(item.id,{needFeedback:true,feedbackStatus:null,pdcaFlag:false,pdcaNotes:notes, flowHistory: newHist});
+    }
   }
   function resolve(item,type){if(type==='mom'){updateMomItem(item._momEntryId,item.id,{pdcaFlag:false,ceoReviewStatus:null});}else{onUpdateBacklog(item.id,{pdcaFlag:false});}}
 
@@ -646,6 +674,7 @@ function PdcaTab({backlog,onUpdateBacklog,mom,onUpdateMom}){
           {type==='mom'?<><div className="text-[10px] font-bold text-blue-500 mb-0.5">MoM · {item._momEntryName}</div><div className="text-[13px] font-bold text-stone-900 leading-snug mb-2">{item.action}</div></>:<><div className="text-[10px] font-bold text-stone-400 mb-0.5">{item.id} · {item.konteks}</div><div className="text-[13px] font-bold text-stone-900 leading-snug mb-2">{item.isi}</div></>}
           {item.ceoReviewFeedback&&<div className="p-2.5 bg-violet-50 border border-violet-100 rounded-xl mb-3"><div className="text-[9px] font-bold text-violet-500 uppercase mb-0.5">Feedback CEO</div><div className="text-[11px] text-violet-800 leading-snug">{item.ceoReviewFeedback}</div></div>}
           {item.ceoReviewStatus==='info-tambahan'&&<div className="text-[9px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 mb-3">🔍 CEO minta info tambahan</div>}
+          <FlowHistoryTimeline history={item.flowHistory} />
           <div className="text-[9px] font-bold text-stone-500 uppercase mb-1">Catatan PDCA</div>
           <textarea
             className="w-full px-2.5 py-2 rounded-xl border border-stone-200 bg-stone-50 text-[11px] focus:outline-none focus:ring-2 focus:ring-stone-400 resize-none mb-3"
@@ -684,8 +713,9 @@ function BacklogList({backlog,onUpdate,onDelete,onAddKeputusan}){
   const totalPostpones=backlog.reduce(function(s,it){return s+((it.postponeHistory||[]).length);},0);
 
   const filtered=backlog.filter(function(it){
-    return(fk==='all'||it.fungsiKPI===fk)&&(fs==='all'||it.status===fs);
-  });
+    const isMurniKamarCEO = it.sumber !== 'CEO Feedback'; // Sembunyikan tiket otomatis dari MoM
+    return isMurniKamarCEO && (fk==='all'||it.fungsiKPI===fk)&&(fs==='all'||it.status===fs);
+});
 
   // Sort: by prioritas then by postponeCount desc
   const priOrder={tinggi:0,sedang:1,rendah:2};
@@ -1128,7 +1158,7 @@ function Sidebar({tab,sub,setTab,setST,nc,belumCount}){
     {id:'dashboard',ico:'📊',lbl:'Dashboard'},
     {id:'jadwal',ico:'📅',lbl:'Jadwal',subs:[{id:'harian',lbl:'Harian'},{id:'mingguan',lbl:'Mingguan'},{id:'bulanan',lbl:'Bulanan'}]},
     {id:'dump',ico:'✨',lbl:'Dump Think',fab:true},
-    {id:'backlog',ico:'📋',lbl:'Backlog',subs:[{id:'backlog',lbl:'Backlog'},{id:'keputusan',lbl:'Keputusan & Tracking'},{id:'mom',lbl:'MoM'}]},
+    {id:'backlog',ico:'📋',lbl:'Backlog',subs:[{id:'need_feedback',lbl:'Need Feedback'},{id:'backlog',lbl:'Backlog Utama'},{id:'kamar_pa',lbl:'Kamar PA'},{id:'keputusan',lbl:'Keputusan & Tracking'},{id:'mom',lbl:'MoM'},{id:'pdca',lbl:'PDCA'}]},
     {id:'resume',ico:'📈',lbl:'Resume'},
   ];
   return(
@@ -4091,6 +4121,159 @@ function MoMList({mom,onDelete,onUpdateMom,onAddKeputusan}){
 }
 
 // ── MAIN APP ──────────────────────────────────────────────────
+// ── KAMAR PA TAB ──────────────────────────────────────────────
+function KamarPATab({ backlog, onUpdateBacklog, onAddJadwal }) {
+  const [forms, setForms] = useState({});
+
+  // Filter hanya backlog yang berstatus 'baru' atau 'postponed'
+  const queue = backlog.filter(it => it.status === 'baru' || it.status === 'postponed');
+
+  function updateForm(id, field, val) {
+    setForms(p => ({ ...p, [id]: { ...(p[id] || {}), [field]: val } }));
+  }
+
+  function doSchedule(item) {
+    const f = forms[item.id] || {};
+    if (!f.tanggal || !f.jamMulai || !f.jamSelesai) {
+      alert('Lengkapi tanggal, jam mulai, dan jam selesai dulu!');
+      return;
+    }
+
+    // 1. Masukkan ke Jadwal
+    const jadwalItem = {
+      id: 'SJ-' + genId(),
+      tanggal: f.tanggal,
+      jamMulai: f.jamMulai,
+      jamSelesai: f.jamSelesai,
+      masalahBacklogId: item.id,
+      masalahText: item.isi,
+      kategori: 'RSP', // Default kategori, bisa disesuaikan nanti
+      jenisKegiatan: item.kategori || 'Deepwork Strategic',
+      detailKegiatan: `[${item.konteks}] ${item.isi}`,
+      relateMilestone: item.fungsiKPI || 'operasional',
+      outputKeputusan: ''
+    };
+    onAddJadwal(f.tanggal, jadwalItem);
+
+    // 2. Update status backlog menjadi dijadwalkan
+    onUpdateBacklog(item.id, {
+      status: 'dijadwalkan',
+      tanggal: f.tanggal,
+      blokWaktu: getBlokFromTime(f.jamMulai)
+    });
+
+    // 3. Bersihkan form
+    setForms(p => { const n = { ...p }; delete n[item.id]; return n; });
+  }
+
+  return (
+    <div className="pb-8 px-4 pt-4 md:px-6 afi">
+      <div className="text-[10px] font-extrabold text-stone-400 uppercase tracking-widest mb-1">📅 Kamar PA</div>
+      <div className="text-[10px] text-stone-400 mb-4">Tempat PA fokus meracik dan memasukkan item ke jadwal CEO.</div>
+
+      {queue.length === 0 ? (
+        <div className="bg-stone-50 border border-stone-200 rounded-2xl p-6 text-center">
+          <div className="text-3xl mb-2 opacity-20">📭</div>
+          <div className="text-[12px] font-bold text-stone-400 mb-1">Kamar PA Kosong</div>
+          <div className="text-[10px] text-stone-300">Semua backlog sudah dijadwalkan atau belum ada tugas baru!</div>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {queue.map(item => {
+            const f = forms[item.id] || {};
+            const isPostponed = item.status === 'postponed';
+            return (
+              <div key={item.id} className={`bg-white border ${isPostponed ? 'border-orange-300' : 'border-stone-200'} rounded-2xl shadow-soft p-4`}>
+                <div className="flex justify-between items-start mb-2">
+                  <div>
+                    <div className="flex gap-1.5 mb-1">
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${isPostponed ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
+                        {isPostponed ? '⏩ Postponed' : '✨ Baru'}
+                      </span>
+                      <span className="text-[9px] font-bold bg-stone-100 text-stone-600 px-1.5 py-0.5 rounded-full">{item.kategori}</span>
+                    </div>
+                    <div className="text-[10px] font-bold text-stone-400">{item.id} · {item.konteks}</div>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded font-bold text-[9px] ${item.prioritas === 'tinggi' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                    {item.prioritas}
+                  </span>
+                </div>
+                <div className="text-[13px] font-bold text-stone-900 leading-snug mb-3">{item.isi}</div>
+
+                <div className="bg-stone-50 border border-stone-200 rounded-xl p-3">
+                  <div className="text-[9px] font-bold text-stone-500 uppercase mb-2">Atur Waktu Jadwal</div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-3">
+                    <div>
+                      <div className="text-[9px] text-stone-400 mb-1">Tanggal</div>
+                      <input type="date" className="w-full px-2 py-1.5 text-[11px] font-mono rounded-lg border border-stone-200 focus:outline-none focus:ring-1 focus:ring-stone-400"
+                        value={f.tanggal || ''} onChange={e => updateForm(item.id, 'tanggal', e.target.value)} />
+                    </div>
+                    <div>
+                      <div className="text-[9px] text-stone-400 mb-1">Jam Mulai</div>
+                      <input type="time" className="w-full px-2 py-1.5 text-[11px] font-mono rounded-lg border border-stone-200 focus:outline-none focus:ring-1 focus:ring-stone-400"
+                        value={f.jamMulai || ''} onChange={e => updateForm(item.id, 'jamMulai', e.target.value)} />
+                    </div>
+                    <div>
+                      <div className="text-[9px] text-stone-400 mb-1">Jam Selesai</div>
+                      <input type="time" className="w-full px-2 py-1.5 text-[11px] font-mono rounded-lg border border-stone-200 focus:outline-none focus:ring-1 focus:ring-stone-400"
+                        value={f.jamSelesai || ''} onChange={e => updateForm(item.id, 'jamSelesai', e.target.value)} />
+                    </div>
+                  </div>
+                  <button
+                    className={`w-full py-2.5 rounded-xl text-[11px] font-bold st as ${f.tanggal && f.jamMulai && f.jamSelesai ? 'bg-stone-900 text-white shadow-md' : 'bg-stone-200 text-stone-400 cursor-not-allowed'}`}
+                    onClick={() => doSchedule(item)}
+                    disabled={!(f.tanggal && f.jamMulai && f.jamSelesai)}
+                  >
+                    📅 Eksekusi & Masukkan ke Jadwal
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+// ── TONG SAMPAH / RIWAYAT TAB ──────────────────────────────────
+function RiwayatSampahTab({ sampah, onRestore, onHardDel }) {
+  return (
+    <div className="pb-8 px-4 pt-4 md:px-6 afi">
+      <div className="text-[10px] font-extrabold text-stone-400 uppercase tracking-widest mb-1">🗑 Riwayat & Arsip</div>
+      <div className="text-[10px] text-stone-400 mb-4">Tempat pemulihan tugas dan keputusan yang pernah dihapus.</div>
+
+      {sampah.length === 0 ? (
+        <div className="bg-stone-50 border border-stone-200 rounded-2xl p-6 text-center">
+          <div className="text-3xl mb-2 opacity-20">📭</div>
+          <div className="text-[12px] font-bold text-stone-400 mb-1">Arsip Kosong</div>
+          <div className="text-[10px] text-stone-300">Belum ada item yang dihapus.</div>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {sampah.map(item => (
+            <div key={item.id} className="bg-white border border-stone-200 rounded-xl p-4 shadow-soft">
+              <div className="flex justify-between items-start mb-2">
+                <div className="flex items-center gap-2">
+                  <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${item._type === 'backlog' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
+                    {item._type === 'backlog' ? '📋 Backlog' : '📝 Keputusan'}
+                  </span>
+                  <span className="text-[9px] text-stone-400 font-mono">{item.deletedAt}</span>
+                </div>
+                <button className="text-[10px] font-bold text-red-400 hover:text-red-600 as" onClick={() => { if(confirm('Hapus permanen? Data akan hilang selamanya.')) onHardDel(item.id); }}>Hapus Permanen</button>
+              </div>
+              <div className="text-[12px] font-bold text-stone-800 leading-snug mb-1">{item.isi || item.deskripsi || item.action}</div>
+              {item.konteks && <div className="text-[10px] text-stone-500 mb-3">Konteks: {item.konteks}</div>}
+              <button className="w-full py-2 rounded-lg border border-stone-200 bg-stone-50 text-[10px] font-bold text-stone-600 hover:bg-stone-100 st as" onClick={() => onRestore(item.id)}>
+                ↩ Kembalikan ke Kamar Asalnya
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function App(){
   const [tab,setTab]=useState('dashboard');
   const [sub,setSub]=useState({jadwal:'harian',backlog:'backlog',resume:'analisa'});
@@ -4231,12 +4414,33 @@ function App(){
     var t=setInterval(function(){if(getSB())pullFromSB();},30000);
     return function(){clearInterval(t);};
   },[]);
+  const [sampah, setSampah] = useState(() => ld('sampah') || []);
+
   const addI=(items)=>{const n=[...backlog,...items];setBacklog(n);sv('backlog',n);};
   const updI=(id,patch)=>{const n=backlog.map(it=>it.id===id?{...it,...patch}:it);setBacklog(n);sv('backlog',n);};
-  const delI=(id)=>{const n=backlog.filter(it=>it.id!==id);setBacklog(n);sv('backlog',n);};
+  const delI=(id)=>{
+    const item = backlog.find(it=>it.id===id);
+    if(item){ const ns=[{...item,_type:'backlog',deletedAt:new Date().toLocaleString('id-ID')},...sampah]; setSampah(ns); sv('sampah',ns); }
+    const n=backlog.filter(it=>it.id!==id); setBacklog(n);sv('backlog',n);
+  };
   const addK=(kpt)=>{const n=[kpt,...keputusan];setKeputusan(n);sv('keputusan',n);};
   const updK=(id,patch)=>{const n=keputusan.map(it=>it.id===id?{...it,...patch}:it);setKeputusan(n);sv('keputusan',n);};
-  const delK=(id)=>{const n=keputusan.filter(it=>it.id!==id);setKeputusan(n);sv('keputusan',n);};
+  const delK=(id)=>{
+    const item = keputusan.find(it=>it.id===id);
+    if(item){ const ns=[{...item,_type:'keputusan',deletedAt:new Date().toLocaleString('id-ID')},...sampah]; setSampah(ns); sv('sampah',ns); }
+    const n=keputusan.filter(it=>it.id!==id); setKeputusan(n);sv('keputusan',n);
+  };
+  const restoreSampah=(id)=>{
+    const item = sampah.find(it=>it.id===id);
+    if(item){
+      if(item._type==='backlog'){ const n=[item,...backlog]; setBacklog(n); sv('backlog',n); }
+      else { const n=[item,...keputusan]; setKeputusan(n); sv('keputusan',n); }
+      const ns=sampah.filter(it=>it.id!==id); setSampah(ns); sv('sampah',ns);
+    }
+  };
+  const hardDelSampah=(id)=>{
+    const ns=sampah.filter(it=>it.id!==id); setSampah(ns); sv('sampah',ns);
+  };
   const addMom=(entry)=>{const n=[entry,...mom];setMom(n);sv('mom',n);};
   const updMom=(id,patch)=>{const n=mom.map(it=>it.id===id?{...it,...patch}:it);setMom(n);sv('mom',n);};
   const delMom=(id)=>{const n=mom.filter(it=>it.id!==id);setMom(n);sv('mom',n);};
@@ -4262,7 +4466,7 @@ function App(){
     {id:'dashboard',ico:'📊',lbl:'Dash'},
     {id:'jadwal',ico:'📅',lbl:'Jadwal',subs:[{id:'harian',lbl:'Harian'},{id:'mingguan',lbl:'Mingguan'},{id:'bulanan',lbl:'Bulanan'}]},
     {id:'dump'},
-    {id:'backlog',ico:'📋',lbl:'Backlog',subs:[{id:'need_feedback',lbl:'Need Feedback'},{id:'backlog',lbl:'Backlog'},{id:'keputusan',lbl:'Keputusan & Tracking'},{id:'mom',lbl:'MoM'},{id:'pdca',lbl:'PDCA'}]},
+    {id:'backlog',ico:'📋',lbl:'Backlog',subs:[{id:'need_feedback',lbl:'Need Feedback'},{id:'backlog',lbl:'Backlog Utama'},{id:'kamar_pa',lbl:'Kamar PA'},{id:'keputusan',lbl:'Keputusan & Tracking'},{id:'mom',lbl:'MoM'},{id:'pdca',lbl:'PDCA'},{id:'arsip',lbl:'Riwayat & Arsip'}]},
     {id:'resume',ico:'📈',lbl:'Resume',subs:[{id:'analisa',lbl:'Analisa'},{id:'rekomendasi',lbl:'Rekomendasi'}]},
   ];
   const AT=TABS.find(t=>t.id===tab);
@@ -4333,6 +4537,7 @@ function App(){
           {tab==='jadwal'&&sub.jadwal==='harian'&&<JadwalHarian backlog={backlog} jadwal={jadwal} onAddJadwal={addToJadwal} onRemoveJadwal={removeFromJadwal} onUpdateJadwal={updateJadwal} onUpdate={updI} onAddKeputusan={addK} filter={jadwalFilter} gcalOn={!!(gTok&&gCalId)} onPushItem={pushItem} onPushDay={pushDay}/>}
           {tab==='jadwal'&&sub.jadwal==='mingguan'&&<JadwalMingguan backlog={backlog} jadwal={jadwal} filter={jadwalFilter} onUpdateJadwal={updateJadwal}/>}
           {tab==='jadwal'&&sub.jadwal==='bulanan'&&<JadwalBulanan jadwal={jadwal} filter={jadwalFilter}/>}
+          {tab==='backlog'&&sub.backlog==='kamar_pa'&&<KamarPATab backlog={backlog} onUpdateBacklog={updI} onAddJadwal={addToJadwal} />}
           {tab==='dump'&&<DumpPage onAdd={addI} onAddKeputusan={addK} onAddJadwal={addToJadwal} onBatchAddJadwal={batchAddToJadwal} onUpdateJadwal={updateJadwal} onResetICSBatch={resetJadwalBatch} onSaveKpiCorp={saveKpiCorp} onSaveKpiCeo={saveKpiCeo} onSaveBooking={saveBooking} onAddMom={addMom} jadwal={jadwal} backlog={backlog} onDone={()=>{setTab('backlog');setST('backlog','backlog');}}/>}
           {tab==='backlog'&&sub.backlog==='need_feedback'&&<NeedFeedbackTab backlog={backlog} onUpdate={updI} onAddKeputusan={addK} mom={mom} onUpdateMom={updMom} onAddBacklog={addI}/>}
           {tab==='backlog'&&sub.backlog==='backlog'&&<BacklogList backlog={backlog} onUpdate={updI} onDelete={delI} onAddKeputusan={addK}/>}
