@@ -555,6 +555,7 @@ function NeedFeedbackTab({backlog,onUpdate,onAddKeputusan,mom,onUpdateMom,onAddB
                 </div>
                 <div className="text-[13px] font-bold text-stone-900 leading-snug mb-1">{isMom?item.action:item.isi}</div>
                 {isMom&&item.hasil&&<div className="mt-2 p-2.5 bg-emerald-50 border border-emerald-100 rounded-xl"><div className="text-[9px] font-bold text-emerald-600 uppercase mb-0.5">Hasil PIC</div><div className="text-[11px] text-emerald-800 leading-snug">{item.hasil}</div></div>}
+                {item.pdcaNotes&&<div className="mt-2 p-2.5 bg-stone-50 border border-stone-200 rounded-xl"><div className="text-[9px] font-bold text-stone-400 uppercase mb-0.5">📊 Catatan PDCA</div><div className="text-[11px] text-stone-700 leading-snug">{item.pdcaNotes}</div></div>}
                 <Brief brief={brief}/>
                 {isExp&&<div className="mt-3 pt-3 border-t border-violet-100">
                   <div className="text-[9px] font-extrabold text-stone-400 uppercase mb-1.5">Feedback CEO</div>
@@ -630,30 +631,44 @@ function PdcaTab({backlog,onUpdateBacklog,mom,onUpdateMom}){
   const blItems=backlog.filter(function(it){return it.pdcaFlag;});
   const empty=momItems.length===0&&blItems.length===0;
   function updateMomItem(mid,iid,patch){var e2=(mom||[]).find(function(m){return m.id===mid;});if(!e2)return;var ni=e2.items.map(function(i){return i.id===iid?{...i,...patch}:i;});onUpdateMom(e2.id,{items:ni});}
-  function reflagNF(item,type){if(type==='mom'){updateMomItem(item._momEntryId,item.id,{ceoReviewStatus:'queue',pdcaFlag:false});}else{onUpdateBacklog(item.id,{needFeedback:true,feedbackStatus:null,pdcaFlag:false});}}
+  function reflagNF(item,type,nk){
+    var notes=noteTexts[nk]||'';
+    if(type==='mom'){updateMomItem(item._momEntryId,item.id,{ceoReviewStatus:'queue',pdcaFlag:false,pdcaNotes:notes});}
+    else{onUpdateBacklog(item.id,{needFeedback:true,feedbackStatus:null,pdcaFlag:false,pdcaNotes:notes});}
+  }
   function resolve(item,type){if(type==='mom'){updateMomItem(item._momEntryId,item.id,{pdcaFlag:false,ceoReviewStatus:null});}else{onUpdateBacklog(item.id,{pdcaFlag:false});}}
-  function ItemCard({item,type}){
+
+  function renderCard(item,type){
     var nk=type==='mom'?'m_'+item._momEntryId+'_'+item.id:item.id;
-    return(<div className="bg-white border border-stone-200 rounded-2xl shadow-soft overflow-hidden">
-      <div className="p-4">
-        {type==='mom'?<><div className="text-[10px] font-bold text-blue-500 mb-0.5">MoM · {item._momEntryName}</div><div className="text-[13px] font-bold text-stone-900 leading-snug mb-2">{item.action}</div></>:<><div className="text-[10px] font-bold text-stone-400 mb-0.5">{item.id} · {item.konteks}</div><div className="text-[13px] font-bold text-stone-900 leading-snug mb-2">{item.isi}</div></>}
-        {item.ceoReviewFeedback&&<div className="p-2.5 bg-violet-50 border border-violet-100 rounded-xl mb-3"><div className="text-[9px] font-bold text-violet-500 uppercase mb-0.5">Feedback CEO</div><div className="text-[11px] text-violet-800 leading-snug">{item.ceoReviewFeedback}</div></div>}
-        {item.ceoReviewStatus==='info-tambahan'&&<div className="text-[9px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 mb-3">🔍 CEO minta info tambahan</div>}
-        <div className="text-[9px] font-bold text-stone-500 uppercase mb-1">Catatan PDCA</div>
-        <textarea className="w-full px-2.5 py-2 rounded-xl border border-stone-200 bg-stone-50 text-[11px] focus:outline-none focus:ring-2 focus:ring-stone-400 resize-none mb-3" rows={2} placeholder="Temuan investigasi, info tambahan..." value={noteTexts[nk]||''} onChange={function(e){var v=e.target.value;setNoteTexts(function(p){var n={...p};n[nk]=v;return n;});}}/>
-        <div className="flex gap-2">
-          <button className="flex-1 py-2.5 rounded-xl bg-violet-600 text-white text-[10px] font-bold as st" onClick={function(){reflagNF(item,type);}}>↑ Re-flag ke Need Feedback CEO</button>
-          <button className="py-2.5 px-3 rounded-xl border border-stone-200 text-[10px] font-bold text-stone-400 as st" onClick={function(){resolve(item,type);}}>✓ Selesai</button>
+    return(
+      <div key={nk} className="bg-white border border-stone-200 rounded-2xl shadow-soft overflow-hidden">
+        <div className="p-4">
+          {type==='mom'?<><div className="text-[10px] font-bold text-blue-500 mb-0.5">MoM · {item._momEntryName}</div><div className="text-[13px] font-bold text-stone-900 leading-snug mb-2">{item.action}</div></>:<><div className="text-[10px] font-bold text-stone-400 mb-0.5">{item.id} · {item.konteks}</div><div className="text-[13px] font-bold text-stone-900 leading-snug mb-2">{item.isi}</div></>}
+          {item.ceoReviewFeedback&&<div className="p-2.5 bg-violet-50 border border-violet-100 rounded-xl mb-3"><div className="text-[9px] font-bold text-violet-500 uppercase mb-0.5">Feedback CEO</div><div className="text-[11px] text-violet-800 leading-snug">{item.ceoReviewFeedback}</div></div>}
+          {item.ceoReviewStatus==='info-tambahan'&&<div className="text-[9px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 mb-3">🔍 CEO minta info tambahan</div>}
+          <div className="text-[9px] font-bold text-stone-500 uppercase mb-1">Catatan PDCA</div>
+          <textarea
+            className="w-full px-2.5 py-2 rounded-xl border border-stone-200 bg-stone-50 text-[11px] focus:outline-none focus:ring-2 focus:ring-stone-400 resize-none mb-3"
+            rows={2}
+            placeholder="Temuan investigasi, info tambahan..."
+            value={noteTexts[nk]||''}
+            onChange={function(e){var v=e.target.value;setNoteTexts(function(p){var n={...p};n[nk]=v;return n;});}}
+          />
+          <div className="flex gap-2">
+            <button className="flex-1 py-2.5 rounded-xl bg-violet-600 text-white text-[10px] font-bold as st" onClick={function(){reflagNF(item,type,nk);}}>↑ Re-flag ke Need Feedback CEO</button>
+            <button className="py-2.5 px-3 rounded-xl border border-stone-200 text-[10px] font-bold text-stone-400 as st" onClick={function(){resolve(item,type);}}>✓ Selesai</button>
+          </div>
         </div>
       </div>
-    </div>);
+    );
   }
+
   return(<div className="pb-8 px-4 pt-4 md:px-6">
     <div className="text-[10px] font-extrabold text-stone-400 uppercase tracking-widest mb-1">📊 Kamar PDCA</div>
     <div className="text-[10px] text-stone-400 mb-4">Items yang perlu investigasi/follow-up PDCA sebelum kembali ke CEO</div>
     {empty&&<div className="bg-stone-50 border border-stone-200 rounded-2xl p-6 text-center"><div className="text-3xl mb-2 opacity-20">📊</div><div className="text-[12px] font-bold text-stone-400 mb-1">Kamar PDCA kosong</div><div className="text-[10px] text-stone-300">Muncul saat CEO pilih "Info Tambahan" atau PDCA flag dari Backlog</div></div>}
-    {momItems.length>0&&<><div className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-2">Dari MoM ({momItems.length})</div><div className="space-y-3 mb-5">{momItems.map(function(item){return<ItemCard key={'m_'+item._momEntryId+'_'+item.id} item={item} type="mom"/>;})}</div></>}
-    {blItems.length>0&&<><div className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-2">Dari Backlog ({blItems.length})</div><div className="space-y-3">{blItems.map(function(item){return<ItemCard key={item.id} item={item} type="backlog"/>;})}</div></>}
+    {momItems.length>0&&<><div className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-2">Dari MoM ({momItems.length})</div><div className="space-y-3 mb-5">{momItems.map(function(item){return renderCard(item,'mom');})}</div></>}
+    {blItems.length>0&&<><div className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-2">Dari Backlog ({blItems.length})</div><div className="space-y-3">{blItems.map(function(item){return renderCard(item,'backlog');})}</div></>}
   </div>);
 }
 
@@ -2721,9 +2736,208 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
 }
 
 // ── JADWAL MINGGUAN ───────────────────────────────────────────
-function JadwalMingguan({backlog,jadwal,filter}){
+function JadwalMingguan({backlog,jadwal,filter,onUpdateJadwal}){
   const [weekOffset,setWeekOffset]=useState(0);
-  const [selDates,setSelDates]=useState({}); // {date: true} = selected
+  const [selDates,setSelDates]=useState({});
+  const [expandId,setExpandId]=useState(null);
+  const [editOut,setEditOut]=useState({});
+  const [editGcal,setEditGcal]=useState({});
+  const [editChecks,setEditChecks]=useState({});
+  const getMon=function(offset){var mon=new Date();var diff=mon.getDay()===0?6:mon.getDay()-1;mon.setDate(mon.getDate()-diff+offset*7);return mon;};
+  const mon=getMon(weekOffset);
+  const days=Array.from({length:7},function(_,i){var d=new Date(mon);d.setDate(mon.getDate()+i);return{date:d.toISOString().slice(0,10),lbl:d.toLocaleDateString('id-ID',{weekday:'short',day:'numeric',month:'short'}),isToday:d.toISOString().slice(0,10)===todayStr(),dow:d.getDay()};});
+  const weekLabel=(function(){var s=days[0];var e=days[6];var sm=new Date(s.date+'T12:00:00').toLocaleDateString('id-ID',{month:'short'});var em=new Date(e.date+'T12:00:00').toLocaleDateString('id-ID',{month:'short'});var sn=new Date(s.date+'T12:00:00').getDate();var en=new Date(e.date+'T12:00:00').getDate();return s.date.slice(0,7)===e.date.slice(0,7)?sn+'–'+en+' '+sm:sn+' '+sm+' – '+en+' '+em;})();
+
+  function goWeek(dir){setWeekOffset(function(p){return p+dir;});setSelDates({});setExpandId(null);}
+  function goToday(){setWeekOffset(0);setSelDates({});setExpandId(null);}
+  var anySelected=Object.values(selDates).some(function(v){return v;});
+  function toggleDate(date){setSelDates(function(p){var n={...p};n[date]=!n[date];return n;});}
+  function clearDates(){setSelDates({});}
+
+  var allRows=[];
+  days.forEach(function(d){
+    if(anySelected&&!selDates[d.date])return;
+    var its=filter?applyJadwalFilter(jadwal[d.date]||[],filter):(jadwal[d.date]||[]);
+    its.slice().sort(function(a,b){return (a.jamMulai||'').localeCompare(b.jamMulai||'');}).forEach(function(it){
+      allRows.push({...it,_date:d.date,_lbl:d.lbl,_isToday:d.isToday,_dow:d.dow});
+    });
+  });
+
+  var totalItems=allRows.length;
+  var adaOutput=allRows.filter(function(it){return it.outputKeputusan&&it.outputKeputusan.trim();}).length;
+
+  function openExpand(it){
+    var id=it.id;
+    if(expandId===id){setExpandId(null);return;}
+    setExpandId(id);
+    setEditOut(function(p){var n={...p};if(n[id]===undefined)n[id]=it.outputKeputusan||'';return n;});
+    setEditGcal(function(p){var n={...p};if(n[id]===undefined)n[id]=it.gcalDesc||'';return n;});
+  }
+
+  function saveRow(it){
+    if(!onUpdateJadwal)return;
+    onUpdateJadwal(it._date,it.id,{outputKeputusan:editOut[it.id]||'',gcalDesc:editGcal[it.id]||''});
+    setExpandId(null);
+  }
+
+  function toggleCheck(id,idx){
+    setEditChecks(function(p){var n={...p};if(!n[id])n[id]={};n[id]={...n[id],[idx]:!n[id][idx]};return n;});
+  }
+
+  return(
+    <div className="afi pb-8">
+      {/* Week navigator */}
+      <div className="px-4 pt-4 pb-3 flex items-center justify-between">
+        <div>
+          <div className="text-[13px] font-extrabold text-stone-800">{weekLabel}</div>
+          <div className="text-[10px] text-stone-400 mt-0.5">{totalItems} kegiatan · {adaOutput} ada output{anySelected?' · filter aktif':''}</div>
+        </div>
+        <div className="flex items-center gap-1">
+          <button onClick={function(){goWeek(-1);}} className="w-8 h-8 rounded-xl bg-stone-100 border border-stone-200 text-[13px] font-bold text-stone-600 as st flex items-center justify-center">‹</button>
+          {weekOffset!==0&&<button onClick={goToday} className="px-2.5 py-1.5 rounded-lg text-[10px] font-bold border as st bg-stone-800 text-white border-stone-800">Minggu ini</button>}
+          <button onClick={function(){goWeek(1);}} className="w-8 h-8 rounded-xl bg-stone-100 border border-stone-200 text-[13px] font-bold text-stone-600 as st flex items-center justify-center">›</button>
+        </div>
+      </div>
+
+      {/* Day filter pills */}
+      <div className="px-4 mb-3">
+        <div className="flex gap-1.5 overflow-x-auto pb-1">
+          {anySelected&&<button onClick={clearDates} className="flex-shrink-0 px-2.5 py-1.5 rounded-lg border text-[10px] font-bold as st bg-stone-800 text-white border-stone-800">✕ Reset</button>}
+          {days.map(function(d){
+            var count=(filter?applyJadwalFilter(jadwal[d.date]||[],filter):(jadwal[d.date]||[])).length;
+            var isSel=!!selDates[d.date];
+            var isWE=d.dow===0||d.dow===6;
+            return(
+              <button key={d.date} onClick={function(){toggleDate(d.date);}}
+                className={`flex-shrink-0 px-2.5 py-1.5 rounded-lg border text-center as st ${
+                  isSel?'bg-stone-900 border-stone-900 text-white shadow-sm':
+                  d.isToday?'bg-blue-50 border-blue-300 text-blue-700':
+                  count>0?'bg-white border-stone-200 text-stone-700 hover:bg-stone-50':
+                  'bg-stone-50 border-stone-100 text-stone-300'
+                } ${isWE&&!isSel?'opacity-60':''}`}>
+                <div className="text-[9px] font-bold whitespace-nowrap">{d.lbl}</div>
+                <div className="text-[11px] font-black">{count>0?count:'–'}</div>
+              </button>
+            );
+          })}
+        </div>
+        {anySelected&&<div className="text-[9px] text-stone-400 mt-1.5">
+          Menampilkan: {days.filter(function(d){return selDates[d.date];}).map(function(d){return d.lbl;}).join(', ')}
+        </div>}
+      </div>
+
+      {/* Table */}
+      {allRows.length===0
+        ?<div className="px-4 py-12 text-center"><div className="text-3xl mb-2 opacity-30">📅</div><div className="text-[12px] font-bold text-stone-400">{anySelected?'Tidak ada kegiatan di tanggal yang dipilih':'Tidak ada kegiatan minggu ini'}</div></div>
+        :<div className="mx-4 rounded-2xl border border-stone-200 overflow-hidden shadow-soft overflow-x-auto">
+          <table className="w-full" style={{minWidth:720}}>
+            <thead>
+              <tr className="bg-stone-50 border-b border-stone-200">
+                {['Tanggal','Jam','Kategori','Jenis','Detail Kegiatan','KPI','Output',''].map(function(h){return(
+                  <th key={h} className="px-3 py-2.5 text-left text-[9px] font-extrabold text-stone-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                );})}
+              </tr>
+            </thead>
+            <tbody>
+              {allRows.map(function(it,i){
+                var kpi=KPI5.find(function(k){return k.id===it.relateMilestone;});
+                var jColor=JENIS_COLOR[it.jenisKegiatan]||'bg-stone-100 text-stone-600';
+                var kColor=KATEGORI_COLOR[it.kategori]||'bg-stone-100 text-stone-600';
+                var hasOut=it.outputKeputusan&&it.outputKeputusan.trim();
+                var isFirst=i===0||allRows[i-1]._date!==it._date;
+                var dayCount=allRows.filter(function(r){return r._date===it._date;}).length;
+                var isExp=expandId===it.id;
+                var checklist=PRE_CHECKLIST[it.jenisKegiatan]||[];
+                var checks=editChecks[it.id]||{};
+                return([
+                  <tr key={it.id||i} className={`border-b ${isExp?'border-stone-200 bg-violet-50/30':it._isToday?'bg-blue-50/30':i%2===0?'bg-white':'bg-stone-50/40'} hover:bg-stone-50 st cursor-pointer`}
+                    onClick={function(){openExpand(it);}}>
+                    <td className="px-3 py-2.5 align-top whitespace-nowrap">
+                      {isFirst&&<div>
+                        <div className={`text-[11px] font-extrabold ${it._isToday?'text-blue-700':'text-stone-800'}`}>{it._lbl}</div>
+                        {dayCount>1&&<div className="text-[9px] text-stone-400">{dayCount} kegiatan</div>}
+                      </div>}
+                    </td>
+                    <td className="px-3 py-2.5 whitespace-nowrap">
+                      <span className="text-[11px] font-black text-stone-700 tabular-nums">{it.jamMulai||'–'}</span>
+                      {it.jamSelesai&&<><span className="text-[9px] text-stone-300 mx-0.5">–</span><span className="text-[10px] text-stone-400 tabular-nums">{it.jamSelesai}</span></>}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold whitespace-nowrap ${kColor}`}>{it.kategori||'–'}</span>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold whitespace-nowrap ${jColor}`}>{JENIS_SHORT[it.jenisKegiatan]||it.jenisKegiatan||'–'}</span>
+                    </td>
+                    <td className="px-3 py-2.5 max-w-[220px]">
+                      <div className="text-[11px] font-semibold text-stone-800 leading-snug">{it.detailKegiatan||'–'}</div>
+                      {it.gcalDesc&&it.gcalDesc.trim()&&<div className="text-[9px] text-stone-400 mt-0.5 leading-snug" style={{display:'-webkit-box',WebkitLineClamp:1,WebkitBoxOrient:'vertical',overflow:'hidden'}}>{it.gcalDesc}</div>}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      {kpi?<KC id={kpi.id} sm/>:<span className="text-[9px] text-stone-300">–</span>}
+                    </td>
+                    <td className="px-3 py-2.5 max-w-[180px]">
+                      {hasOut
+                        ?<div className="flex items-start gap-1"><span className="text-emerald-500 flex-shrink-0 text-[10px] mt-0.5">✓</span><span className="text-[10px] text-emerald-700 leading-snug" style={{display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden'}}>{it.outputKeputusan}</span></div>
+                        :<span className="text-[9px] text-stone-300 italic">Belum diisi</span>
+                      }
+                    </td>
+                    <td className="px-2 py-2.5 text-center">
+                      <span className={`text-[11px] text-stone-400 ${isExp?'rotate-180 inline-block':''}`}>{isExp?'▲':'▼'}</span>
+                    </td>
+                  </tr>,
+                  isExp&&<tr key={it.id+'_expand'} className="border-b border-violet-200 bg-violet-50/20">
+                    <td colSpan={8} className="px-4 py-3">
+                      <div className="flex gap-4 flex-wrap md:flex-nowrap">
+                        {/* Checklist */}
+                        {checklist.length>0&&<div className="flex-shrink-0 w-full md:w-56">
+                          <div className="text-[9px] font-bold text-stone-500 uppercase mb-2">Pre-Meeting Checklist</div>
+                          <div className="space-y-1.5">
+                            {checklist.map(function(c,ci){return(
+                              <label key={ci} className="flex items-start gap-2 cursor-pointer" onClick={function(e){e.stopPropagation();}}>
+                                <input type="checkbox" checked={!!checks[ci]} onChange={function(){toggleCheck(it.id,ci);}} className="mt-0.5 w-3.5 h-3.5 accent-violet-600 flex-shrink-0"/>
+                                <span className={`text-[10px] leading-snug ${checks[ci]?'text-stone-400 line-through':'text-stone-700'}`}>{c}</span>
+                              </label>
+                            );})}
+                          </div>
+                        </div>}
+                        {/* Output + GCal */}
+                        <div className="flex-1 min-w-0 space-y-3" onClick={function(e){e.stopPropagation();}}>
+                          <div>
+                            <div className="text-[9px] font-bold text-stone-500 uppercase mb-1.5">Output / Keputusan</div>
+                            <textarea
+                              className="w-full px-2.5 py-2 rounded-xl border border-stone-200 bg-white text-[11px] focus:outline-none focus:ring-2 focus:ring-violet-400 resize-y"
+                              rows={3}
+                              placeholder="Tulis output, keputusan, atau catatan kegiatan..."
+                              value={editOut[it.id]!==undefined?editOut[it.id]:(it.outputKeputusan||'')}
+                              onChange={function(e){var v=e.target.value;setEditOut(function(p){var n={...p};n[it.id]=v;return n;});}}
+                            />
+                          </div>
+                          <div>
+                            <div className="text-[9px] font-bold text-stone-500 uppercase mb-1.5">Deskripsi Calendar (GCal)</div>
+                            <input
+                              className="w-full px-2.5 py-2 rounded-xl border border-stone-200 bg-white text-[11px] focus:outline-none focus:ring-2 focus:ring-violet-400"
+                              placeholder="Deskripsi untuk Google Calendar..."
+                              value={editGcal[it.id]!==undefined?editGcal[it.id]:(it.gcalDesc||'')}
+                              onChange={function(e){var v=e.target.value;setEditGcal(function(p){var n={...p};n[it.id]=v;return n;});}}
+                            />
+                          </div>
+                          <div className="flex gap-2">
+                            <button className="px-4 py-2 rounded-xl border border-stone-200 text-[10px] font-bold text-stone-500 as st bg-white" onClick={function(){setExpandId(null);}}>Batal</button>
+                            <button className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-[10px] font-bold as st" onClick={function(){saveRow(it);}}>✓ Simpan Output</button>
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                ]);
+              })}
+            </tbody>
+          </table>
+        </div>
+      }
+    </div>
+  );
+}
   const getMon=function(offset){var mon=new Date();var diff=mon.getDay()===0?6:mon.getDay()-1;mon.setDate(mon.getDate()-diff+offset*7);return mon;};
   const mon=getMon(weekOffset);
   const days=Array.from({length:7},function(_,i){var d=new Date(mon);d.setDate(mon.getDate()+i);return{date:d.toISOString().slice(0,10),lbl:d.toLocaleDateString('id-ID',{weekday:'short',day:'numeric',month:'short'}),isToday:d.toISOString().slice(0,10)===todayStr(),dow:d.getDay()};});
@@ -4246,7 +4460,7 @@ function App(){
         <div className="flex-1 pb-24 md:pb-8 md:max-w-5xl md:w-full md:mx-auto md:px-0">
           {tab==='dashboard'&&<Dashboard weekly={dashWeekly} kpiCorp={kpiCorp} dashMonth={dashMonth} onChangeMonth={setDashMonth} booking={booking}/>}
           {tab==='jadwal'&&sub.jadwal==='harian'&&<JadwalHarian backlog={backlog} jadwal={jadwal} onAddJadwal={addToJadwal} onRemoveJadwal={removeFromJadwal} onUpdateJadwal={updateJadwal} onUpdate={updI} onAddKeputusan={addK} filter={jadwalFilter} gcalOn={!!(gTok&&gCalId)} onPushItem={pushItem} onPushDay={pushDay}/>}
-          {tab==='jadwal'&&sub.jadwal==='mingguan'&&<JadwalMingguan backlog={backlog} jadwal={jadwal} filter={jadwalFilter}/>}
+          {tab==='jadwal'&&sub.jadwal==='mingguan'&&<JadwalMingguan backlog={backlog} jadwal={jadwal} filter={jadwalFilter} onUpdateJadwal={updateJadwal}/>}
           {tab==='jadwal'&&sub.jadwal==='bulanan'&&<JadwalBulanan jadwal={jadwal} filter={jadwalFilter}/>}
           {tab==='dump'&&<DumpPage onAdd={addI} onAddKeputusan={addK} onAddJadwal={addToJadwal} onBatchAddJadwal={batchAddToJadwal} onUpdateJadwal={updateJadwal} onResetICSBatch={resetJadwalBatch} onSaveKpiCorp={saveKpiCorp} onSaveKpiCeo={saveKpiCeo} onSaveBooking={saveBooking} onAddMom={addMom} jadwal={jadwal} backlog={backlog} onDone={()=>{setTab('backlog');setST('backlog','backlog');}}/>}
           {tab==='backlog'&&sub.backlog==='need_feedback'&&<NeedFeedbackTab backlog={backlog} onUpdate={updI} onAddKeputusan={addK} mom={mom} onUpdateMom={updMom} onAddBacklog={addI}/>}
