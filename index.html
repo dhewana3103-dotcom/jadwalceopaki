@@ -2827,7 +2827,7 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
 }
 
 // ── JADWAL MINGGUAN ───────────────────────────────────────────
-function JadwalMingguan({backlog,jadwal,filter,onUpdateJadwal}){
+function JadwalMingguan({backlog,jadwal,filter,onUpdateJadwal,onRemoveJadwal,onUpdateBacklog}){
   const [weekOffset,setWeekOffset]=useState(0);
   const [selDates,setSelDates]=useState({});
   const [expandId,setExpandId]=useState(null);
@@ -2868,6 +2868,16 @@ function JadwalMingguan({backlog,jadwal,filter,onUpdateJadwal}){
   function saveRow(it){
     if(!onUpdateJadwal)return;
     onUpdateJadwal(it._date,it.id,{outputKeputusan:editOut[it.id]||'',gcalDesc:editGcal[it.id]||''});
+    setExpandId(null);
+  }
+
+  function deleteRow(it){
+    if(!onRemoveJadwal)return;
+    var msg='Hapus kegiatan ini dari Jadwal?';
+    if(it.masalahBacklogId)msg+='\n\nItem Backlog terkait akan dikembalikan ke status "Baru" (muncul lagi di Kamar PA).';
+    if(!confirm(msg))return;
+    onRemoveJadwal(it._date,it.id);
+    if(it.masalahBacklogId&&onUpdateBacklog){onUpdateBacklog(it.masalahBacklogId,{status:'baru'});}
     setExpandId(null);
   }
 
@@ -3012,7 +3022,9 @@ function JadwalMingguan({backlog,jadwal,filter,onUpdateJadwal}){
                               onChange={function(e){var v=e.target.value;setEditGcal(function(p){var n={...p};n[it.id]=v;return n;});}}
                             />
                           </div>
-                          <div className="flex gap-2">
+                          <div className="flex gap-2 items-center">
+                            <button className="px-3 py-2 rounded-xl bg-red-50 text-red-500 border border-red-200 text-[10px] font-bold as st" onClick={function(){deleteRow(it);}}>🗑️ Hapus dari Jadwal</button>
+                            <div className="flex-1"></div>
                             <button className="px-4 py-2 rounded-xl border border-stone-200 text-[10px] font-bold text-stone-500 as st bg-white" onClick={function(){setExpandId(null);}}>Batal</button>
                             <button className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-[10px] font-bold as st" onClick={function(){saveRow(it);}}>✓ Simpan Output</button>
                           </div>
@@ -4446,7 +4458,7 @@ function App(){
         <div className="flex-1 pb-24 md:pb-8 md:max-w-5xl md:w-full md:mx-auto md:px-0">
           {tab==='dashboard'&&<Dashboard weekly={dashWeekly} kpiCorp={kpiCorp} dashMonth={dashMonth} onChangeMonth={setDashMonth} booking={booking}/>}
           {tab==='jadwal'&&sub.jadwal==='harian'&&<JadwalHarian backlog={backlog} jadwal={jadwal} onAddJadwal={addToJadwal} onRemoveJadwal={removeFromJadwal} onUpdateJadwal={updateJadwal} onUpdate={updI} onAddKeputusan={addK} filter={jadwalFilter} gcalOn={!!(gTok&&gCalId)} onPushItem={pushItem} onPushDay={pushDay}/>}
-          {tab==='jadwal'&&sub.jadwal==='mingguan'&&<JadwalMingguan backlog={backlog} jadwal={jadwal} filter={jadwalFilter} onUpdateJadwal={updateJadwal}/>}
+          {tab==='jadwal'&&sub.jadwal==='mingguan'&&<JadwalMingguan backlog={backlog} jadwal={jadwal} filter={jadwalFilter} onUpdateJadwal={updateJadwal} onRemoveJadwal={removeFromJadwal} onUpdateBacklog={updI}/>}
           {tab==='jadwal'&&sub.jadwal==='bulanan'&&<JadwalBulanan jadwal={jadwal} filter={jadwalFilter}/>}
           {tab==='dump'&&<DumpPage onAdd={addI} onAddKeputusan={addK} onAddJadwal={addToJadwal} onBatchAddJadwal={batchAddToJadwal} onUpdateJadwal={updateJadwal} onResetICSBatch={resetJadwalBatch} onSaveKpiCorp={saveKpiCorp} onSaveKpiCeo={saveKpiCeo} onSaveBooking={saveBooking} onAddMom={addMom} jadwal={jadwal} backlog={backlog} onDone={()=>{setTab('backlog');setST('backlog','backlog');}}/>}
           {tab==='backlog'&&sub.backlog==='need_feedback'&&<NeedFeedbackTab backlog={backlog} onUpdate={updI} onAddKeputusan={addK} mom={mom} onUpdateMom={updMom} onAddBacklog={addI}/>}
