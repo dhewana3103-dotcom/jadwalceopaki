@@ -734,28 +734,37 @@ function KamarPATab({backlog,onUpdateBacklog,onAddJadwal}){
 
 // ── RIWAYAT & ARSIP ──────────────────────────────────────────
 function RiwayatSampahTab({sampah,onRestore,onHardDel}){
+  function badge(item){
+    if(item._type==='backlog')return{lbl:'📋 Backlog',cls:'bg-orange-100 text-orange-700'};
+    if(item._type==='keputusan')return{lbl:'📝 Keputusan',cls:'bg-blue-100 text-blue-700'};
+    if(item._type==='jadwal')return{lbl:'📅 Jadwal',cls:'bg-violet-100 text-violet-700'};
+    if(item._type==='mom')return{lbl:'🗣️ MoM',cls:'bg-emerald-100 text-emerald-700'};
+    return{lbl:item._type||'?',cls:'bg-stone-100 text-stone-600'};
+  }
   return(
     <div className="pb-8 px-4 pt-4 md:px-6 afi">
       <div className="text-[10px] font-extrabold text-stone-400 uppercase tracking-widest mb-1">🗑 Riwayat & Arsip</div>
       <div className="text-[10px] text-stone-400 mb-4">Tempat pemulihan item yang pernah dihapus.</div>
       {sampah.length===0
         ?<div className="bg-stone-50 border border-stone-200 rounded-2xl p-6 text-center"><div className="text-3xl mb-2 opacity-20">📭</div><div className="text-[12px] font-bold text-stone-400 mb-1">Arsip Kosong</div><div className="text-[10px] text-stone-300">Belum ada item yang dihapus.</div></div>
-        :<div className="space-y-3">{sampah.map(function(item){return(
+        :<div className="space-y-3">{sampah.map(function(item){
+          var b=badge(item);
+          var title=item.isi||item.deskripsi||item.action||item.detailKegiatan||item.meetingName||'(tanpa judul)';
+          var sub=item._type==='jadwal'?(item._date+(item.jamMulai?' · '+item.jamMulai:'')):item._type==='mom'?((item.items||[]).length+' action item'):item.konteks;
+          return(
           <div key={item.id} className="bg-white border border-stone-200 rounded-xl p-4 shadow-soft">
             <div className="flex justify-between items-start mb-2">
               <div className="flex items-center gap-2">
-                <span className={'text-[9px] font-bold px-2 py-0.5 rounded-full '+(item._type==='backlog'?'bg-orange-100 text-orange-700':'bg-blue-100 text-blue-700')}>
-                  {item._type==='backlog'?'📋 Backlog':'📝 Keputusan'}
-                </span>
+                <span className={'text-[9px] font-bold px-2 py-0.5 rounded-full '+b.cls}>{b.lbl}</span>
                 <span className="text-[9px] text-stone-400 font-mono">{item.deletedAt}</span>
               </div>
               <button className="text-[10px] font-bold text-red-400 as" onClick={function(){if(confirm('Hapus permanen?'))onHardDel(item.id);}}>Hapus Permanen</button>
             </div>
-            <div className="text-[12px] font-bold text-stone-800 leading-snug mb-1">{item.isi||item.deskripsi||item.action}</div>
-            {item.konteks&&<div className="text-[10px] text-stone-500 mb-3">Konteks: {item.konteks}</div>}
+            <div className="text-[12px] font-bold text-stone-800 leading-snug mb-1">{title}</div>
+            {sub&&<div className="text-[10px] text-stone-500 mb-3">{item._type==='mom'?'Isi: ':'Konteks: '}{sub}</div>}
             <button className="w-full py-2 rounded-lg border border-stone-200 bg-stone-50 text-[10px] font-bold text-stone-600 st as" onClick={function(){onRestore(item.id);}}>↩ Kembalikan</button>
           </div>
-        );})}</div>
+          );})}</div>
       }
     </div>
   );
@@ -4357,14 +4366,22 @@ function App(){
     var item=sampah.find(function(it){return it.id===id;});
     if(item){
       if(item._type==='backlog'){var nb=[item,...backlog];setBacklog(nb);sv('backlog',nb);}
-      else{var nk=[item,...keputusan];setKeputusan(nk);sv('keputusan',nk);}
+      else if(item._type==='keputusan'){var nk=[item,...keputusan];setKeputusan(nk);sv('keputusan',nk);}
+      else if(item._type==='jadwal'){
+        var nj={...jadwal};var dt=item._date;if(!nj[dt])nj[dt]=[];nj[dt]=[...nj[dt],item];setJadwal(nj);sv('jadwal',nj);sbSave('jadwal',nj);
+      }
+      else if(item._type==='mom'){var nm=[item,...mom];setMom(nm);sv('mom',nm);}
       var ns=sampah.filter(function(it){return it.id!==id;});setSampah(ns);sv('sampah',ns);
     }
   };
   const hardDelSampah=(id)=>{var ns=sampah.filter(function(it){return it.id!==id;});setSampah(ns);sv('sampah',ns);};
   const addMom=(entry)=>{const n=[entry,...mom];setMom(n);sv('mom',n);};
   const updMom=(id,patch)=>{const n=mom.map(it=>it.id===id?{...it,...patch}:it);setMom(n);sv('mom',n);};
-  const delMom=(id)=>{const n=mom.filter(it=>it.id!==id);setMom(n);sv('mom',n);};
+  const delMom=(id)=>{
+    var item=mom.find(function(it){return it.id===id;});
+    if(item){var ns=[{...item,_type:'mom',deletedAt:new Date().toLocaleString('id-ID')},...sampah];setSampah(ns);sv('sampah',ns);}
+    const n=mom.filter(it=>it.id!==id);setMom(n);sv('mom',n);
+  };
   const addToJadwal=(date,item)=>{const n={...jadwal};if(!n[date])n[date]=[];n[date]=[...n[date],item];setJadwal(n);sv('jadwal',n);sbSave('jadwal',n);};
   const batchAddToJadwal=(byDate)=>{const n={...jadwal};Object.entries(byDate).forEach(([date,items])=>{if(!n[date])n[date]=[];n[date]=[...(n[date]||[]),...items];});setJadwal(n);sv('jadwal',n);sbSave('jadwal',n);};
   const removeFromJadwal=(date,itemId)=>{
@@ -4372,6 +4389,7 @@ function App(){
     if(item&&item.gcalEventId&&gTok&&gCalId){
       deleteGCalEvent(item.gcalEventId,gTok,gCalId).catch(function(){});
     }
+    if(item){var ns=[{...item,_type:'jadwal',_date:date,deletedAt:new Date().toLocaleString('id-ID')},...sampah];setSampah(ns);sv('sampah',ns);}
     const n={...jadwal};if(n[date])n[date]=n[date].filter(it=>it.id!==itemId);setJadwal(n);sv('jadwal',n);sbSave('jadwal',n);
   };
   const updateJadwal=(date,itemId,patch)=>{const n={...jadwal};if(n[date])n[date]=n[date].map(it=>it.id===itemId?{...it,...patch}:it);setJadwal(n);sv('jadwal',n);sbSave('jadwal',n);};
