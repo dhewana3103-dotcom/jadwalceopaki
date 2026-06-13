@@ -4367,6 +4367,7 @@ function App(){
   const setST=(t,v)=>setSub(p=>({...p,[t]:v}));
 
   const nc=backlog.filter(it=>it.status==='baru').length;
+  const paQueueCount=backlog.filter(it=>(it.status==='baru'||it.status==='postponed')&&!it.needFeedback&&!it.pdcaFlag).length;
   const belumCount=keputusan.filter(k=>k.status==='disampaikan'||k.status==='proses').length;
   const nfCount=backlog.filter(function(it){return it.needFeedback&&!it.feedbackStatus;}).length+(function(){var c=0;(mom||[]).forEach(function(e){(e.items||[]).forEach(function(i){if(i.needCeoReview&&i.ceoReviewStatus==='queue')c++;});});return c;})();
   const pdcaCount=backlog.filter(function(it){return it.pdcaFlag;}).length+(function(){var c=0;(mom||[]).forEach(function(e){(e.items||[]).forEach(function(i){if(i.ceoReviewStatus==='info-tambahan'||i.pdcaFlag)c++;});});return c;})();
@@ -4422,7 +4423,7 @@ function App(){
                   {s.lbl}
                   {s.id==='keputusan'&&belumCount>0&&<span className="inline-flex items-center justify-center w-4 h-4 bg-amber-500 text-white text-[8px] font-black rounded-full">{belumCount}</span>}
                   {s.id==='need_feedback'&&nfCount>0&&<span className="inline-flex items-center justify-center w-4 h-4 bg-violet-600 text-white text-[8px] font-black rounded-full">{nfCount}</span>}
-                  {s.id==='kamar_pa'&&nc>0&&<span className="inline-flex items-center justify-center w-4 h-4 bg-blue-500 text-white text-[8px] font-black rounded-full">{nc}</span>}
+                  {s.id==='kamar_pa'&&paQueueCount>0&&<span className="inline-flex items-center justify-center w-4 h-4 bg-blue-500 text-white text-[8px] font-black rounded-full">{paQueueCount}</span>}
                   {s.id==='pdca'&&pdcaCount>0&&<span className="inline-flex items-center justify-center w-4 h-4 bg-stone-600 text-white text-[8px] font-black rounded-full">{pdcaCount}</span>}
                   {sub[tab]===s.id&&<div className="absolute bottom-0 left-1/4 right-1/4 md:left-4 md:right-4 h-0.5 bg-stone-800 rounded-t-md"/>}
                 </button>
