@@ -2677,7 +2677,7 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
                 </div>
                 <div>
                   <div className="text-[9px] font-bold text-stone-400 uppercase mb-1">Detail Kegiatan</div>
-                  <textarea className="w-full px-2.5 py-2 rounded-xl border border-stone-200 text-[12px] focus:outline-none focus:ring-1 focus:ring-stone-400 resize-y" rows={2} value={ef.detailKegiatan||''} onChange={function(e){setEf(function(p){return{...p,detailKegiatan:e.target.value};});}}/>
+                  <textarea className="w-full px-2.5 py-2 rounded-xl border border-stone-200 text-[12px] focus:outline-none focus:ring-1 focus:ring-stone-400" style={{overflowY:'hidden',resize:'none'}} rows={Math.max(2,(ef.detailKegiatan||'').split('\n').length+1)} onInput={function(e){e.target.style.height='auto';e.target.style.height=e.target.scrollHeight+'px';}} value={ef.detailKegiatan||''} onChange={function(e){setEf(function(p){return{...p,detailKegiatan:e.target.value};});}}/>
                 </div>
                 <div>
                   <div className="text-[9px] font-bold text-stone-400 uppercase mb-1">Relate KPI</div>
@@ -2687,7 +2687,7 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
                 </div>
                 <div>
                   <div className="text-[9px] font-bold text-stone-400 uppercase mb-1">Deskripsi Calendar</div>
-                  <textarea className="w-full px-2.5 py-2 rounded-xl border border-stone-200 text-[11px] focus:outline-none focus:ring-1 focus:ring-stone-400 resize-y" rows={3} placeholder="Objective, attendees, agenda, context..." value={ef.gcalDesc||''} onChange={function(e){setEf(function(p){return{...p,gcalDesc:e.target.value};});}}/>
+                  <textarea className="w-full px-2.5 py-2 rounded-xl border border-stone-200 text-[11px] focus:outline-none focus:ring-1 focus:ring-stone-400" style={{overflowY:'hidden',resize:'none'}} rows={Math.max(3,(ef.gcalDesc||'').split('\n').length+1)} onInput={function(e){e.target.style.height='auto';e.target.style.height=e.target.scrollHeight+'px';}} placeholder="Objective, attendees, agenda, context..." value={ef.gcalDesc||''} onChange={function(e){setEf(function(p){return{...p,gcalDesc:e.target.value};});}}/>
                 </div>
               </>}
               {!fromBL&&!isMeeting&&<div>
@@ -3034,8 +3034,11 @@ function JadwalMingguan({backlog,jadwal,filter,onUpdateJadwal,onRemoveJadwal,onU
                           </div>
                           <div>
                             <div className="text-[9px] font-bold text-stone-500 uppercase mb-1.5">Deskripsi Calendar (GCal)</div>
-                            <input
+                            <textarea
                               className="w-full px-2.5 py-2 rounded-xl border border-stone-200 bg-white text-[11px] focus:outline-none focus:ring-2 focus:ring-violet-400"
+                              style={{overflowY:'hidden',resize:'none'}}
+                              rows={Math.max(2,(editGcal[it.id]!==undefined?editGcal[it.id]:(it.gcalDesc||'')).split('\n').length+1)}
+                              onInput={function(e){e.target.style.height='auto';e.target.style.height=e.target.scrollHeight+'px';}}
                               placeholder="Deskripsi untuk Google Calendar..."
                               value={editGcal[it.id]!==undefined?editGcal[it.id]:(it.gcalDesc||'')}
                               onChange={function(e){var v=e.target.value;setEditGcal(function(p){var n={...p};n[it.id]=v;return n;});}}
