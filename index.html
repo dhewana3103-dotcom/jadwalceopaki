@@ -1741,7 +1741,16 @@ function ImportJadwal({onAddJadwal,onBatchAddJadwal}){
 function stripHtml(html){
   try{
     var tmp=document.createElement('div');
-    var h=html.replace(/<br\s*\/?>/gi,'\n').replace(/<\/p>/gi,'\n\n').replace(/<\/div>/gi,'\n').replace(/<\/li>/gi,'\n').replace(/<li[^>]*>/gi,'• ');
+    var h=html
+      .replace(/<br\s*\/?>/gi,'\n')
+      .replace(/<\/p>/gi,'\n\n')
+      .replace(/<\/div>/gi,'\n')
+      .replace(/<\/li>/gi,'\n')
+      .replace(/<li[^>]*>/gi,'• ')
+      .replace(/<\/h[1-6]>/gi,'\n\n')
+      .replace(/<h[1-6][^>]*>/gi,'\n')
+      .replace(/<\/tr>/gi,'\n')
+      .replace(/<\/td>/gi,' | ');
     tmp.innerHTML=h;
     return(tmp.textContent||tmp.innerText||'').replace(/\n{3,}/g,'\n\n').trim();
   }catch(e){
