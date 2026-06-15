@@ -624,7 +624,7 @@ function NeedFeedbackTab({backlog,onUpdate,onAddKeputusan,mom,onUpdateMom,onAddB
 }
 
 // ── PDCA TAB ──────────────────────────────────────────────────
-function PdcaTab({backlog,onUpdateBacklog,mom,onUpdateMom,onDeleteMom,onAddKeputusan,onSyncMom,syncingMom,lastMomSync}){
+function PdcaTab({backlog,onUpdateBacklog,mom,onUpdateMom,onDeleteMom,onAddKeputusan,onSyncMom,syncingMom,lastMomSync,onResetMomSync}){
   const [noteTexts,setNoteTexts]=useState({});
   const [activeSection,setActiveSection]=useState('mom');
   const [syncStart,setSyncStart]=useState((function(){var d=new Date();d.setMonth(d.getMonth()-6);return d.toISOString().slice(0,10);})());
@@ -704,6 +704,7 @@ function resolve(item,type){if(type==='mom'){updateMomItem(item._momEntryId,item
           setSyncErr('');setSyncMsg('');
           onSyncMom(syncStart,syncEnd).then(function(total){setSyncMsg(total+' meeting berhasil di-sync!');}).catch(function(e){setSyncErr(e.message||'Gagal sync');});
         }}>{syncingMom?'⏳ Syncing...':'🔄 Sync dari Trusmiverse'}</button>
+        {onResetMomSync&&<button className="w-full mt-2 py-1.5 rounded-xl text-[10px] font-bold text-red-400 border border-red-100 bg-red-50 as st" onClick={function(){if(confirm('Hapus semua MoM hasil sync Trusmiverse?\nMoM yang diinput manual tetap aman.'))onResetMomSync();}}>🗑 Hapus Hasil Sync</button>}
         {syncMsg&&<div className="mt-2 text-[10px] text-emerald-600 font-bold text-center">✅ {syncMsg}</div>}
         {syncErr&&<div className="mt-2 text-[10px] text-red-500 text-center">❌ {syncErr} — cek URL & API key di Settings ⚙️</div>}
       </div>}
@@ -4604,7 +4605,7 @@ function App(){
           {tab==='backlog'&&sub.backlog==='backlog'&&<BacklogList backlog={backlog} onUpdate={updI} onDelete={delI} onAddKeputusan={addK}/>}
           {tab==='backlog'&&sub.backlog==='kamar_pa'&&<KamarPATab backlog={backlog} onUpdateBacklog={updI} onAddJadwal={addToJadwal}/>}
           {tab==='backlog'&&sub.backlog==='keputusan'&&<Keputusan keputusan={keputusan} onUpdate={updK} onDelete={delK} onAddKeputusan={addK}/>}
-          {tab==='backlog'&&sub.backlog==='pdca'&&<PdcaTab backlog={backlog} onUpdateBacklog={updI} mom={mom} onUpdateMom={updMom} onDeleteMom={delMom} onAddKeputusan={addK} onSyncMom={trusmiKey?syncTrusmiMom:null} syncingMom={syncingMom} lastMomSync={lastMomSync}/>}
+          {tab==='backlog'&&sub.backlog==='pdca'&&<PdcaTab backlog={backlog} onUpdateBacklog={updI} mom={mom} onUpdateMom={updMom} onDeleteMom={delMom} onAddKeputusan={addK} onSyncMom={trusmiKey?syncTrusmiMom:null} syncingMom={syncingMom} lastMomSync={lastMomSync} onResetMomSync={trusmiKey?function(){var kept=(mom||[]).filter(function(m){return!m._trusmiId;});setMom(kept);sv('mom',kept);sbSave('mom',kept);setLastMomSync('');sv('lastMomSync','');}:null}/>}
           {tab==='backlog'&&sub.backlog==='arsip'&&<RiwayatSampahTab sampah={sampah} onRestore={restoreSampah} onHardDel={hardDelSampah}/>}
           {tab==='resume'&&sub.resume==='analisa'&&<AnalisaTab backlog={backlog} jadwal={jadwal} kpiCorp={kpiCorp} dashMonth={dashMonth} mom={mom}/>}
           {tab==='resume'&&sub.resume==='rekomendasi'&&<AnalisaJadwal backlog={backlog} jadwal={jadwal} onAddJadwal={addToJadwal} onAddBacklog={addI} onUpdateBacklog={updI}/>}
