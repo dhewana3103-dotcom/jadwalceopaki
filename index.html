@@ -67,7 +67,8 @@ function gCalEventToJadwal(ev){
   var summary=ev.summary||'';
   var mapped=mapICSEvent(summary);
   var gcalDesc=ev.description?stripHtml(ev.description):'';
-  return{id:'SJ-'+genId(),tanggal:start.date,jamMulai:start.time,jamSelesai:end.time,masalahBacklogId:'',masalahText:'',kategori:mapped.kategori,jenisKegiatan:mapped.jenisKegiatan,detailKegiatan:mapped.detail||summary,relateMilestone:mapped.relateMilestone,outputKeputusan:'',gcalDesc:gcalDesc,gcalEventId:ev.id||''};
+  var relMilestone=mapped.kategori==='Personal'?'personal':mapped.relateMilestone;
+  return{id:'SJ-'+genId(),tanggal:start.date,jamMulai:start.time,jamSelesai:end.time,masalahBacklogId:'',masalahText:'',kategori:mapped.kategori,jenisKegiatan:mapped.jenisKegiatan,detailKegiatan:mapped.detail||summary,relateMilestone:relMilestone,outputKeputusan:'',gcalDesc:gcalDesc,gcalEventId:ev.id||''};
 }
 function buildGCalDesc(item){
   var lines=[];
@@ -110,6 +111,7 @@ const KPI5=[
   {id:'riset',label:'Riset Future RSP',short:'Riset',color:'text-emerald-700',bg:'bg-emerald-50',border:'border-emerald-200',hex:'#059669'},
   {id:'operasional',label:'Operasional',short:'Ops',color:'text-amber-700',bg:'bg-amber-50',border:'border-amber-200',hex:'#D97706'},
   {id:'people',label:'People & Culture',short:'People',color:'text-pink-700',bg:'bg-pink-50',border:'border-pink-200',hex:'#BE185D'},
+  {id:'personal',label:'Personal',short:'Personal',color:'text-stone-600',bg:'bg-stone-100',border:'border-stone-300',hex:'#6B7280'},
 ];
 const BLOKS=[
   {id:'pagi-dalam',label:'Pagi Dalam',time:'05–08',color:'text-purple-700',bg:'bg-purple-50',border:'border-purple-200',kat:'Deepwork Strategic'},
@@ -2716,7 +2718,7 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div><div className="text-[9px] font-bold text-stone-400 uppercase mb-1">Kategori</div>
-                    <select className="w-full px-2 py-1.5 rounded-xl border border-stone-200 text-[11px] focus:outline-none" value={ef.kategori||'RSP'} onChange={function(e){setEf(function(p){return{...p,kategori:e.target.value};});}}>
+                    <select className="w-full px-2 py-1.5 rounded-xl border border-stone-200 text-[11px] focus:outline-none" value={ef.kategori||'RSP'} onChange={function(e){var v=e.target.value;setEf(function(p){var n={...p,kategori:v};if(v==='Personal'){n.jenisKegiatan='Personal';n.relateMilestone='personal';}return n;});}}>
                       {['RSP','BT','TKB','Personal'].map(function(k){return<option key={k}>{k}</option>;})}
                     </select>
                   </div>
@@ -2775,7 +2777,7 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
           <div className="flex-1"><div className="text-[9px] font-bold text-stone-500 uppercase mb-1">Jam Mulai</div><input type="time" className="w-full px-2 py-1.5 rounded-lg border border-stone-200 bg-white text-[12px] font-mono focus:outline-none focus:ring-1 focus:ring-stone-400" value={lf.jamMulai} onChange={function(e){upd('jamMulai',e.target.value);}}/></div>
           <div className="flex-1"><div className="text-[9px] font-bold text-stone-500 uppercase mb-1">Jam Selesai</div><input type="time" className="w-full px-2 py-1.5 rounded-lg border border-stone-200 bg-white text-[12px] font-mono focus:outline-none focus:ring-1 focus:ring-stone-400" value={lf.jamSelesai} onChange={function(e){upd('jamSelesai',e.target.value);}}/></div>
         </div>
-        <div className="mb-3"><div className="text-[9px] font-bold text-stone-500 uppercase mb-1.5">Kategori</div><div className="flex gap-1.5 flex-wrap">{KATEGORI_ORG.map(function(k){return<button key={k} className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border st as ${lf.kategori===k?'bg-stone-800 text-white border-stone-800 shadow-sm':'bg-white text-stone-600 border-stone-200'}`} onClick={function(){upd('kategori',k);if(k==='Personal')upd('jenisKegiatan','Personal');else if(lf.jenisKegiatan==='Personal')upd('jenisKegiatan','Deepwork Strategic');}}>{k}</button>;})}</div></div>
+        <div className="mb-3"><div className="text-[9px] font-bold text-stone-500 uppercase mb-1.5">Kategori</div><div className="flex gap-1.5 flex-wrap">{KATEGORI_ORG.map(function(k){return<button key={k} className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border st as ${lf.kategori===k?'bg-stone-800 text-white border-stone-800 shadow-sm':'bg-white text-stone-600 border-stone-200'}`} onClick={function(){upd('kategori',k);if(k==='Personal'){upd('jenisKegiatan','Personal');upd('relateMilestone','personal');}else if(lf.jenisKegiatan==='Personal'){upd('jenisKegiatan','Deepwork Strategic');}}}>{k}</button>;})}</div></div>
         <div className="mb-3"><div className="text-[9px] font-bold text-stone-500 uppercase mb-1.5">Jenis Kegiatan</div><select className="w-full px-2.5 py-2 rounded-xl border border-stone-200 bg-white text-[11px] font-medium focus:outline-none" value={lf.jenisKegiatan} onChange={function(e){upd('jenisKegiatan',e.target.value);}}>{(lf.kategori==='Personal'?['Personal']:JENIS_KEGIATAN.filter(function(j){return j!=='Personal';})).map(function(j){return<option key={j} value={j}>{j}</option>;})}</select></div>
         <div className="mb-3"><div className="text-[9px] font-bold text-stone-500 uppercase mb-1.5">Detail Kegiatan *</div><textarea className="w-full px-2.5 py-2 rounded-xl border border-stone-200 bg-white text-[12px] focus:outline-none focus:ring-1 focus:ring-stone-400 resize-none" rows={2} placeholder="Apa yang akan dilakukan?" value={lf.detailKegiatan} onChange={function(e){upd('detailKegiatan',e.target.value);}}/></div>
         <div className="mb-4"><div className="text-[9px] font-bold text-stone-500 uppercase mb-1.5">Relate KPI</div><div className="flex gap-1.5 flex-wrap">{KPI5.map(function(k){return<button key={k.id} className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold border st as ${lf.relateMilestone===k.id?`${k.bg} ${k.color} ${k.border} shadow-sm`:'bg-white text-stone-500 border-stone-200'}`} onClick={function(){upd('relateMilestone',k.id);}}>{k.short}</button>;})}</div></div>
