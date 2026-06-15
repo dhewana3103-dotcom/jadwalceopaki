@@ -2671,7 +2671,6 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
     function setSubType(st){onUpdateJadwal(today,item.id,{meetingSubType:st,checklistDone:{}});}
     function saveEdit(){
       onUpdateJadwal(today,item.id,{jamMulai:ef.jamMulai,jamSelesai:ef.jamSelesai,kategori:ef.kategori,jenisKegiatan:ef.jenisKegiatan,detailKegiatan:ef.detailKegiatan,gcalDesc:ef.gcalDesc,relateMilestone:ef.relateMilestone});
-      if(gcalOn&&item.gcalEventId)onPushItem({...item,...ef},function(patch){onUpdateJadwal(today,item.id,patch);});
     }
     return(
       <tr key={item.id+'_exp'} className="border-b border-violet-100 bg-violet-50/10">
