@@ -2557,7 +2557,7 @@ function getItemState(item){
   return'upcoming';
 }
 
-function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,onUpdate,onAddKeputusan,filter,gcalOn,onPushItem,onPushDay}){
+function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,onUpdate,onAddKeputusan,filter,gcalOn,onPushItem,onPushDay,onAddMomBatch}){
   const todayActual=todayStr();
   const [selectedDate,setSelectedDate]=useState(todayActual);
   const today=selectedDate; // semua referensi 'today' otomatis pakai tanggal yang dipilih
@@ -2577,6 +2577,7 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
 
   const [addingBlok,setAddingBlok]=useState(null);
   const [showExport,setShowExport]=useState(false);
+  const [showConvert,setShowConvert]=useState(false);
   const [expandId,setExpandId]=useState(null);
   const [ef,setEf]=useState({});
   const [nowStr,setNowStr]=useState(nowTimeStr());
@@ -2828,6 +2829,7 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
           <div className="text-[11px] font-medium text-stone-400">{dayItems.length} kegiatan{hiddenCount>0?' · '+hiddenCount+' disembunyikan':''}{isToday?' · '+nowStr:''}</div>
           <div className="flex items-center gap-2">
             {gcalOn&&<button className="px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200 text-[10px] font-bold text-blue-600 as st" onClick={function(){onPushDay(today);}}>📅 Push</button>}
+            <button className="px-2.5 py-1 rounded-lg bg-violet-50 border border-violet-200 text-[10px] font-bold text-violet-600 as st" onClick={function(){setShowConvert(true);}}>🤖 ke MoM</button>
             <button className="px-2.5 py-1 rounded-lg bg-stone-100 border border-stone-200 text-[10px] font-bold text-stone-600 as st" onClick={function(){setShowExport(function(p){return !p;});}}>⬇️ Export</button>
             {showExport&&<div className="absolute right-4 mt-1 bg-white border border-stone-200 rounded-2xl shadow-float z-30 overflow-hidden afi" style={{minWidth:160}}>
               <div className="px-3 py-2 text-[9px] font-extrabold text-stone-400 uppercase tracking-wider border-b border-stone-100">Export Jadwal CSV</div>
@@ -2895,9 +2897,136 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
           </table>
         }
       </div>
+      {showConvert&&<ConvertOutputModal dayItemsAll={dayItemsAll} today={today} onAddMomBatch={onAddMomBatch} onClose={function(){setShowConvert(false);}}/>}
     </div>
   );
 }
+
+// ── CONVERT OUTPUT → MoM (AI batch end-of-day) ──────────────────
+function ConvertOutputModal({dayItemsAll,today,onAddMomBatch,onClose}){
+  const itemsWithOutput=dayItemsAll.filter(function(it){return(it.outputKeputusan||'').trim().length>0;});
+  const [loading,setLoading]=useState(false);
+  const [err,setErr]=useState('');
+  const [preview,setPreview]=useState(null); // array of {activityId,activityName,jenisKegiatan,items:[...]}
+  const [excluded,setExcluded]=useState({}); // activityId -> true
+  const [done,setDone]=useState(false);
+
+  function toggleExclude(aid){setExcluded(function(p){var n={...p};n[aid]=!n[aid];return n;});}
+
+  async function doConvert(){
+    setErr('');setLoading(true);
+    try{
+      var payload=itemsWithOutput.map(function(it){return{activityId:it.id,activityName:it.detailKegiatan||'',jenisKegiatan:it.jenisKegiatan||'',jamMulai:it.jamMulai||'',output:it.outputKeputusan||''};});
+      var prompt='Kamu adalah AI assistant untuk CEO GTD OS di PT Raja Sukses Properindo (developer perumahan subsidi).\n\n'
+        +'Berikut daftar kegiatan CEO hari ini beserta catatan Output/Keputusan yang ditulis PA setelah kegiatan selesai. Tugasmu: untuk SETIAP kegiatan, analisa apakah ada action item / keputusan konkret / follow-up yang perlu di-track. Kegiatan personal (olahraga, makan, tidur, dll) biasanya TIDAK punya action item — set hasActionItems:false untuk itu.\n\n'
+        +'Untuk kegiatan yang punya action item, extract setiap item dengan field:\n'
+        +'- konteks: topik singkat (max 40 karakter)\n'
+        +'- action: apa yang perlu dilakukan / keputusan yang diambil (max 120 karakter)\n'
+        +'- jenis: salah satu dari [Immediately, Konsep Strategis, Feedback]\n'
+        +'- pic: nama orang yang bertanggung jawab jika disebutkan di teks, atau null\n'
+        +'- deadline: tanggal dalam format YYYY-MM-DD jika disebutkan, atau null\n\n'
+        +'Data kegiatan:\n'+JSON.stringify(payload)+'\n\n'
+        +'Return HANYA JSON array valid, tidak ada teks lain, tidak ada markdown fences:\n'
+        +'[{"activityId":"...","activityName":"...","jenisKegiatan":"...","hasActionItems":true,"items":[{"konteks":"...","action":"...","jenis":"...","pic":null,"deadline":null}]}]';
+      var raw=await callAI([{role:'user',content:prompt}],3500);
+      var clean=raw.replace(/```json|```/g,'').trim();
+      var parsed=JSON.parse(clean);
+      var withItems=parsed.filter(function(p){return p.hasActionItems&&p.items&&p.items.length>0;});
+      setPreview(withItems);
+      setLoading(false);
+    }catch(e){
+      setErr('Gagal convert: '+e.message);
+      setLoading(false);
+    }
+  }
+
+  function doConfirm(){
+    var toSave=preview.filter(function(p){return!excluded[p.activityId];});
+    var entries=toSave.map(function(p){
+      return{
+        id:'MOM-'+genId(),
+        tanggal:today,
+        meetingName:p.activityName,
+        gcalDesc:'',
+        items:(p.items||[]).map(function(it){return{id:'MI-'+genId(),konteks:it.konteks||'',action:it.action||'',jenis:it.jenis||'',pic:it.pic||'',deadline:it.deadline||'',status:'pending'};}),
+        sumber:p.activityId,
+        createdAt:todayStr(),
+      };
+    });
+    if(entries.length>0&&onAddMomBatch)onAddMomBatch(entries);
+    setDone(true);
+  }
+
+  return(
+    <div className="fixed inset-0 bg-black/40 z-40 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl max-w-lg w-full max-h-[85vh] overflow-y-auto shadow-2xl" onClick={function(e){e.stopPropagation();}}>
+        <div className="p-5 border-b border-stone-100 flex items-center justify-between sticky top-0 bg-white z-10">
+          <div>
+            <div className="text-[14px] font-extrabold text-stone-900">🤖 Convert Output → MoM</div>
+            <div className="text-[10px] text-stone-400 mt-0.5">{itemsWithOutput.length} kegiatan punya output hari ini</div>
+          </div>
+          <button className="w-7 h-7 rounded-full bg-stone-100 text-stone-500 flex items-center justify-center as st" onClick={onClose}>✕</button>
+        </div>
+
+        <div className="p-5">
+          {!preview&&!done&&<>
+            {itemsWithOutput.length===0
+              ?<div className="text-center py-8"><div className="text-3xl mb-2 opacity-30">📭</div><div className="text-[12px] font-bold text-stone-400">Belum ada output diisi hari ini</div></div>
+              :<>
+                <div className="text-[11px] text-stone-500 leading-relaxed mb-4">AI akan baca {itemsWithOutput.length} catatan output hari ini, lalu extract action item / keputusan yang konkret jadi format MoM. Kegiatan personal tanpa keputusan akan dilewati otomatis.</div>
+                <div className="space-y-1.5 mb-4 max-h-40 overflow-y-auto bg-stone-50 rounded-xl p-2.5 border border-stone-200">
+                  {itemsWithOutput.map(function(it){return(
+                    <div key={it.id} className="text-[10px] text-stone-600 flex items-center gap-1.5"><span className="text-stone-300">•</span><span className="font-mono text-stone-400">{it.jamMulai}</span><span className="font-semibold truncate">{it.detailKegiatan}</span></div>
+                  );})}
+                </div>
+                {err&&<div className="p-2.5 rounded-xl bg-red-50 border border-red-100 text-[11px] text-red-600 mb-4">⚠️ {err}</div>}
+                <button className={'w-full py-3 rounded-xl text-[12px] font-extrabold as st '+(loading?'bg-stone-200 text-stone-400 cursor-not-allowed':'bg-violet-600 text-white shadow-md')} disabled={loading} onClick={doConvert}>
+                  {loading?'⏳ AI menganalisis...':'✨ Convert Sekarang'}
+                </button>
+              </>
+            }
+          </>}
+
+          {preview&&!done&&<>
+            {preview.length===0
+              ?<div className="text-center py-8"><div className="text-3xl mb-2 opacity-30">🤷</div><div className="text-[12px] font-bold text-stone-400">AI tidak menemukan action item</div><div className="text-[10px] text-stone-300 mt-1">Semua kegiatan personal / tanpa keputusan konkret</div></div>
+              :<>
+                <div className="text-[11px] font-bold text-stone-600 mb-3">{preview.length} kegiatan menghasilkan action item — cek sebelum simpan</div>
+                <div className="space-y-3 mb-4">
+                  {preview.map(function(p){
+                    var isExcl=!!excluded[p.activityId];
+                    return(
+                      <div key={p.activityId} className={'rounded-xl border overflow-hidden '+(isExcl?'border-stone-200 bg-stone-50 opacity-50':'border-violet-200 bg-violet-50/30')}>
+                        <div className="px-3 py-2 flex items-center justify-between bg-white border-b border-stone-100">
+                          <div className="text-[11px] font-bold text-stone-800 truncate flex-1">{p.activityName}</div>
+                          <button className="text-[9px] font-bold text-stone-400 as ml-2" onClick={function(){toggleExclude(p.activityId);}}>{isExcl?'↩ Sertakan':'✕ Kecualikan'}</button>
+                        </div>
+                        <div className="px-3 py-2 space-y-1.5">
+                          {(p.items||[]).map(function(it,idx){return(
+                            <div key={idx} className="text-[10px] leading-snug">
+                              <span className="font-bold text-violet-700">{it.konteks}</span>
+                              <span className="text-stone-600"> — {it.action}</span>
+                              {it.pic&&<span className="text-stone-400"> · {it.pic}</span>}
+                              {it.deadline&&<span className="text-stone-400"> · {it.deadline}</span>}
+                            </div>
+                          );})}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <button className="w-full py-3 rounded-xl bg-emerald-600 text-white text-[12px] font-extrabold as st shadow-md" onClick={doConfirm}>✓ Simpan {preview.filter(function(p){return!excluded[p.activityId];}).length} MoM Entry</button>
+              </>
+            }
+          </>}
+
+          {done&&<div className="text-center py-8"><div className="text-3xl mb-2">✅</div><div className="text-[12px] font-bold text-emerald-600 mb-3">Berhasil disimpan ke MoM!</div><button className="px-4 py-2 rounded-xl bg-stone-900 text-white text-[11px] font-bold as st" onClick={onClose}>Tutup</button></div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function JadwalMingguan({backlog,jadwal,filter,onUpdateJadwal,onRemoveJadwal,onUpdateBacklog}){
   const [weekOffset,setWeekOffset]=useState(0);
   const [selDates,setSelDates]=useState({});
@@ -4442,6 +4571,7 @@ function App(){
   };
   const hardDelSampah=(id)=>{var ns=sampah.filter(function(it){return it.id!==id;});setSampah(ns);sv('sampah',ns);};
   const addMom=(entry)=>{const n=[entry,...mom];setMom(n);sv('mom',n);};
+  const batchAddMom=(entries)=>{const n=[...entries,...mom];setMom(n);sv('mom',n);sbSave('mom',n);};
   const updMom=(id,patch)=>{const n=mom.map(it=>it.id===id?{...it,...patch}:it);setMom(n);sv('mom',n);};
 
   function syncTrusmiMom(startDate,endDate){
@@ -4598,7 +4728,7 @@ function App(){
         {/* Content */}
         <div className="flex-1 pb-24 md:pb-8 md:max-w-5xl md:w-full md:mx-auto md:px-0">
           {tab==='dashboard'&&<Dashboard weekly={dashWeekly} kpiCorp={kpiCorp} dashMonth={dashMonth} onChangeMonth={setDashMonth} booking={booking}/>}
-          {tab==='jadwal'&&sub.jadwal==='harian'&&<JadwalHarian backlog={backlog} jadwal={jadwal} onAddJadwal={addToJadwal} onRemoveJadwal={removeFromJadwal} onUpdateJadwal={updateJadwal} onUpdate={updI} onAddKeputusan={addK} filter={jadwalFilter} gcalOn={!!(gTok&&gCalId)} onPushItem={pushItem} onPushDay={pushDay}/>}
+          {tab==='jadwal'&&sub.jadwal==='harian'&&<JadwalHarian backlog={backlog} jadwal={jadwal} onAddJadwal={addToJadwal} onRemoveJadwal={removeFromJadwal} onUpdateJadwal={updateJadwal} onUpdate={updI} onAddKeputusan={addK} filter={jadwalFilter} gcalOn={!!(gTok&&gCalId)} onPushItem={pushItem} onPushDay={pushDay} onAddMomBatch={batchAddMom}/>}
           {tab==='jadwal'&&sub.jadwal==='mingguan'&&<JadwalMingguan backlog={backlog} jadwal={jadwal} filter={jadwalFilter} onUpdateJadwal={updateJadwal} onRemoveJadwal={removeFromJadwal} onUpdateBacklog={updI}/>}
           {tab==='jadwal'&&sub.jadwal==='bulanan'&&<JadwalBulanan jadwal={jadwal} filter={jadwalFilter}/>}
           {tab==='dump'&&<DumpPage onAdd={addI} onAddKeputusan={addK} onAddJadwal={addToJadwal} onBatchAddJadwal={batchAddToJadwal} onUpdateJadwal={updateJadwal} onResetICSBatch={resetJadwalBatch} onSaveKpiCorp={saveKpiCorp} onSaveKpiCeo={saveKpiCeo} onSaveBooking={saveBooking} onAddMom={addMom} jadwal={jadwal} backlog={backlog} onDone={()=>{setTab('backlog');setST('backlog','backlog');}}/>}
