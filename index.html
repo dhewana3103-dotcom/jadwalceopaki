@@ -558,7 +558,7 @@ function NeedFeedbackTab({backlog,onUpdate,onAddKeputusan,mom,onUpdateMom,onAddB
       var rSt=outcome==='reviewed_ok'?'reviewed_ok':tl==='meeting'?'meeting-scheduled':tl==='tasklist'?'perlu-tasklist':tl==='info-tambahan'?'info-tambahan':'perlu-tindak-lanjut';
       var entry2=(mom||[]).find(function(m){return m.id===item._momEntryId;});
       if(entry2){var ni=entry2.items.map(function(i){return i.id===item.id?{...i,ceoReviewStatus:rSt,ceoReviewFeedback:txt,ceoReviewTs:new Date().toISOString()}:i;});onUpdateMom(entry2.id,{items:ni});}
-      if(tl==='meeting'&&onAddBacklog){onAddBacklog([{id:'BL-'+genId(),sumber:'CEO Feedback',tanggal:todayStr(),konteks:item._momEntryName,isi:'Meeting: '+(item.action||'').slice(0,60),action:'PA Office arrange jadwal meeting CEO',ekspektasi:txt,pic:null,deadline:null,fungsiKPI:item.fungsiKPI||'operasional',kategori:'Meeting Strategic/Problem Solving/Approval',blokWaktu:'sore-review',prioritas:'tinggi',status:'baru',notes:txt,postponeHistory:[]}]);}
+      if(tl==='meeting'&&onAddBacklog){onAddBacklog([{id:'BL-'+genId(),sumber:'CEO Feedback',tanggal:todayStr(),konteks:item._momEntryName,isi:'Meeting: '+(item.action||'').slice(0,60),action:'PA Office arrange jadwal meeting CEO',ekspektasi:txt,pic:null,deadline:null,fungsiKPI:item.fungsiKPI||'operasional',kategori:'Meeting Strategic/Problem Solving/Approval',blokWaktu:'sore-review',prioritas:'tinggi',status:'baru',notes:txt,postponeHistory:[],hideFromBacklogList:true}]);}
       if(tl!=='info-tambahan'){onAddKeputusan({id:'KP-'+genId(),tanggal:todayStr(),backlogId:null,konteks:item._momEntryName,deskripsi:item.action||'',fungsiKPI:item.fungsiKPI||'operasional',dampak:'sedang',status:outcome==='reviewed_ok'?'sesuai':'proses',output:txt,updateTL:'',sumber:'MoM: '+item._momEntryName,evalStatus:outcome==='reviewed_ok'?'sesuai':'belum',ekspektasiY:brief.pertimbangan||'',needMoMPDCA:tl==='tasklist'});}
     }else{
       onUpdate(item.id,{feedbackStatus:'ceo_done',ceoFeedback:txt,feedbackTs:new Date().toISOString()});
@@ -900,12 +900,12 @@ function BacklogList({backlog,onUpdate,onDelete,onAddKeputusan,onAddMom}){
   const [actType,setActType]=useState(null);
   function openAct(item,type){if(actItem&&actItem.id===item&&item.id&&actType===type){setActItem(null);setActType(null);}else{setActItem(item);setActType(type);}}
 
-  const nc=backlog.filter(x=>x.status==='baru').length;
-  const np=backlog.filter(x=>x.status==='postponed').length;
+  const nc=backlog.filter(x=>x.status==='baru'&&!x.hideFromBacklogList).length;
+  const np=backlog.filter(x=>x.status==='postponed'&&!x.hideFromBacklogList).length;
   const totalPostpones=backlog.reduce(function(s,it){return s+((it.postponeHistory||[]).length);},0);
 
   const filtered=backlog.filter(function(it){
-    return(fk==='all'||it.fungsiKPI===fk)&&(fs==='all'||it.status===fs);
+    return!it.hideFromBacklogList&&(fk==='all'||it.fungsiKPI===fk)&&(fs==='all'||it.status===fs);
   });
 
   // Sort: by prioritas then by postponeCount desc
@@ -4771,7 +4771,7 @@ function App(){
   const resetJadwalBatch=(batchId)=>{const n={...jadwal};Object.keys(n).forEach(date=>{n[date]=(n[date]||[]).filter(it=>it._icsBatch!==batchId);});setJadwal(n);sv('jadwal',n);sbSave('jadwal',n);};
   const setST=(t,v)=>setSub(p=>({...p,[t]:v}));
 
-  const nc=backlog.filter(it=>it.status==='baru').length;
+  const nc=backlog.filter(it=>it.status==='baru'&&!it.hideFromBacklogList).length;
   const paQueueCount=backlog.filter(it=>(it.status==='baru'||it.status==='postponed')&&!it.needFeedback&&!it.pdcaFlag).length;
   const belumCount=keputusan.filter(k=>k.status==='disampaikan'||k.status==='proses').length;
   const nfCount=backlog.filter(function(it){return it.needFeedback&&!it.feedbackStatus;}).length+(function(){var c=0;(mom||[]).forEach(function(e){(e.items||[]).forEach(function(i){if(i.needCeoReview&&i.ceoReviewStatus==='queue')c++;});});return c;})();
