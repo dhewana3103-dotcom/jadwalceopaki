@@ -279,7 +279,7 @@ const BC=({id})=>{const b=BLOKS.find(x=>x.id===id);if(!b)return null;return<span
 const PriBadge=({p})=>{const c=p==='tinggi'?'bg-red-100 text-red-700':p==='sedang'?'bg-amber-100 text-amber-700':'bg-emerald-100 text-emerald-700';return<span className={`px-1.5 py-0.5 rounded font-bold text-[9px] ${c}`}>{p}</span>;};
 
 // ── BACKLOG CARD ──────────────────────────────────────────────
-function BacklogCard({item,onUpdate,onDelete,onAddKeputusan,isActOpen,actType,onOpenAct}){
+function BacklogCard({item,onUpdate,onDelete,onAddKeputusan,onAddMom,isActOpen,actType,onOpenAct}){
   const k=KPI5.find(x=>x.id===item.fungsiKPI);
   const [schedBlok,setSchedBlok]=useState(item.blokWaktu||'sore-review');
   const [schedDate,setSchedDate]=useState(todayStr());
@@ -287,6 +287,10 @@ function BacklogCard({item,onUpdate,onDelete,onAddKeputusan,isActOpen,actType,on
   const [schedDeadline,setSchedDeadline]=useState(item.deadline||'');
   const [outText,setOutText]=useState('');
   const [showPICDrop,setShowPICDrop]=useState(false);
+  const [delegPIC,setDelegPIC]=useState('');
+  const [delegShowPICDrop,setDelegShowPICDrop]=useState(false);
+  const [delegEkspektasi,setDelegEkspektasi]=useState('');
+  const [delegDeadline,setDelegDeadline]=useState('');
   // Postpone state
   const [postAlasan,setPostAlasan]=useState('');
   const [postTipe,setPostTipe]=useState('unclear');
@@ -327,6 +331,14 @@ function BacklogCard({item,onUpdate,onDelete,onAddKeputusan,isActOpen,actType,on
     onUpdate(item.id,{needFeedback:true,feedbackStatus:null,feedbackBrief:{tipe:flagTipe,konteks:flagKonteks,pertimbangan:flagPert,opsi:flagOpsi,link:flagLink,noTApproval:flagTA}});
     onOpenAct(null,null);setFlagKonteks('');setFlagPert('');setFlagOpsi('');setFlagLink('');setFlagTA('');
   }
+  function doDelegasi(){
+    if(!delegPIC.trim()||!onAddMom)return;
+    var momEntry={id:'MOM-'+genId(),tanggal:todayStr(),meetingName:'Delegasi: '+item.konteks,gcalDesc:'',sumber:'delegasi-langsung',items:[{id:'MI-'+genId(),konteks:item.konteks,action:item.isi,jenis:'Immediately',pic:delegPIC,deadline:delegDeadline||null,ekspektasi:delegEkspektasi,status:'pending',hasil:''}]};
+    onAddMom(momEntry);
+    onUpdate(item.id,{status:'didelegasikan',pic:delegPIC,deadline:delegDeadline||item.deadline});
+    onOpenAct(null,null);setDelegPIC('');setDelegEkspektasi('');setDelegDeadline('');
+  }
+  function togglePark(){onUpdate(item.id,{parked:!item.parked});}
 
   return(
     <div className="bg-white rounded-2xl border border-stone-200 shadow-soft overflow-hidden relative afi">
@@ -368,23 +380,30 @@ function BacklogCard({item,onUpdate,onDelete,onAddKeputusan,isActOpen,actType,on
         </div>
         {/* Status toggle */}
         <div className="flex items-center justify-between mb-3">
-          <button className={`px-2.5 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider border st as ${SC[item.status]||SC.baru}`} onClick={()=>onUpdate(item.id,{status:SN[item.status]||'baru'})}>{SL[item.status]||item.status}</button>
-          <span className="text-[9px] text-stone-400">tap untuk ganti status</span>
+          {item.status==='didelegasikan'
+            ?<span className="px-2.5 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider border bg-teal-50 text-teal-600 border-teal-200">Didelegasikan</span>
+            :<button className={`px-2.5 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider border st as ${SC[item.status]||SC.baru}`} onClick={()=>onUpdate(item.id,{status:SN[item.status]||'baru'})}>{SL[item.status]||item.status}</button>}
+          <span className="text-[9px] text-stone-400">{item.status==='didelegasikan'?'sudah jadi tugas tim':'tap untuk ganti status'}</span>
         </div>
         {/* Action buttons */}
+        {item.status!=='didelegasikan'?
         <div className="grid gap-1.5" style={{gridTemplateColumns:item.status==='dijadwalkan'||item.status==='postponed'?'1fr 1fr 1fr 36px':'1fr 1fr 36px'}}>
           <button className={`py-2 rounded-xl text-[10px] font-bold flex items-center justify-center gap-1 st as border ${isActOpen&&actType==='schedule'?'bg-blue-600 text-white border-blue-600 shadow-md':'bg-blue-50 text-blue-700 border-blue-100'}`} onClick={()=>onOpenAct(item,'schedule')}>📅 Jadwal</button>
           {(item.status==='dijadwalkan'||item.status==='postponed')&&<button className={`py-2 rounded-xl text-[10px] font-bold flex items-center justify-center gap-1 st as border ${isActOpen&&actType==='postpone'?'bg-orange-500 text-white border-orange-500 shadow-md':'bg-orange-50 text-orange-700 border-orange-100'}`} onClick={()=>onOpenAct(item,'postpone')}>⏩ Postpone</button>}
           <button className={`py-2 rounded-xl text-[10px] font-bold flex items-center justify-center gap-1 st as border ${isActOpen&&actType==='output'?'bg-emerald-600 text-white border-emerald-600 shadow-md':'bg-emerald-50 text-emerald-700 border-emerald-100'}`} onClick={()=>onOpenAct(item,'output')}>✍️ Output</button>
           <button className="py-2 rounded-xl text-[10px] font-bold flex items-center justify-center st as border bg-red-50 text-red-600 border-red-100" onClick={()=>{if(confirm('Hapus item ini?'))onDelete(item.id);}}>🗑</button>
         </div>
+        :<button className="w-full py-2 rounded-xl text-[10px] font-bold flex items-center justify-center st as border bg-red-50 text-red-600 border-red-100" onClick={()=>{if(confirm('Hapus item ini? (tugas di MoM tidak ikut terhapus)'))onDelete(item.id);}}>🗑 Hapus dari Backlog</button>}
         {/* Flag button */}
         {!item.needFeedback&&<button className={'mt-1.5 w-full py-1.5 rounded-xl text-[9px] font-bold border st as '+(isActOpen&&actType==='flag'?'bg-violet-600 text-white border-violet-600':'bg-violet-50 text-violet-700 border-violet-100')} onClick={function(){onOpenAct(item,'flag');}}>⚑ Perlu Feedback CEO</button>}
         {item.needFeedback&&!item.feedbackStatus&&<div className="mt-1.5 flex items-center gap-2"><span className="text-[9px] font-bold text-violet-600 bg-violet-50 border border-violet-200 px-2 py-1 rounded-xl">⚑ Menunggu Feedback CEO</span><button className="text-[9px] text-stone-400 as underline" onClick={function(){onUpdate(item.id,{needFeedback:false,feedbackStatus:null,feedbackBrief:null});}}>Batal</button></div>}
         {item.feedbackStatus==='ceo_done'&&<div className="mt-1.5 flex items-center gap-1.5"><span className="text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-1 rounded-xl">⏳ Feedback CEO done — menunggu PDCA</span></div>}
         {item.momDone&&<div className="mt-1.5"><span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-xl">✓ Sudah di-MoM</span></div>}
-        {!item.pdcaFlag&&!item.needFeedback&&<button className="mt-1 w-full py-1.5 rounded-xl text-[9px] font-bold border st as bg-stone-50 text-stone-500 border-stone-200" onClick={function(){onUpdate(item.id,{pdcaFlag:true});}}>📊 Flag ke Kamar PDCA</button>}
+        {!item.pdcaFlag&&!item.needFeedback&&item.status!=='didelegasikan'&&<button className="mt-1 w-full py-1.5 rounded-xl text-[9px] font-bold border st as bg-stone-50 text-stone-500 border-stone-200" onClick={function(){onUpdate(item.id,{pdcaFlag:true});}}>📊 Flag ke Kamar PDCA</button>}
         {item.pdcaFlag&&<div className="mt-1 flex items-center gap-2"><span className="text-[9px] font-bold text-stone-600 bg-stone-100 border border-stone-200 px-2 py-1 rounded-xl">📊 Di Kamar PDCA</span><button className="text-[9px] text-stone-400 as underline" onClick={function(){onUpdate(item.id,{pdcaFlag:false});}}>Batal</button></div>}
+        {!item.needFeedback&&!item.pdcaFlag&&item.status!=='didelegasikan'&&onAddMom&&<button className={'mt-1.5 w-full py-1.5 rounded-xl text-[9px] font-bold border st as '+(isActOpen&&actType==='delegasi'?'bg-teal-600 text-white border-teal-600':'bg-teal-50 text-teal-700 border-teal-100')} onClick={function(){onOpenAct(item,'delegasi');}}>📋 Delegasi Langsung</button>}
+        {item.status==='didelegasikan'&&<div className="mt-1.5 flex items-center gap-2"><span className="text-[9px] font-bold text-teal-700 bg-teal-50 border border-teal-200 px-2 py-1 rounded-xl">📋 Didelegasikan ke {item.pic}</span></div>}
+        {item.status!=='didelegasikan'&&!item.needFeedback&&<button className={'mt-1.5 w-full py-1.5 rounded-xl text-[9px] font-bold border st as '+(item.parked?'bg-amber-100 text-amber-700 border-amber-200':'bg-stone-50 text-stone-400 border-stone-200')} onClick={togglePark}>{item.parked?'📌 Disimpan — tap untuk lepas':'📌 Simpan Dulu'}</button>}
       </div>
 
       {/* Schedule panel */}
@@ -481,6 +500,33 @@ function BacklogCard({item,onUpdate,onDelete,onAddKeputusan,isActOpen,actType,on
           <button className={'w-full py-2.5 rounded-xl text-[12px] font-bold shadow-md as st '+(!flagTipe||!flagKonteks.trim()?'bg-stone-200 text-stone-400 cursor-not-allowed':'bg-violet-600 text-white')} onClick={doFlag} disabled={!flagTipe||!flagKonteks.trim()}>⚑ Masukkan ke Need Feedback Queue</button>
         </div>
       )}
+
+      {/* Delegasi panel */}
+      {isActOpen&&actType==='delegasi'&&(
+        <div className="border-t border-teal-100 bg-teal-50 p-4 afi">
+          <div className="text-[10px] font-bold text-teal-800 uppercase tracking-wider mb-1">📋 Delegasi Langsung ke Tim</div>
+          <div className="text-[9px] text-teal-600 mb-3">Item ini langsung jadi tugas tim — tidak masuk Jadwal CEO sama sekali. PDCA yang track progress dari MoM.</div>
+          <div className="text-[9px] font-bold text-stone-500 uppercase mb-1.5">PIC *</div>
+          <div className="relative mb-3">
+            <input className="w-full px-3 py-2 rounded-xl border border-teal-200 bg-white text-[12px] focus:outline-none focus:ring-2 focus:ring-teal-400 st" placeholder="Siapa yang mengerjakan?" value={delegPIC} onChange={function(e){setDelegPIC(e.target.value);setDelegShowPICDrop(true);}} onFocus={function(){setDelegShowPICDrop(true);}}/>
+            {delegShowPICDrop&&delegPIC.length<15&&(
+              <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-xl border border-stone-200 shadow-float z-10 overflow-hidden">
+                {PIC_OPTIONS.filter(function(p){return p.toLowerCase().includes(delegPIC.toLowerCase());}).map(function(p){return(
+                  <button key={p} className="w-full text-left px-3 py-2 text-[11px] font-medium text-stone-700 hover:bg-stone-50 border-b border-stone-100 last:border-0" onClick={function(){setDelegPIC(p);setDelegShowPICDrop(false);}}>{p}</button>
+                );})}
+              </div>
+            )}
+          </div>
+          <div className="text-[9px] font-bold text-stone-500 uppercase mb-1">Ekspektasi <span className="normal-case font-normal text-stone-400">(opsional)</span></div>
+          <textarea className="w-full p-2.5 rounded-xl border border-teal-200 bg-white text-[12px] focus:outline-none focus:ring-2 focus:ring-teal-400 mb-3 resize-none" rows={2} placeholder="Apa yang diharapkan dari tugas ini?" value={delegEkspektasi} onChange={function(e){setDelegEkspektasi(e.target.value);}}/>
+          <div className="text-[9px] font-bold text-stone-500 uppercase mb-1.5">Deadline <span className="font-normal normal-case text-stone-400">(opsional)</span></div>
+          <div className="flex gap-1.5 overflow-x-auto pb-2 scrollbar-hide mb-4">
+            <button className={'flex-shrink-0 px-3 py-1.5 rounded-lg text-[10px] font-bold border st as '+(!delegDeadline?'bg-teal-600 text-white border-teal-600':'bg-white text-teal-700 border-teal-200')} onClick={function(){setDelegDeadline('');}}>Tidak ada</button>
+            {getNextDays().slice(1).map(function(d){return<button key={d.date} className={'flex-shrink-0 px-3 py-1.5 rounded-lg text-[10px] font-bold border st as '+(delegDeadline===d.date?'bg-teal-600 text-white border-teal-600 shadow-md':'bg-white text-teal-700 border-teal-200')} onClick={function(){setDelegDeadline(d.date);}}>{d.lbl}</button>;})}
+          </div>
+          <button className={'w-full py-2.5 rounded-xl text-[12px] font-bold shadow-md as st '+(!delegPIC.trim()?'bg-stone-200 text-stone-400 cursor-not-allowed':'bg-teal-600 text-white')} onClick={doDelegasi} disabled={!delegPIC.trim()}>📋 Delegasikan ke Tim</button>
+        </div>
+      )}
     </div>
   );
 }
@@ -557,7 +603,7 @@ function NeedFeedbackTab({backlog,onUpdate,onAddKeputusan,mom,onUpdateMom,onAddB
                 </div>
                 <div className="text-[13px] font-bold text-stone-900 leading-snug mb-1">{isMom?item.action:item.isi}</div>
                 {isMom&&item.hasil&&<div className="mt-2 p-2.5 bg-emerald-50 border border-emerald-100 rounded-xl"><div className="text-[9px] font-bold text-emerald-600 uppercase mb-0.5">Hasil PIC</div><div className="text-[11px] text-emerald-800 leading-snug">{item.hasil}</div></div>}
-                {item.pdcaNotes&&<div className="mt-2 p-2.5 bg-stone-50 border border-stone-200 rounded-xl"><div className="text-[9px] font-bold text-stone-400 uppercase mb-0.5">📊 Catatan PDCA</div><div className="text-[11px] text-stone-700 leading-snug">{item.pdcaNotes}</div></div>}
+                {item.pdcaNotes&&<div className="mt-2 p-2.5 bg-stone-50 border border-stone-200 rounded-xl"><div className="text-[9px] font-bold text-stone-400 uppercase mb-0.5">📊 Catatan PDCA</div><div className="text-[11px] text-stone-700 leading-snug">{linkify(item.pdcaNotes)}</div></div>}
                 <Brief brief={brief}/>
                 {isExp&&<div className="mt-3 pt-3 border-t border-violet-100">
                   <div className="text-[9px] font-extrabold text-stone-400 uppercase mb-1.5">Feedback CEO</div>
@@ -729,10 +775,40 @@ function KamarPATab({backlog,onUpdateBacklog,onAddJadwal}){
 
   function updateForm(id,field,val){setForms(function(p){var n={...p};n[id]={...(p[id]||{}),[field]:val};return n;});}
 
+  function buildContextDesc(item){
+    var lines=[];
+    if(item.konteks)lines.push('KONTEKS: '+item.konteks);
+    if(item.ekspektasi)lines.push('EKSPEKTASI: '+item.ekspektasi);
+    if(item.feedbackBrief){
+      var b=item.feedbackBrief;
+      if(b.pertimbangan)lines.push('PERTIMBANGAN PA: '+b.pertimbangan);
+      if(b.opsi)lines.push('OPSI: '+b.opsi);
+      if(b.link)lines.push('LINK: '+b.link);
+      if(b.noTApproval)lines.push('NO. T-APPROVAL: '+b.noTApproval);
+    }
+    if(item.ceoFeedback){
+      var ts=item.feedbackTs?' ('+new Date(item.feedbackTs).toLocaleDateString('id-ID')+')':'';
+      lines.push('');
+      lines.push('FEEDBACK CEO'+ts+':');
+      lines.push(item.ceoFeedback);
+    }
+    if(item.pdcaNotes){
+      lines.push('');
+      lines.push('CATATAN PDCA:');
+      lines.push(item.pdcaNotes);
+    }
+    if(item.flowHistory&&item.flowHistory.length>0){
+      lines.push('');
+      lines.push('RIWAYAT PING-PONG CEO ⇄ PDCA:');
+      item.flowHistory.forEach(function(h){lines.push('['+h.tanggal+'] '+h.role+': '+h.teks);});
+    }
+    return lines.join('\n');
+  }
+
   function doSchedule(item){
     var f=forms[item.id]||{};
     if(!f.tanggal||!f.jamMulai||!f.jamSelesai){alert('Lengkapi tanggal, jam mulai, dan jam selesai dulu!');return;}
-    var jadwalItem={id:'SJ-'+genId(),tanggal:f.tanggal,jamMulai:f.jamMulai,jamSelesai:f.jamSelesai,masalahBacklogId:item.id,masalahText:item.isi,kategori:'RSP',jenisKegiatan:normalizeJenis(item.kategori),detailKegiatan:'['+item.konteks+'] '+item.isi,relateMilestone:item.fungsiKPI||'operasional',outputKeputusan:''};
+    var jadwalItem={id:'SJ-'+genId(),tanggal:f.tanggal,jamMulai:f.jamMulai,jamSelesai:f.jamSelesai,masalahBacklogId:item.id,masalahText:item.isi,kategori:'RSP',jenisKegiatan:normalizeJenis(item.kategori),detailKegiatan:'['+item.konteks+'] '+item.isi,relateMilestone:item.fungsiKPI||'operasional',outputKeputusan:'',gcalDesc:buildContextDesc(item)};
     onAddJadwal(f.tanggal,jadwalItem);
     onUpdateBacklog(item.id,{status:'dijadwalkan',tanggal:f.tanggal,blokWaktu:getBlokFromTime(f.jamMulai)});
     setForms(function(p){var n={...p};delete n[item.id];return n;});
@@ -817,7 +893,7 @@ function RiwayatSampahTab({sampah,onRestore,onHardDel}){
   );
 }
 
-function BacklogList({backlog,onUpdate,onDelete,onAddKeputusan}){
+function BacklogList({backlog,onUpdate,onDelete,onAddKeputusan,onAddMom}){
   const [fk,setFk]=useState('all');
   const [fs,setFs]=useState('all');
   const [actItem,setActItem]=useState(null);
@@ -874,6 +950,7 @@ function BacklogList({backlog,onUpdate,onDelete,onAddKeputusan}){
           {id:'baru',lbl:nc>0?`Baru (${nc})`:'Baru'},
           {id:'dijadwalkan',lbl:'Dijadwalkan'},
           {id:'postponed',lbl:np>0?`Postponed (${np})`:'Postponed'},
+          {id:'didelegasikan',lbl:'Didelegasikan'},
           {id:'selesai',lbl:'Selesai'},
         ].map(s=><button key={s.id} className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-[10px] font-semibold st as ${fs===s.id?'bg-stone-200 text-stone-800':'bg-transparent text-stone-500'}`} onClick={()=>setFs(s.id)}>{s.lbl}</button>)}
       </div>
@@ -915,7 +992,7 @@ function BacklogList({backlog,onUpdate,onDelete,onAddKeputusan}){
             </div>}
             <div className="space-y-3 md:grid md:grid-cols-2 md:gap-4 md:space-y-0 md:items-start">
               {g.items.map(function(item){return(
-                <BacklogCard key={item.id} item={item} onUpdate={onUpdate} onDelete={onDelete} onAddKeputusan={onAddKeputusan} isActOpen={actItem&&actItem.id===item.id} actType={actType} onOpenAct={openAct}/>
+                <BacklogCard key={item.id} item={item} onUpdate={onUpdate} onDelete={onDelete} onAddKeputusan={onAddKeputusan} onAddMom={onAddMom} isActOpen={actItem&&actItem.id===item.id} actType={actType} onOpenAct={openAct}/>
               );})}
             </div>
           </div>
@@ -968,12 +1045,12 @@ function Keputusan({keputusan,onUpdate,onDelete,onAddKeputusan}){
   }
 
   // Single keputusan card — shared between both views
-  function KptCard({kpt}){
+  function renderKptCard(kpt){
     const k=KPI5.find(x=>x.id===kpt.fungsiKPI);
     const isExp=expKpt===kpt.id;
     const statusBelum=kpt.status==='disampaikan'||kpt.status==='proses';
     return(
-      <div className="bg-white rounded-xl border border-stone-200 overflow-hidden relative mb-2 afi">
+      <div key={kpt.id} className="bg-white rounded-xl border border-stone-200 overflow-hidden relative mb-2 afi">
         <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${k?k.bg:'bg-stone-200'}`}/>
         <div className="p-3.5 pl-5">
           {/* Konteks */}
@@ -1069,7 +1146,7 @@ function Keputusan({keputusan,onUpdate,onDelete,onAddKeputusan}){
                       <span className={`text-[10px] text-stone-300 st ${isOpen?'rotate-180':''}`}>▼</span>
                     </div>
                   </div>
-                  {isOpen&&<div className="p-3 bg-stone-50/50">{items.map(kpt=><KptCard key={kpt.id} kpt={kpt}/>)}</div>}
+                  {isOpen&&<div className="p-3 bg-stone-50/50">{items.map(function(kpt){return renderKptCard(kpt);})}</div>}
                 </div>
               );
             })}
@@ -1089,7 +1166,7 @@ function Keputusan({keputusan,onUpdate,onDelete,onAddKeputusan}){
           </div>
           <div className="px-4 pt-2 md:px-6">
             {shown.length===0?<div className="py-12 text-center"><div className="text-4xl mb-3 opacity-40">📝</div><div className="text-[13px] font-bold text-stone-400">Tidak ada keputusan</div></div>
-            :<div className="md:grid md:grid-cols-2 md:gap-3 md:items-start">{shown.map(function(kpt){return<KptCard key={kpt.id} kpt={kpt}/>;})}</div>}
+            :<div className="md:grid md:grid-cols-2 md:gap-3 md:items-start">{shown.map(function(kpt){return renderKptCard(kpt);})}</div>}
           </div>
         </div>
       )}
@@ -1800,6 +1877,16 @@ function stripHtml(html){
   }catch(e){
     return html.replace(/<[^>]+>/g,' ').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&').replace(/&nbsp;/g,' ').replace(/\s{2,}/g,' ').trim();
   }
+}
+function linkify(text){
+  if(!text)return text;
+  var parts=text.split(/(https?:\/\/[^\s]+)/g);
+  return parts.map(function(part,i){
+    if(/^https?:\/\//.test(part)){
+      return <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline break-all" onClick={function(e){e.stopPropagation();}}>{part}</a>;
+    }
+    return part;
+  });
 }
 function parseGCalDesc(raw){
   try{
@@ -2576,6 +2663,7 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
   });
 
   const [addingBlok,setAddingBlok]=useState(null);
+  const [nf,setNf]=useState(null);
   const [showExport,setShowExport]=useState(false);
   const [showConvert,setShowConvert]=useState(false);
   const [expandId,setExpandId]=useState(null);
@@ -2602,7 +2690,7 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
   function openRow(item){
     if(expandId===item.id){setExpandId(null);return;}
     setExpandId(item.id);
-    setEf({jamMulai:item.jamMulai||'',jamSelesai:item.jamSelesai||'',kategori:item.kategori||'RSP',jenisKegiatan:item.jenisKegiatan||'Deepwork Strategic',detailKegiatan:item.detailKegiatan||'',gcalDesc:item.gcalDesc||'',relateMilestone:item.relateMilestone||'operasional'});
+    setEf({jamMulai:item.jamMulai||'',jamSelesai:item.jamSelesai||'',kategori:item.kategori||'RSP',jenisKegiatan:item.jenisKegiatan||'Deepwork Strategic',detailKegiatan:item.detailKegiatan||'',gcalDesc:item.gcalDesc||'',relateMilestone:item.relateMilestone||'operasional',checklistNotes:item.checklistNotes||{}});
   }
 
   function renderItemRow(item,fromBL){
@@ -2634,7 +2722,7 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
         </td>
         <td className="px-3 py-2.5" style={{maxWidth:260}}>
           <div className="text-[12px] font-semibold text-stone-800 leading-snug" style={{display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden'}}>{fromBL?item.isi:item.detailKegiatan}</div>
-          {!fromBL&&item.gcalDesc&&item.gcalDesc.trim()&&<div className="text-[9px] text-stone-400 mt-0.5" style={{display:'-webkit-box',WebkitLineClamp:1,WebkitBoxOrient:'vertical',overflow:'hidden'}}>{item.gcalDesc}</div>}
+          {!fromBL&&item.gcalDesc&&item.gcalDesc.trim()&&<div className="text-[9px] text-stone-400 mt-0.5" style={{display:'-webkit-box',WebkitLineClamp:1,WebkitBoxOrient:'vertical',overflow:'hidden'}}>{linkify(item.gcalDesc)}</div>}
         </td>
         <td className="px-2 py-2.5 whitespace-nowrap">
           {kpi?<KC id={kpi.id} sm/>:<span className="text-[9px] text-stone-300">–</span>}
@@ -2671,7 +2759,7 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
     function toggleCheck(cid){if(!fromBL)onUpdateJadwal(today,item.id,{checklistDone:{...clDone,[cid]:!clDone[cid]}});}
     function setSubType(st){onUpdateJadwal(today,item.id,{meetingSubType:st,checklistDone:{}});}
     function saveEdit(){
-      onUpdateJadwal(today,item.id,{jamMulai:ef.jamMulai,jamSelesai:ef.jamSelesai,kategori:ef.kategori,jenisKegiatan:ef.jenisKegiatan,detailKegiatan:ef.detailKegiatan,gcalDesc:ef.gcalDesc,relateMilestone:ef.relateMilestone});
+      onUpdateJadwal(today,item.id,{jamMulai:ef.jamMulai,jamSelesai:ef.jamSelesai,kategori:ef.kategori,jenisKegiatan:ef.jenisKegiatan,detailKegiatan:ef.detailKegiatan,gcalDesc:ef.gcalDesc,relateMilestone:ef.relateMilestone,checklistNotes:ef.checklistNotes});
     }
     return(
       <tr key={item.id+'_exp'} className="border-b border-violet-100 bg-violet-50/10">
@@ -2696,18 +2784,27 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
                   <span className="text-[9px] font-extrabold text-stone-500 uppercase tracking-wider">Checklist</span>
                   <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-full ${clAllDone?'bg-emerald-500 text-white':clWajibDone<clWajibTotal?'bg-red-100 text-red-700':'bg-amber-400 text-white'}`}>{clChecked}/{clTotal}</span>
                 </div>
-                {clItems.map(function(c,ci){return(
-                  <div key={c.id} className={`flex items-start gap-2 px-2.5 py-2 ${ci<clItems.length-1?'border-b border-stone-100':''} ${clDone[c.id]?'bg-emerald-50/50':'bg-white'} cursor-pointer hover:bg-stone-50`} onClick={function(){toggleCheck(c.id);}}>
-                    <div className={`w-3.5 h-3.5 rounded border-2 flex-shrink-0 mt-0.5 flex items-center justify-center ${clDone[c.id]?'bg-emerald-500 border-emerald-500':'border-stone-300 bg-white'}`}>{clDone[c.id]&&<span className="text-white text-[8px] font-black">✓</span>}</div>
-                    <div className="flex-1 min-w-0">
-                      <div className={`text-[10px] leading-snug ${clDone[c.id]?'line-through text-stone-400':'text-stone-700'}`}>{c.item}</div>
-                      <div className="flex gap-1 mt-0.5">
-                        <span className="text-[8px] text-stone-400 bg-stone-100 px-1 rounded">{c.pic}</span>
-                        {c.wajib&&<span className="text-[8px] text-red-600 font-bold">Wajib</span>}
+                {clItems.map(function(c,ci){
+                  var noteVal=(ef.checklistNotes&&ef.checklistNotes[c.id])||'';
+                  var firstUrl=(noteVal.match(/https?:\/\/[^\s]+/)||[])[0];
+                  return(
+                  <div key={c.id} className={`px-2.5 py-2 ${ci<clItems.length-1?'border-b border-stone-100':''} ${clDone[c.id]?'bg-emerald-50/50':'bg-white'}`}>
+                    <div className="flex items-start gap-2 cursor-pointer hover:bg-stone-50 rounded" onClick={function(){toggleCheck(c.id);}}>
+                      <div className={`w-3.5 h-3.5 rounded border-2 flex-shrink-0 mt-0.5 flex items-center justify-center ${clDone[c.id]?'bg-emerald-500 border-emerald-500':'border-stone-300 bg-white'}`}>{clDone[c.id]&&<span className="text-white text-[8px] font-black">✓</span>}</div>
+                      <div className="flex-1 min-w-0">
+                        <div className={`text-[10px] leading-snug ${clDone[c.id]?'line-through text-stone-400':'text-stone-700'}`}>{c.item}</div>
+                        <div className="flex gap-1 mt-0.5">
+                          <span className="text-[8px] text-stone-400 bg-stone-100 px-1 rounded">{c.pic}</span>
+                          {c.wajib&&<span className="text-[8px] text-red-600 font-bold">Wajib</span>}
+                        </div>
                       </div>
                     </div>
+                    <div className="flex items-center gap-1 mt-1.5" style={{paddingLeft:'22px'}} onClick={function(e){e.stopPropagation();}}>
+                      <input type="text" className="flex-1 px-2 py-1 rounded-lg border border-stone-200 bg-stone-50 text-[10px] focus:outline-none focus:ring-1 focus:ring-violet-400 focus:bg-white" placeholder="Isian PA: link / catatan..." value={noteVal} onChange={function(e){var v=e.target.value;setEf(function(p){return{...p,checklistNotes:{...(p.checklistNotes||{}),[c.id]:v}};});}}/>
+                      {firstUrl&&<a href={firstUrl} target="_blank" rel="noopener noreferrer" className="flex-shrink-0 text-[12px]" title="Buka link">🔗</a>}
+                    </div>
                   </div>
-                );})}
+                  );})}
               </div>
             </div>}
             <div className="flex-1 min-w-0 space-y-3">
@@ -2766,13 +2863,11 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
     );
   }
 
-  function AddForm({blokId}){
-    const blok=BLOKS.find(function(b){return b.id===blokId;});
-    const defJam=blok?blok.time.split('--').map(function(t){return t.trim().padStart(2,'0')+':00';}):['08:00','10:00'];
-    const [lf,setLf]=useState({...EMPTY_F,jamMulai:defJam[0]||'08:00',jamSelesai:defJam[1]||'09:00'});
-    function upd(k,v){setLf(function(p){return {...p,[k]:v};});}
+  function renderAddForm(blokId){
+    var lf=nf||EMPTY_F;
+    function upd(k,v){setNf(function(p){return {...(p||EMPTY_F),[k]:v};});}
     return(
-      <div className={`border-t ${blok&&blok.border?blok.border:'border-stone-200'} bg-stone-50/50 p-3 afi`}>
+      <div className={`border-t ${BLOKS.find(function(b){return b.id===blokId;})&&BLOKS.find(function(b){return b.id===blokId;}).border?BLOKS.find(function(b){return b.id===blokId;}).border:'border-stone-200'} bg-stone-50/50 p-3 afi`}>
         <div className="flex gap-2 mb-3">
           <div className="flex-1"><div className="text-[9px] font-bold text-stone-500 uppercase mb-1">Jam Mulai</div><input type="time" className="w-full px-2 py-1.5 rounded-lg border border-stone-200 bg-white text-[12px] font-mono focus:outline-none focus:ring-1 focus:ring-stone-400" value={lf.jamMulai} onChange={function(e){upd('jamMulai',e.target.value);}}/></div>
           <div className="flex-1"><div className="text-[9px] font-bold text-stone-500 uppercase mb-1">Jam Selesai</div><input type="time" className="w-full px-2 py-1.5 rounded-lg border border-stone-200 bg-white text-[12px] font-mono focus:outline-none focus:ring-1 focus:ring-stone-400" value={lf.jamSelesai} onChange={function(e){upd('jamSelesai',e.target.value);}}/></div>
@@ -2782,8 +2877,8 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
         <div className="mb-3"><div className="text-[9px] font-bold text-stone-500 uppercase mb-1.5">Detail Kegiatan *</div><textarea className="w-full px-2.5 py-2 rounded-xl border border-stone-200 bg-white text-[12px] focus:outline-none focus:ring-1 focus:ring-stone-400 resize-none" rows={2} placeholder="Apa yang akan dilakukan?" value={lf.detailKegiatan} onChange={function(e){upd('detailKegiatan',e.target.value);}}/></div>
         <div className="mb-4"><div className="text-[9px] font-bold text-stone-500 uppercase mb-1.5">Relate KPI</div><div className="flex gap-1.5 flex-wrap">{KPI5.map(function(k){return<button key={k.id} className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold border st as ${lf.relateMilestone===k.id?`${k.bg} ${k.color} ${k.border} shadow-sm`:'bg-white text-stone-500 border-stone-200'}`} onClick={function(){upd('relateMilestone',k.id);}}>{k.short}</button>;})}</div></div>
         <div className="flex gap-2">
-          <button className="flex-1 py-2 rounded-xl border border-stone-200 bg-white text-[11px] font-bold text-stone-500 as st" onClick={function(){setAddingBlok(null);}}>Batal</button>
-          <button className={`flex-2 py-2 px-4 rounded-xl text-[11px] font-bold as st ${!lf.detailKegiatan.trim()?'bg-stone-200 text-stone-400 cursor-not-allowed':'bg-stone-800 text-white'}`} onClick={function(){if(!lf.detailKegiatan.trim())return;onAddJadwal(today,{id:'SJ-'+genId(),tanggal:today,...lf,outputKeputusan:''});setAddingBlok(null);}} disabled={!lf.detailKegiatan.trim()}>+ Tambahkan</button>
+          <button className="flex-1 py-2 rounded-xl border border-stone-200 bg-white text-[11px] font-bold text-stone-500 as st" onClick={function(){setAddingBlok(null);setNf(null);}}>Batal</button>
+          <button className={`flex-2 py-2 px-4 rounded-xl text-[11px] font-bold as st ${!lf.detailKegiatan.trim()?'bg-stone-200 text-stone-400 cursor-not-allowed':'bg-stone-800 text-white'}`} onClick={function(){if(!lf.detailKegiatan.trim())return;onAddJadwal(today,{id:'SJ-'+genId(),tanggal:today,...lf,outputKeputusan:''});setAddingBlok(null);setNf(null);}} disabled={!lf.detailKegiatan.trim()}>+ Tambahkan</button>
         </div>
       </div>
     );
@@ -2883,11 +2978,18 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
                           {hasNow&&<span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"/>}
                           {totalCount>0&&<span className={`text-[10px] font-bold ${blok.color} opacity-60`}>{totalCount}</span>}
                         </div>
-                        <button className={`w-7 h-7 rounded-lg bg-white/70 flex items-center justify-center text-[14px] font-bold ${blok.color} as st border ${blok.border}`} onClick={function(){setAddingBlok(isAdding?null:blok.id);}}>{isAdding?'✕':'+'}</button>
+                        <button className={`w-7 h-7 rounded-lg bg-white/70 flex items-center justify-center text-[14px] font-bold ${blok.color} as st border ${blok.border}`} onClick={function(){
+                          if(isAdding){setAddingBlok(null);setNf(null);}
+                          else{
+                            var defJam=blok.time.split('--').map(function(t){return t.trim().padStart(2,'0')+':00';});
+                            setAddingBlok(blok.id);
+                            setNf({...EMPTY_F,jamMulai:defJam[0]||'08:00',jamSelesai:defJam[1]||'09:00'});
+                          }
+                        }}>{isAdding?'✕':'+'}</button>
                       </div>
                     </td>
                   </tr>,
-                  isAdding&&<tr key={blok.id+'-add'}><td colSpan={7} className="p-0"><AddForm blokId={blok.id}/></td></tr>,
+                  isAdding&&<tr key={blok.id+'-add'}><td colSpan={7} className="p-0">{renderAddForm(blok.id)}</td></tr>,
                   items.map(function(it){return renderItemRow(it,false);}),
                   blItems.map(function(it){return renderItemRow(it,true);}),
                   totalCount===0&&!isAdding&&<tr key={blok.id+'-empty'}><td colSpan={7} className="px-3 py-2.5 text-center text-[10px] text-stone-300 italic">Kosong · tap + untuk menambah</td></tr>
@@ -3033,7 +3135,7 @@ function JadwalMingguan({backlog,jadwal,filter,onUpdateJadwal,onRemoveJadwal,onU
   const [expandId,setExpandId]=useState(null);
   const [editOut,setEditOut]=useState({});
   const [editGcal,setEditGcal]=useState({});
-  const [editChecks,setEditChecks]=useState({});
+  const [editChecklistNotes,setEditChecklistNotes]=useState({});
   const getMon=function(offset){var mon=new Date();var diff=mon.getDay()===0?6:mon.getDay()-1;mon.setDate(mon.getDate()-diff+offset*7);return mon;};
   const mon=getMon(weekOffset);
   const days=Array.from({length:7},function(_,i){var d=new Date(mon);d.setDate(mon.getDate()+i);return{date:d.toISOString().slice(0,10),lbl:d.toLocaleDateString('id-ID',{weekday:'short',day:'numeric',month:'short'}),isToday:d.toISOString().slice(0,10)===todayStr(),dow:d.getDay()};});
@@ -3063,11 +3165,12 @@ function JadwalMingguan({backlog,jadwal,filter,onUpdateJadwal,onRemoveJadwal,onU
     setExpandId(id);
     setEditOut(function(p){var n={...p};if(n[id]===undefined)n[id]=it.outputKeputusan||'';return n;});
     setEditGcal(function(p){var n={...p};if(n[id]===undefined)n[id]=it.gcalDesc||'';return n;});
+    setEditChecklistNotes(function(p){var n={...p};if(n[id]===undefined)n[id]=it.checklistNotes||{};return n;});
   }
 
   function saveRow(it){
     if(!onUpdateJadwal)return;
-    onUpdateJadwal(it._date,it.id,{outputKeputusan:editOut[it.id]||'',gcalDesc:editGcal[it.id]||''});
+    onUpdateJadwal(it._date,it.id,{outputKeputusan:editOut[it.id]||'',gcalDesc:editGcal[it.id]||'',checklistNotes:editChecklistNotes[it.id]||{}});
     setExpandId(null);
   }
 
@@ -3081,8 +3184,10 @@ function JadwalMingguan({backlog,jadwal,filter,onUpdateJadwal,onRemoveJadwal,onU
     setExpandId(null);
   }
 
-  function toggleCheck(id,idx){
-    setEditChecks(function(p){var n={...p};if(!n[id])n[id]={};n[id]={...n[id],[idx]:!n[id][idx]};return n;});
+  function toggleCheck(it,cid){
+    if(!onUpdateJadwal)return;
+    var done=it.checklistDone||{};
+    onUpdateJadwal(it._date,it.id,{checklistDone:{...done,[cid]:!done[cid]}});
   }
 
   return(
@@ -3149,7 +3254,8 @@ function JadwalMingguan({backlog,jadwal,filter,onUpdateJadwal,onRemoveJadwal,onU
                 var dayCount=allRows.filter(function(r){return r._date===it._date;}).length;
                 var isExp=expandId===it.id;
                 var checklist=PRE_CHECKLIST[it.jenisKegiatan]||[];
-                var checks=editChecks[it.id]||{};
+                var clDone=it.checklistDone||{};
+                var clNotes=editChecklistNotes[it.id]||{};
                 return([
                   <tr key={it.id||i} className={`border-b ${isExp?'border-stone-200 bg-violet-50/30':it._isToday?'bg-blue-50/30':i%2===0?'bg-white':'bg-stone-50/40'} hover:bg-stone-50 st cursor-pointer`}
                     onClick={function(){openExpand(it);}}>
@@ -3171,7 +3277,7 @@ function JadwalMingguan({backlog,jadwal,filter,onUpdateJadwal,onRemoveJadwal,onU
                     </td>
                     <td className="px-3 py-2.5 max-w-[220px]">
                       <div className="text-[11px] font-semibold text-stone-800 leading-snug">{it.detailKegiatan||'–'}</div>
-                      {it.gcalDesc&&it.gcalDesc.trim()&&<div className="text-[9px] text-stone-400 mt-0.5 leading-snug" style={{display:'-webkit-box',WebkitLineClamp:1,WebkitBoxOrient:'vertical',overflow:'hidden'}}>{it.gcalDesc}</div>}
+                      {it.gcalDesc&&it.gcalDesc.trim()&&<div className="text-[9px] text-stone-400 mt-0.5 leading-snug" style={{display:'-webkit-box',WebkitLineClamp:1,WebkitBoxOrient:'vertical',overflow:'hidden'}}>{linkify(it.gcalDesc)}</div>}
                     </td>
                     <td className="px-3 py-2.5">
                       {kpi?<KC id={kpi.id} sm/>:<span className="text-[9px] text-stone-300">–</span>}
@@ -3190,15 +3296,31 @@ function JadwalMingguan({backlog,jadwal,filter,onUpdateJadwal,onRemoveJadwal,onU
                     <td colSpan={8} className="px-4 py-3">
                       <div className="flex gap-4 flex-wrap md:flex-nowrap">
                         {/* Checklist */}
-                        {checklist.length>0&&<div className="flex-shrink-0 w-full md:w-56">
+                        {checklist.length>0&&<div className="flex-shrink-0 w-full md:w-64">
                           <div className="text-[9px] font-bold text-stone-500 uppercase mb-2">Pre-Meeting Checklist</div>
-                          <div className="space-y-1.5">
-                            {checklist.map(function(c,ci){return(
-                              <label key={ci} className="flex items-start gap-2 cursor-pointer" onClick={function(e){e.stopPropagation();}}>
-                                <input type="checkbox" checked={!!checks[ci]} onChange={function(){toggleCheck(it.id,ci);}} className="mt-0.5 w-3.5 h-3.5 accent-violet-600 flex-shrink-0"/>
-                                <span className={`text-[10px] leading-snug ${checks[ci]?'text-stone-400 line-through':'text-stone-700'}`}>{c}</span>
-                              </label>
-                            );})}
+                          <div className="space-y-2">
+                            {checklist.map(function(c){
+                              var isDone=!!clDone[c.id];
+                              var noteVal=clNotes[c.id]||'';
+                              var firstUrl=(noteVal.match(/https?:\/\/[^\s]+/)||[])[0];
+                              return(
+                              <div key={c.id}>
+                                <label className="flex items-start gap-2 cursor-pointer" onClick={function(e){e.stopPropagation();}}>
+                                  <input type="checkbox" checked={isDone} onChange={function(){toggleCheck(it,c.id);}} className="mt-0.5 w-3.5 h-3.5 accent-violet-600 flex-shrink-0"/>
+                                  <div className="flex-1 min-w-0">
+                                    <span className={`text-[10px] leading-snug ${isDone?'text-stone-400 line-through':'text-stone-700'}`}>{c.item}</span>
+                                    <div className="flex gap-1 mt-0.5">
+                                      <span className="text-[8px] text-stone-400 bg-stone-100 px-1 rounded">{c.pic}</span>
+                                      {c.wajib&&<span className="text-[8px] text-red-600 font-bold">Wajib</span>}
+                                    </div>
+                                  </div>
+                                </label>
+                                <div className="flex items-center gap-1 mt-1" style={{paddingLeft:'22px'}} onClick={function(e){e.stopPropagation();}}>
+                                  <input type="text" className="flex-1 px-2 py-1 rounded-lg border border-stone-200 bg-stone-50 text-[10px] focus:outline-none focus:ring-1 focus:ring-violet-400 focus:bg-white" placeholder="Isian PA: link / catatan..." value={noteVal} onChange={function(e){var v=e.target.value;setEditChecklistNotes(function(p){var n={...p};n[it.id]={...(n[it.id]||{}),[c.id]:v};return n;});}}/>
+                                  {firstUrl&&<a href={firstUrl} target="_blank" rel="noopener noreferrer" className="flex-shrink-0 text-[12px]" title="Buka link">🔗</a>}
+                                </div>
+                              </div>
+                              );})}
                           </div>
                         </div>}
                         {/* Output + GCal */}
@@ -4216,7 +4338,7 @@ function MoMList({mom,onDelete,onUpdateMom,onAddKeputusan}){
               {isExp&&<div className="border-t border-stone-100">
                 {entry.gcalDesc&&entry.gcalDesc.trim()&&<div className="px-4 py-3 bg-stone-50 border-b border-stone-100">
                   <div className="text-[9px] font-extrabold text-stone-400 uppercase tracking-wider mb-1">Deskripsi Calendar</div>
-                  <div className="text-[11px] text-stone-600 leading-relaxed whitespace-pre-wrap">{entry.gcalDesc}</div>
+                  <div className="text-[11px] text-stone-600 leading-relaxed whitespace-pre-wrap">{linkify(entry.gcalDesc)}</div>
                 </div>}
 
                 {/* Action Items — with update per item */}
@@ -4733,7 +4855,7 @@ function App(){
           {tab==='jadwal'&&sub.jadwal==='bulanan'&&<JadwalBulanan jadwal={jadwal} filter={jadwalFilter}/>}
           {tab==='dump'&&<DumpPage onAdd={addI} onAddKeputusan={addK} onAddJadwal={addToJadwal} onBatchAddJadwal={batchAddToJadwal} onUpdateJadwal={updateJadwal} onResetICSBatch={resetJadwalBatch} onSaveKpiCorp={saveKpiCorp} onSaveKpiCeo={saveKpiCeo} onSaveBooking={saveBooking} onAddMom={addMom} jadwal={jadwal} backlog={backlog} onDone={()=>{setTab('backlog');setST('backlog','backlog');}}/>}
           {tab==='backlog'&&sub.backlog==='need_feedback'&&<NeedFeedbackTab backlog={backlog} onUpdate={updI} onAddKeputusan={addK} mom={mom} onUpdateMom={updMom} onAddBacklog={addI}/>}
-          {tab==='backlog'&&sub.backlog==='backlog'&&<BacklogList backlog={backlog} onUpdate={updI} onDelete={delI} onAddKeputusan={addK}/>}
+          {tab==='backlog'&&sub.backlog==='backlog'&&<BacklogList backlog={backlog} onUpdate={updI} onDelete={delI} onAddKeputusan={addK} onAddMom={addMom}/>}
           {tab==='backlog'&&sub.backlog==='kamar_pa'&&<KamarPATab backlog={backlog} onUpdateBacklog={updI} onAddJadwal={addToJadwal}/>}
           {tab==='backlog'&&sub.backlog==='keputusan'&&<Keputusan keputusan={keputusan} onUpdate={updK} onDelete={delK} onAddKeputusan={addK}/>}
           {tab==='backlog'&&sub.backlog==='pdca'&&<PdcaTab backlog={backlog} onUpdateBacklog={updI} mom={mom} onUpdateMom={updMom} onDeleteMom={delMom} onAddKeputusan={addK} onSyncMom={trusmiKey?syncTrusmiMom:null} syncingMom={syncingMom} lastMomSync={lastMomSync} onResetMomSync={trusmiKey?function(){var kept=(mom||[]).filter(function(m){return!m._trusmiId;});setMom(kept);sv('mom',kept);sbSave('mom',kept);setLastMomSync('');sv('lastMomSync','');}:null}/>}
