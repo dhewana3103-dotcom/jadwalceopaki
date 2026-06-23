@@ -2701,7 +2701,7 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
     onUpdateJadwal(today,item.id,{outputKeputusan:txt,outputEvidence:evidence,outputActionItems:actionItems});
     onAddKeputusan({id:'KP-'+genId(),tanggal:today,backlogId:item.masalahBacklogId||null,konteks:item.detailKegiatan.slice(0,50),deskripsi:item.detailKegiatan,fungsiKPI:item.relateMilestone,dampak:'sedang',status:'disampaikan',output:txt,sumber:item.jenisKegiatan,evidence:evidence});
     if(actionItems.length>0&&onAddMomBatch){
-      onAddMomBatch([{id:'MOM-'+genId(),tanggal:today,meetingName:item.detailKegiatan.slice(0,60),gcalDesc:'',sumber:'output-'+item.id,items:actionItems.map(function(ai){return{id:'MI-'+genId(),konteks:item.detailKegiatan.slice(0,40),action:ai.aksi,jenis:'Immediately',pic:ai.pic||'',deadline:ai.deadline||null,ekspektasi:'',status:'pending',hasil:''};})}}]);
+      onAddMomBatch([{id:'MOM-'+genId(),tanggal:today,meetingName:item.detailKegiatan.slice(0,60),gcalDesc:'',sumber:'output-'+item.id,items:actionItems.map(function(ai){return{id:'MI-'+genId(),konteks:item.detailKegiatan.slice(0,40),action:ai.aksi,jenis:'Immediately',pic:ai.pic||'',deadline:ai.deadline||null,ekspektasi:'',status:'pending',hasil:''};})  }]);
     }
     setExpandId(null);
     setOutTexts(function(p){var n={...p};n[item.id]='';return n;});
