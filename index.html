@@ -2684,6 +2684,8 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
   const [ef,setEf]=useState({});
   const [nowStr,setNowStr]=useState(nowTimeStr());
   const [outTexts,setOutTexts]=useState({});
+  const [outEvidence,setOutEvidence]=useState({});
+  const [outActionItems,setOutActionItems]=useState({});
 
   useEffect(function(){
     var t=setInterval(function(){setNowStr(nowTimeStr());},30000);
@@ -2693,10 +2695,18 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
   const EMPTY_F={jamMulai:'08:00',jamSelesai:'09:00',kategori:'RSP',jenisKegiatan:'Deepwork Strategic',detailKegiatan:'',relateMilestone:'operasional',outputKeputusan:''};
 
   function saveOutput(item){
-    const txt=outTexts[item.id]||'';if(!txt.trim())return;
-    onUpdateJadwal(today,item.id,{outputKeputusan:txt});
-    onAddKeputusan({id:'KP-'+genId(),tanggal:today,backlogId:item.masalahBacklogId||null,konteks:item.detailKegiatan.slice(0,50),deskripsi:item.detailKegiatan,fungsiKPI:item.relateMilestone,dampak:'sedang',status:'disampaikan',output:txt,sumber:item.jenisKegiatan});
-    setExpandId(null);setOutTexts(function(p){const n={...p};n[item.id]='';return n;});
+    var txt=outTexts[item.id]||'';if(!txt.trim())return;
+    var evidence=outEvidence[item.id]||'';
+    var actionItems=(outActionItems[item.id]||[]).filter(function(ai){return(ai.aksi||'').trim();});
+    onUpdateJadwal(today,item.id,{outputKeputusan:txt,outputEvidence:evidence,outputActionItems:actionItems});
+    onAddKeputusan({id:'KP-'+genId(),tanggal:today,backlogId:item.masalahBacklogId||null,konteks:item.detailKegiatan.slice(0,50),deskripsi:item.detailKegiatan,fungsiKPI:item.relateMilestone,dampak:'sedang',status:'disampaikan',output:txt,sumber:item.jenisKegiatan,evidence:evidence});
+    if(actionItems.length>0&&onAddMomBatch){
+      onAddMomBatch([{id:'MOM-'+genId(),tanggal:today,meetingName:item.detailKegiatan.slice(0,60),gcalDesc:'',sumber:'output-'+item.id,items:actionItems.map(function(ai){return{id:'MI-'+genId(),konteks:item.detailKegiatan.slice(0,40),action:ai.aksi,jenis:'Immediately',pic:ai.pic||'',deadline:ai.deadline||null,ekspektasi:'',status:'pending',hasil:''};})}}]);
+    }
+    setExpandId(null);
+    setOutTexts(function(p){var n={...p};n[item.id]='';return n;});
+    setOutEvidence(function(p){var n={...p};n[item.id]='';return n;});
+    setOutActionItems(function(p){var n={...p};n[item.id]=[];return n;});
   }
 
   function getBlokItems(blokId){return dayItems.filter(function(it){return getBlokFromTime(it.jamMulai)===blokId;});}
@@ -2705,6 +2715,9 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
     if(expandId===item.id){setExpandId(null);return;}
     setExpandId(item.id);
     setEf({jamMulai:item.jamMulai||'',jamSelesai:item.jamSelesai||'',kategori:item.kategori||'RSP',jenisKegiatan:item.jenisKegiatan||'Deepwork Strategic',detailKegiatan:item.detailKegiatan||'',gcalDesc:item.gcalDesc||'',relateMilestone:item.relateMilestone||'operasional',checklistNotes:item.checklistNotes||{}});
+    setOutTexts(function(p){var n={...p};if(n[item.id]===undefined)n[item.id]=item.outputKeputusan||'';return n;});
+    setOutEvidence(function(p){var n={...p};if(n[item.id]===undefined)n[item.id]=item.outputEvidence||'';return n;});
+    setOutActionItems(function(p){var n={...p};if(n[item.id]===undefined)n[item.id]=item.outputActionItems||[];return n;});
   }
 
   function renderItemRow(item,fromBL){
@@ -2775,7 +2788,12 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
   }
 
   function renderExpandRow(item,fromBL){
-    var isMeeting=item.jenisKegiatan&&(item.jenisKegiatan.includes('Meeting')||item.jenisKegiatan.includes('External'));
+    var isMeeting=item.jenisKegiatan&&(item.jenisKegiatan.includes('Meeting')||item.jenisKegiatan.includes('Approval'));
+    var isExternal=item.jenisKegiatan&&item.jenisKegiatan.includes('External');
+    var isGenba=item.jenisKegiatan&&item.jenisKegiatan.includes('Genba');
+    var isPersonal=item.kategori==='Personal'||item.jenisKegiatan==='Personal';
+    var outVal=outTexts[item.id]!==undefined?outTexts[item.id]:(item.outputKeputusan||'');
+    var outReady=outVal.trim().length>0;
     var clDef=(!fromBL&&PRE_CHECKLIST[item.jenisKegiatan])||null;
     var hasSubs=clDef&&clDef._subs;
     var subType=item.meetingSubType||null;
@@ -2872,13 +2890,61 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
                   <textarea className="w-full px-2.5 py-2 rounded-xl border border-stone-200 text-[11px] focus:outline-none focus:ring-1 focus:ring-stone-400" style={{overflowY:'hidden',resize:'none',minHeight:'72px'}} ref={function(el){if(el){el.style.height='auto';el.style.height=el.scrollHeight+'px';}}} onInput={function(e){e.target.style.height='auto';e.target.style.height=e.target.scrollHeight+'px';}} placeholder="Objective, attendees, agenda, context..." value={ef.gcalDesc||''} onChange={function(e){setEf(function(p){return{...p,gcalDesc:e.target.value};});}}/>
                 </div>
               </>}
-              {!fromBL&&!isMeeting&&<div>
-                <div className="text-[9px] font-bold text-stone-400 uppercase mb-1">Output / Keputusan (5W1H)</div>
-                <textarea className="w-full px-2.5 py-2 rounded-xl border border-stone-200 bg-white text-[11px] focus:outline-none focus:ring-1 focus:ring-emerald-400 resize-y" rows={4} placeholder="Isi output 5W1H: What/Who/When/Why/How" value={outVal} onChange={function(e){var v=e.target.value;setOutTexts(function(p){var n={...p};n[item.id]=v;return n;});}}/>
+              {!fromBL&&!isPersonal&&<div className="space-y-3">
+                {/* Konteks read-only */}
+                {(item.detailKegiatan||item.gcalDesc)&&<div className="px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-xl">
+                  <div className="text-[9px] font-bold text-stone-400 uppercase mb-1">Konteks</div>
+                  <div className="text-[10px] text-stone-600 leading-snug">{item.detailKegiatan}</div>
+                  {item.gcalDesc&&item.gcalDesc.trim()&&<div className="text-[9px] text-stone-400 mt-1 leading-snug">{item.gcalDesc.slice(0,120)}{item.gcalDesc.length>120?'…':''}</div>}
+                </div>}
+                {/* Keputusan / Hasil */}
+                <div>
+                  <div className="text-[9px] font-bold text-stone-400 uppercase mb-1">
+                    {isMeeting?'Keputusan Rapat':isGenba?'Temuan Lapangan':isExternal?'Insight / Kesepakatan':'Hasil / Keputusan'}
+                    {!isMeeting&&<span className="text-red-400 ml-0.5">*</span>}
+                  </div>
+                  {isMeeting
+                    ?<div className="space-y-2">
+                      <textarea className="w-full px-2.5 py-2 rounded-xl border border-stone-200 bg-white text-[11px] focus:outline-none focus:ring-1 focus:ring-stone-400 resize-y" rows={2} placeholder="Catatan sementara EA sambil menunggu MoM..." value={outVal} onChange={function(e){var v=e.target.value;setOutTexts(function(p){var n={...p};n[item.id]=v;return n;});}}/>
+                      <div className="px-3 py-2 rounded-xl bg-stone-50 border border-stone-200 flex items-center gap-2"><span className="text-[10px]">📥</span><div className="text-[9px] text-stone-400">Import MoM formal via Dump Think → Import MoM</div></div>
+                    </div>
+                    :<textarea className="w-full px-2.5 py-2 rounded-xl border border-stone-200 bg-white text-[11px] focus:outline-none focus:ring-1 focus:ring-emerald-400 resize-y" rows={3} placeholder={isGenba?'Kondisi lapangan, masalah ditemukan, rekomendasi...':isExternal?'Insight, kesepakatan, peluang yang ditemukan...':'Apa yang diputuskan atau dihasilkan...'} value={outTexts[item.id]!==undefined?outTexts[item.id]:(item.outputKeputusan||'')} onChange={function(e){var v=e.target.value;setOutTexts(function(p){var n={...p};n[item.id]=v;return n;});}}/>
+                  }
+                </div>
+                {/* Action items */}
+                {!isMeeting&&<div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="text-[9px] font-bold text-stone-400 uppercase">Action item <span className="font-normal normal-case text-stone-300">(opsional — siapa, ngapain, kapan)</span></div>
+                    <button className="text-[9px] font-bold text-blue-500 as" onClick={function(){setOutActionItems(function(p){var n={...p};n[item.id]=[...(n[item.id]||[]),{pic:'',aksi:'',deadline:''}];return n;});}}>+ Tambah</button>
+                  </div>
+                  {(outActionItems[item.id]||[]).length===0
+                    ?<div className="px-3 py-2 rounded-xl border border-dashed border-stone-200 text-center text-[9px] text-stone-300">Tap "+ Tambah" kalau ada tindak lanjut</div>
+                    :<div className="space-y-2">
+                      {(outActionItems[item.id]||[]).map(function(ai,idx){return(
+                        <div key={idx} className="flex gap-1.5 items-start p-2.5 bg-stone-50 rounded-xl border border-stone-200">
+                          <div className="flex-1 space-y-1.5">
+                            <input className="w-full px-2 py-1.5 rounded-lg border border-stone-200 bg-white text-[10px] focus:outline-none focus:ring-1 focus:ring-blue-300" placeholder="Siapa (PIC)..." value={ai.pic} onChange={function(e){var v=e.target.value;setOutActionItems(function(p){var n={...p};var arr=n[item.id].slice();arr[idx]={...arr[idx],pic:v};n[item.id]=arr;return n;});}}/>
+                            <input className="w-full px-2 py-1.5 rounded-lg border border-stone-200 bg-white text-[10px] focus:outline-none focus:ring-1 focus:ring-blue-300" placeholder="Ngapain..." value={ai.aksi} onChange={function(e){var v=e.target.value;setOutActionItems(function(p){var n={...p};var arr=n[item.id].slice();arr[idx]={...arr[idx],aksi:v};n[item.id]=arr;return n;});}}/>
+                            <input type="date" className="w-full px-2 py-1.5 rounded-lg border border-stone-200 bg-white text-[10px] font-mono focus:outline-none focus:ring-1 focus:ring-blue-300" value={ai.deadline||''} onChange={function(e){var v=e.target.value;setOutActionItems(function(p){var n={...p};var arr=n[item.id].slice();arr[idx]={...arr[idx],deadline:v};n[item.id]=arr;return n;});}}/>
+                          </div>
+                          <button className="flex-shrink-0 w-6 h-6 rounded-lg bg-red-50 text-red-400 text-[10px] flex items-center justify-center as" onClick={function(){setOutActionItems(function(p){var n={...p};n[item.id]=n[item.id].filter(function(_,i){return i!==idx;});return n;});}}>✕</button>
+                        </div>
+                      );})}
+                    </div>
+                  }
+                </div>}
+                {/* Evidence */}
+                <div>
+                  <div className="text-[9px] font-bold text-stone-400 uppercase mb-1">Evidence <span className="font-normal normal-case text-stone-300">(opsional — link dokumen/foto/file)</span></div>
+                  <div className="flex items-center gap-1">
+                    <input type="url" className="flex-1 px-2.5 py-1.5 rounded-xl border border-stone-200 bg-white text-[10px] font-mono focus:outline-none focus:ring-1 focus:ring-stone-400" placeholder="https://..." value={outEvidence[item.id]!==undefined?outEvidence[item.id]:(item.outputEvidence||'')} onChange={function(e){var v=e.target.value;setOutEvidence(function(p){var n={...p};n[item.id]=v;return n;});}}/>
+                    {(outEvidence[item.id]||(item.outputEvidence||'')).trim()&&<a href={outEvidence[item.id]||(item.outputEvidence||'')} target="_blank" rel="noopener noreferrer" className="flex-shrink-0 text-[14px]">🔗</a>}
+                  </div>
+                </div>
               </div>}
-              {!fromBL&&isMeeting&&<div className="px-3 py-3 rounded-xl bg-stone-50 border border-stone-200 text-center">
-                <div className="text-[10px] text-stone-400">📥 Import MoM setelah meeting selesai</div>
-                <div className="text-[10px] text-stone-400 mt-0.5">via Dump Think → Import MoM</div>
+              {!fromBL&&isPersonal&&<div>
+                <div className="text-[9px] font-bold text-stone-400 uppercase mb-1">Output</div>
+                <textarea className="w-full px-2.5 py-2 rounded-xl border border-stone-200 bg-white text-[11px] focus:outline-none focus:ring-1 focus:ring-emerald-400 resize-y" rows={2} placeholder="Catatan singkat..." value={outVal} onChange={function(e){var v=e.target.value;setOutTexts(function(p){var n={...p};n[item.id]=v;return n;});}}/>
               </div>}
               <div className="flex gap-2 items-center pt-1 flex-wrap">
                 {!fromBL&&<button className="px-3 py-2 rounded-xl bg-red-50 text-red-500 border border-red-200 text-[10px] font-bold as st" onClick={function(){if(confirm('Hapus kegiatan ini?'))onRemoveJadwal(today,item.id);setExpandId(null);}}>🗑️ Hapus</button>}
@@ -2886,7 +2952,7 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
                 <div className="flex-1"/>
                 <button className="px-4 py-2 rounded-xl border border-stone-200 text-[10px] font-bold text-stone-500 as st bg-white" onClick={function(){setExpandId(null);}}>Tutup</button>
                 {!fromBL&&<button className="px-4 py-2 rounded-xl bg-stone-900 text-white text-[10px] font-bold as st" onClick={function(){saveEdit();}}>💾 Simpan{gcalOn&&item.gcalEventId?' + Cal':''}</button>}
-                {!fromBL&&!isMeeting&&<button className={`px-4 py-2 rounded-xl text-[10px] font-bold as st ${!outReady?'bg-stone-200 text-stone-400 cursor-not-allowed':'bg-emerald-600 text-white'}`} onClick={function(){saveOutput(item);}} disabled={!outReady}>✓ Simpan Output</button>}
+                {!fromBL&&<button className={`px-4 py-2 rounded-xl text-[10px] font-bold as st ${!outReady?'bg-stone-200 text-stone-400 cursor-not-allowed':'bg-emerald-600 text-white'}`} onClick={function(){saveOutput(item);}} disabled={!outReady}>✓ Simpan Output</button>}
               </div>
             </div>
           </div>
