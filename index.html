@@ -218,6 +218,56 @@ const JENIS_KEGIATAN=['Deepwork Strategic','Meeting Strategic/Problem Solving/Ap
 const JENIS_SHORT={'Deepwork Strategic':'Deepwork','Meeting Strategic/Problem Solving/Approval':'Meet. Strategic','Meeting Review Operasional + Evaluasi Tim':'Meet. Review','Ketemu External':'External','Bikin Konten':'Konten','Genba':'Genba','Employee Engage':'Engage','Personal':'Personal'};
 const FUNC_HEX={'Strategis':'#3b82f6','Operasional':'#f59e0b','Konten & Branding':'#10b981','People & Culture':'#a855f7','Riset & Inovasi':'#6366f1','Eksternal':'#8b5cf6','Finansial':'#f43f5e','Pengembangan Diri':'#14b8a6','Pemulihan':'#94a3b8'};
 const FUNC_ORDER=['Strategis','Operasional','Konten & Branding','Riset & Inovasi','Finansial','People & Culture','Eksternal','Pengembangan Diri','Pemulihan'];
+const RITUAL_DEFS={
+  Personal:[
+    {id:'p_plank',label:'Bangun + Plank pagi',freq:5,kw:['plank','stretching','bangun']},
+    {id:'p_visi',label:'Baca Visi Misi / Identitas',freq:5,kw:['visi misi','identitas','menulis evaluasi','baca identitas']},
+    {id:'p_gym',label:'GYM (Senin–Jumat)',freq:5,kw:['gym','latihan']},
+    {id:'p_running',label:'Running / CFD',freq:2,kw:['running','lari','treadmill','cfd']},
+    {id:'p_english_tom',label:'English with Tom',freq:2,kw:['english','privat tom','tom']},
+    {id:'p_journal',label:'Journaling malam',freq:5,kw:['journaling','jurnaling','kegiatan pribadi','evaluasi harian']},
+    {id:'p_reading',label:'Baca Buku / Self-dev',freq:5,kw:['baca buku','reading','speaking','self development']},
+    {id:'p_family',label:'Family Quality Time',freq:1,kw:['family','keluarga','quality time']},
+  ],
+  RSP:[
+    {id:'rsp_coo',label:'Fungsi COO RSP',freq:1,kw:['fungsi coo','coo dan appraisal','meeting coo']},
+    {id:'rsp_cmo',label:'Fungsi CMO / Marcom',freq:1,kw:['cmo','appraisal marcom','marcom nilsen','fungsi cmo']},
+    {id:'rsp_finance',label:'PA Finance / OKR Finance',freq:2,kw:['finance','okr finance','kpi finance','cashflow','bu cecil']},
+    {id:'rsp_rnd',label:'PA RnD & Pabrik Pegambiran',freq:1,kw:['rnd','pabrik pegambiran','hpp pabrik']},
+    {id:'rsp_mkt',label:'Brainstorming Marketing / Event',freq:2,kw:['event jayasampurna','event bekasi','brainstorming marketing','konten owner','meeting cikampek']},
+    {id:'rsp_zaffan',label:'PA Tim Zaffan / Personal Branding',freq:1,kw:['zaffan','feedback konten','personal branding']},
+    {id:'rsp_dhewa',label:'Agentic AI Dhewa',freq:2,kw:['dhewa']},
+    {id:'rsp_recruit',label:'Rekrutmen Key Position',freq:1,kw:['rekrutmen','recruitment','meeting rekrutmen']},
+    {id:'rsp_lahan',label:'Akuisisi Lahan',freq:1,kw:['lahan','akuisisi lahan','h gono']},
+    {id:'rsp_sales',label:'PA Sales BM',freq:1,kw:['sales bm','pa bm','pa sales','meeting bm']},
+    {id:'rsp_proj',label:'PA Project Prioritas',freq:2,kw:['project cikampek','project prioritas','meeting sumber','sumber']},
+    {id:'rsp_head',label:'Check Appraisal Head RSP',freq:1,kw:['appraisal head','andyka','check appraisal']},
+  ],
+  BT:[
+    {id:'bt_b2b',label:'B2B & Tindak Lanjut Produksi',freq:1,kw:['b2b','appraisal b2b','sales b2b']},
+    {id:'bt_pabrik',label:'PA Pabrik BT / Genba TGS',freq:1,kw:['pabrik tgs','genba pabrik','genba site visit']},
+    {id:'bt_momen',label:'PA Momen BT',freq:2,kw:['momen','act plan untuk momen','momen dan seragaman']},
+    {id:'bt_mkt',label:'Breakdown Marketing Campaign BT',freq:1,kw:['breakdown marketing','campaign bt','marketing campaign']},
+    {id:'bt_premium',label:'PA Premium BT',freq:2,kw:['batik premium','produk premium','store jakarta','premium bt','photoshoot keranjang']},
+    {id:'bt_garmen',label:'PA Garmen BT',freq:1,kw:['garmen','appraisal garmen']},
+    {id:'bt_rnd',label:'PA RnD BT',freq:1,kw:['rnd bt','rnd pabrik','produk premium bt']},
+    {id:'bt_head',label:'Check Appraisal Head BT',freq:1,kw:['appraisal head bt','pak anyan','check appraisal bt']},
+  ],
+  TKB:[
+    {id:'tkb_head',label:'Check Appraisal Head TKB / Pak Angga',freq:1,kw:['pak angga','okr tkb','appraisal head tkb','fungsi ceo tkb']},
+    {id:'tkb_mkt',label:'PA TKB Marketing',freq:1,kw:['tkb mkt','marketing tkb','photoshoot keranjang kuning','keranjang kuning']},
+    {id:'tkb_awan',label:'Aktivasi TKB & Awan',freq:1,kw:['awan','aktivasi tkb','tkb awan']},
+    {id:'tkb_product',label:'PA Product TKB',freq:1,kw:['product tkb','pa product tkb','fungsi coo tkb']},
+    {id:'tkb_ops',label:'PA Operasional TKB',freq:1,kw:['operasional tkb','pa operasional tkb']},
+    {id:'tkb_dir',label:'Fungsi Direktur TKB',freq:1,kw:['fungsi direktur tkb','direktur tkb','meeting pak angga']},
+  ],
+  Holding:[
+    {id:'h_feedback',label:'Holding Feedback All Group',freq:3,kw:['feedback jadwal','multi review','feedback all group','cek pa appraisal']},
+    {id:'h_recruit',label:'Meeting Rekrutmen',freq:1,kw:['rekrutmen','recruitment']},
+    {id:'h_andyka',label:'Koordinasi Pak Andyka',freq:1,kw:['andyka']},
+    {id:'h_sekdir',label:'Feedback Evaluasi PA Sekdir',freq:1,kw:['feedback evaluasi pa','sekdir','evaluasi pa sekdir']},
+  ],
+};
 function getFunc(it){
   var j=it.jenisKegiatan||'';
   var d=((it.detailKegiatan||'')+' '+(it.outputKeputusan||'')).toLowerCase();
@@ -4610,6 +4660,193 @@ function AnalisaTab({backlog,jadwal,kpiCorp,dashMonth,mom,kpiCeo,targetBobot}){
   );
 }
 
+function KonsistensiTab({jadwal}){
+  var [weekOff,setWeekOff]=useState(0);
+  var [expandEnt,setExpandEnt]=useState('RSP');
+
+  function getMonStr(offset){
+    var t=new Date();var dow=t.getDay();
+    var m=new Date(t);m.setDate(t.getDate()-(dow===0?6:dow-1)+offset*7);
+    return m.toISOString().slice(0,10);
+  }
+  var monStr=getMonStr(weekOff);
+  var weekDates=[];
+  for(var di=0;di<7;di++){
+    var dd=new Date(monStr+'T12:00:00');dd.setDate(dd.getDate()+di);
+    weekDates.push(dd.toISOString().slice(0,10));
+  }
+  var satStr=weekDates[5];
+  var weekLbl=(function(){
+    var m=new Date(monStr+'T12:00:00');var s=new Date(satStr+'T12:00:00');
+    return m.getDate()+'–'+s.getDate()+' '+m.toLocaleDateString('id-ID',{month:'short'});
+  })();
+
+  var weekItems=[];
+  weekDates.forEach(function(date){
+    (jadwal[date]||[]).forEach(function(it){
+      weekItems.push({id:it.id,_date:date,detailKegiatan:it.detailKegiatan||'',outputKeputusan:it.outputKeputusan||''});
+    });
+  });
+
+  function matchRitual(rit){
+    return weekItems.filter(function(it){
+      var txt=(it.detailKegiatan+' '+it.outputKeputusan).toLowerCase();
+      return rit.kw.some(function(k){return txt.indexOf(k)!==-1;});
+    });
+  }
+
+  var ENT_COL={Personal:'#94a3b8',RSP:'#f43f5e',BT:'#3b82f6',TKB:'#f59e0b',Holding:'#a855f7'};
+  var ENT_ICON={Personal:'👤',RSP:'🏠',BT:'🧵',TKB:'🧺',Holding:'🏢'};
+  var ENTS=['Personal','RSP','BT','TKB','Holding'];
+
+  var entData=ENTS.map(function(ent){
+    var defs=RITUAL_DEFS[ent]||[];
+    var totalPts=0;var achPts=0;
+    var results=defs.map(function(rit){
+      var matches=matchRitual(rit);
+      var achieved=Math.min(rit.freq,matches.length);
+      var status=matches.length===0?'miss':achieved>=rit.freq?'done':'partial';
+      totalPts+=rit.freq;achPts+=achieved;
+      return{rit:rit,matches:matches,achieved:achieved,status:status};
+    });
+    var pct=totalPts>0?Math.round(achPts/totalPts*100):null;
+    var done=results.filter(function(r){return r.status==='done';}).length;
+    var partial=results.filter(function(r){return r.status==='partial';}).length;
+    var miss=results.filter(function(r){return r.status==='miss';}).length;
+    return{ent:ent,results:results,pct:pct,done:done,partial:partial,miss:miss,total:defs.length,totalPts:totalPts,achPts:achPts};
+  });
+
+  var overallPts=entData.reduce(function(s,e){return s+e.totalPts;},0);
+  var overallAch=entData.reduce(function(s,e){return s+e.achPts;},0);
+  var overallPct=overallPts>0?Math.round(overallAch/overallPts*100):null;
+
+  function scoreCol(p){return p===null?'#94a3b8':p>=80?'#10b981':p>=60?'#f59e0b':'#f43f5e';}
+  function pctCls(p){return p===null?'text-stone-300':p>=80?'text-emerald-600':p>=60?'text-amber-600':'text-red-500';}
+
+  function renderStatusBadge(status){
+    if(status==='done')return<span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full flex-shrink-0">✅</span>;
+    if(status==='partial')return<span className="text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full flex-shrink-0">⚠️</span>;
+    return<span className="text-[9px] font-bold text-red-500 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded-full flex-shrink-0">❌</span>;
+  }
+
+  return(
+    <div className="pb-8">
+
+      {/* Week nav */}
+      <div className="px-4 md:px-6 pt-4 pb-3 flex items-center justify-between">
+        <button onClick={function(){setWeekOff(weekOff-1);}} className="px-3 py-1.5 rounded-xl border border-stone-200 bg-white text-[11px] font-bold text-stone-600 as st">← Lalu</button>
+        <div className="text-center">
+          <div className="text-[12px] font-black text-stone-800">{weekLbl}</div>
+          <div className="text-[9px] text-stone-400">{weekItems.length} aktivitas</div>
+        </div>
+        <button onClick={function(){setWeekOff(Math.min(weekOff+1,0));}} disabled={weekOff===0} className={'px-3 py-1.5 rounded-xl border border-stone-200 text-[11px] font-bold as st '+(weekOff===0?'bg-stone-50 text-stone-300 cursor-not-allowed':'bg-white text-stone-600')}>Depan →</button>
+      </div>
+
+      {/* Overall score */}
+      <div className="mx-4 md:mx-6 mb-4 bg-white border border-stone-200 rounded-2xl p-4 shadow-soft">
+        <div className="flex items-center gap-4">
+          <div className={'text-[40px] font-black leading-none '+pctCls(overallPct)}>{overallPct!==null?overallPct+'%':'–'}</div>
+          <div className="flex-1">
+            <div className="text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-1.5">Konsistensi Kuncian Jadwal · {weekLbl}</div>
+            <div className="w-full h-2 bg-stone-100 rounded-full overflow-hidden mb-2">
+              <div className="h-full rounded-full" style={{width:(overallPct||0)+'%',background:scoreCol(overallPct)}}/>
+            </div>
+            <div className="flex gap-3 flex-wrap text-[10px]">
+              <span className="text-emerald-600">✅ {entData.reduce(function(s,e){return s+e.done;},0)} ritual penuh</span>
+              <span className="text-amber-600">⚠️ {entData.reduce(function(s,e){return s+e.partial;},0)} partial</span>
+              <span className="text-red-500">❌ {entData.reduce(function(s,e){return s+e.miss;},0)} tidak dilakukan</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Entity score cards */}
+      <div className="px-4 md:px-6 mb-4 grid grid-cols-2 md:grid-cols-5 gap-2.5">
+        {entData.map(function(e){
+          var col=scoreCol(e.pct);
+          var isExp=expandEnt===e.ent;
+          return(
+            <button key={e.ent} onClick={function(){setExpandEnt(isExp?null:e.ent);}}
+              className={'rounded-2xl p-3 text-left border as transition-all w-full '+(isExp?'shadow-md':'border-stone-200 bg-white shadow-soft')}
+              style={isExp?{background:ENT_COL[e.ent]+'14',borderColor:ENT_COL[e.ent]+'55'}:{}}>
+              <div className="flex items-center gap-1.5 mb-2">
+                <span className="text-[13px]">{ENT_ICON[e.ent]}</span>
+                <span className="text-[10px] font-bold text-stone-600">{e.ent}</span>
+              </div>
+              <div className="text-[22px] font-black leading-none mb-1" style={{color:col}}>{e.pct!==null?e.pct+'%':'–'}</div>
+              <div className="text-[9px] text-stone-400 mb-2">{e.done}/{e.total} penuh</div>
+              <div className="w-full h-1.5 bg-stone-100 rounded-full overflow-hidden">
+                <div className="h-full rounded-full" style={{width:(e.pct||0)+'%',background:col}}/>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Expanded entity detail */}
+      {expandEnt&&(function(){
+        var eData=null;
+        for(var i=0;i<entData.length;i++){if(entData[i].ent===expandEnt){eData=entData[i];break;}}
+        if(!eData)return null;
+        var col=ENT_COL[expandEnt];
+        return(
+          <div className="mx-4 md:mx-6 bg-white border border-stone-200 rounded-2xl shadow-soft overflow-hidden">
+            <div className="px-4 py-3 border-b border-stone-100 flex items-center gap-2.5" style={{borderLeftWidth:3,borderLeftColor:col}}>
+              <span className="text-[16px]">{ENT_ICON[expandEnt]}</span>
+              <div className="flex-1">
+                <div className="text-[11px] font-extrabold text-stone-700">{expandEnt}</div>
+                <div className="text-[9px] text-stone-400">{eData.done} penuh · {eData.partial} partial · {eData.miss} tidak dilakukan</div>
+              </div>
+              <div className="text-[22px] font-black" style={{color:scoreCol(eData.pct)}}>{eData.pct!==null?eData.pct+'%':'–'}</div>
+            </div>
+            <div className="divide-y divide-stone-100">
+              {eData.results.map(function(row){
+                return(
+                  <div key={row.rit.id} className={'px-4 py-3 '+(row.status==='miss'?'bg-red-50/30':'row.status==="done"?""':'bg-amber-50/20')}>
+                    <div className="flex items-start gap-2">
+                      {renderStatusBadge(row.status)}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[11px] font-bold text-stone-700">{row.rit.label}</span>
+                          <span className="text-[9px] text-stone-400">{row.achieved}/{row.rit.freq}×</span>
+                        </div>
+                        {row.matches.length>0?(
+                          <div className="mt-1 space-y-0.5">
+                            {row.matches.slice(0,3).map(function(it){
+                              return(
+                                <div key={it.id} className="flex items-center gap-2 text-[9px] text-stone-500">
+                                  <span className="font-mono text-stone-400 flex-shrink-0">{it._date.slice(5)}</span>
+                                  <span className="truncate">{it.detailKegiatan.slice(0,65)}</span>
+                                </div>
+                              );
+                            })}
+                            {row.matches.length>3&&<div className="text-[9px] text-stone-400 pl-1">+{row.matches.length-3} entri lainnya</div>}
+                          </div>
+                        ):(
+                          <div className="text-[9px] text-red-400 mt-0.5">Tidak ditemukan di jadwal minggu ini</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
+      {weekItems.length===0&&(
+        <div className="mx-4 md:mx-6 mt-4 bg-stone-50 border border-stone-200 rounded-2xl p-8 text-center">
+          <div className="text-3xl mb-2 opacity-20">📅</div>
+          <div className="text-[12px] font-bold text-stone-400 mb-1">Tidak ada aktivitas minggu ini</div>
+          <div className="text-[10px] text-stone-400">Isi jadwal untuk melihat konsistensi ritual</div>
+        </div>
+      )}
+
+    </div>
+  );
+}
+
 function PenilaianEATab({jadwal}){
   var allItems=[];
   Object.keys(jadwal||{}).sort().forEach(function(date){
@@ -5915,7 +6152,7 @@ function App(){
     {id:'jadwal',ico:'📅',lbl:'Jadwal',subs:[{id:'harian',lbl:'Harian'},{id:'mingguan',lbl:'Mingguan'},{id:'bulanan',lbl:'Bulanan'}]},
     {id:'dump'},
     {id:'backlog',ico:'📋',lbl:'Backlog',subs:[{id:'need_feedback',lbl:'Need Feedback'},{id:'backlog',lbl:'Backlog'},{id:'kamar_pa',lbl:'Kamar PA'},{id:'keputusan',lbl:'Keputusan & Tracking'},{id:'pdca',lbl:'PDCA'},{id:'arsip',lbl:'Riwayat & Arsip'}]},
-    {id:'resume',ico:'📈',lbl:'Resume',subs:[{id:'analisa',lbl:'Analisa'},{id:'rekomendasi',lbl:'Rekomendasi'},{id:'ea',lbl:'Penilaian EA'},{id:'log',lbl:'Log Aktivitas'}]},
+    {id:'resume',ico:'📈',lbl:'Resume',subs:[{id:'analisa',lbl:'Analisa'},{id:'rekomendasi',lbl:'Rekomendasi'},{id:'konsistensi',lbl:'Konsistensi'},{id:'ea',lbl:'Penilaian EA'},{id:'log',lbl:'Log Aktivitas'}]},
   ];
   const AT=TABS.find(t=>t.id===tab);
 
@@ -5995,6 +6232,7 @@ function App(){
           {tab==='backlog'&&sub.backlog==='arsip'&&<RiwayatSampahTab sampah={sampah} onRestore={restoreSampah} onHardDel={hardDelSampah}/>}
           {tab==='resume'&&sub.resume==='analisa'&&<AnalisaTab backlog={backlog} jadwal={jadwal} kpiCorp={kpiCorp} dashMonth={dashMonth} mom={mom} kpiCeo={kpiCeo} targetBobot={targetBobot}/>}
           {tab==='resume'&&sub.resume==='rekomendasi'&&<AnalisaJadwal backlog={backlog} jadwal={jadwal} onAddJadwal={addToJadwal} onAddBacklog={addI} onUpdateBacklog={updI}/>}
+          {tab==='resume'&&sub.resume==='konsistensi'&&<KonsistensiTab jadwal={jadwal}/>}
           {tab==='resume'&&sub.resume==='ea'&&<PenilaianEATab jadwal={jadwal}/>}
           {tab==='resume'&&sub.resume==='log'&&<LogAktivitasTab jadwal={jadwal}/>}
         </div>
