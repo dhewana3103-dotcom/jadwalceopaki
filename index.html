@@ -212,8 +212,45 @@ function computeAnalisa(jadwal){
 }
 const PIC_OPTIONS=['Pak Andyka (COO)','Pak Angga (CMO)','Zafan (Konten)','Mba Viky (PA)','Tim Legal','Tim HR','Tim Finance','CEO Langsung'];
 const KATEGORI_ORG=['Personal','RSP','TKB','BT'];
+const EA_LIST=['Andhika','Haris','Diana'];
+const EA_COLOR={'Andhika':'bg-blue-100 text-blue-700','Haris':'bg-emerald-100 text-emerald-700','Diana':'bg-violet-100 text-violet-700'};
 const JENIS_KEGIATAN=['Deepwork Strategic','Meeting Strategic/Problem Solving/Approval','Meeting Review Operasional + Evaluasi Tim','Ketemu External','Bikin Konten','Genba','Employee Engage','Personal'];
 const JENIS_SHORT={'Deepwork Strategic':'Deepwork','Meeting Strategic/Problem Solving/Approval':'Meet. Strategic','Meeting Review Operasional + Evaluasi Tim':'Meet. Review','Ketemu External':'External','Bikin Konten':'Konten','Genba':'Genba','Employee Engage':'Engage','Personal':'Personal'};
+const FUNC_HEX={'Strategis':'#3b82f6','Operasional':'#f59e0b','Konten & Branding':'#10b981','People & Culture':'#a855f7','Riset & Inovasi':'#6366f1','Eksternal':'#8b5cf6','Finansial':'#f43f5e','Pengembangan Diri':'#14b8a6','Pemulihan':'#94a3b8'};
+const FUNC_ORDER=['Strategis','Operasional','Konten & Branding','Riset & Inovasi','Finansial','People & Culture','Eksternal','Pengembangan Diri','Pemulihan'];
+function getFunc(it){
+  var j=it.jenisKegiatan||'';
+  var d=((it.detailKegiatan||'')+' '+(it.outputKeputusan||'')).toLowerCase();
+  if(j==='Bikin Konten')return'Konten & Branding';
+  if(j==='Genba')return'Riset & Inovasi';
+  if(j==='Employee Engage')return'People & Culture';
+  if(j==='Ketemu External')return'Eksternal';
+  if(j==='Deepwork Strategic'){
+    if(/finance|cashflow|okr.*finance|kpi.*finance|hpp|laba rugi/.test(d))return'Finansial';
+    if(/konten|branding|photoshoot|upload/.test(d))return'Konten & Branding';
+    if(/rekrutmen|recruitment/.test(d))return'People & Culture';
+    if(/rnd|pabrik|lahan|genba/.test(d))return'Riset & Inovasi';
+    return'Strategis';
+  }
+  if(j.indexOf('Meeting Strategic')===0){
+    if(/finance|cashflow|okr.*finance|kpi.*finance|hpp|laba rugi/.test(d))return'Finansial';
+    if(/rekrutmen|recruitment/.test(d))return'People & Culture';
+    if(/rnd|pabrik|lahan|genba/.test(d))return'Riset & Inovasi';
+    if(/konten|branding|influencer|campaign/.test(d))return'Konten & Branding';
+    return'Strategis';
+  }
+  if(j.indexOf('Meeting Review')===0)return'Operasional';
+  if(/gym|latihan|tidur|makan|dinner|istirahat|stretching|running|lari|mandi|break|sarapan|prepare|dokter|bangun|periksa|olahraga/.test(d))return'Pemulihan';
+  if(/english|journaling|jurnaling|baca buku|reading|kegiatan pribadi|plank|push up|evaluasi harian/.test(d))return'Pengembangan Diri';
+  if(/konten|take konten|photoshoot|upload|branding/.test(d))return'Konten & Branding';
+  if(/finance|cashflow|hpp|laba rugi/.test(d))return'Finansial';
+  if(/rekrutmen|recruitment/.test(d))return'People & Culture';
+  if(/genba|pabrik|site visit|rnd|lahan/.test(d))return'Riset & Inovasi';
+  if(/networking|eksternal|bertemu.*eksternal/.test(d))return'Eksternal';
+  if(/meeting|fungsi|review|appraisal|okr|kpi/.test(d))return'Operasional';
+  if(j==='Personal')return'Pemulihan';
+  return'Operasional';
+}
 const JENIS_COLOR={'Deepwork Strategic':'bg-purple-100 text-purple-700','Meeting Strategic/Problem Solving/Approval':'bg-pink-100 text-pink-700','Meeting Review Operasional + Evaluasi Tim':'bg-amber-100 text-amber-700','Ketemu External':'bg-violet-100 text-violet-700','Bikin Konten':'bg-blue-100 text-blue-700','Genba':'bg-emerald-100 text-emerald-700','Employee Engage':'bg-rose-100 text-rose-700','Personal':'bg-stone-100 text-stone-600'};const KATEGORI_COLOR={'Personal':'bg-stone-100 text-stone-600','RSP':'bg-blue-600 text-white','TKB':'bg-amber-600 text-white','BT':'bg-emerald-600 text-white'};
 const DOMAINS=[
   {id:'marketing',label:'Marketing',kpiId:'branding',kpiCorpGroup:'pemasukan',color:'text-purple-700',bg:'bg-purple-50'},
@@ -1178,7 +1215,7 @@ function Keputusan({keputusan,onUpdate,onDelete,onAddKeputusan}){
 }
 
 // ── SETTINGS ──────────────────────────────────────────────────
-function SettingsModal({onClose,gTok,gCalId,gCals,gBusy,onConnect,onPickCal,onForceSync,syncMsg,onResetJadwal,onResetBacklog,onResetKeputusan,onPullGCal,pulling,onFixPersonalJenis,trusmiUrl,trusmiKey,onSaveTrusmi,lastMomSync}){
+function SettingsModal({onClose,gTok,gCalId,gCals,gBusy,onConnect,onPickCal,onForceSync,syncMsg,onResetJadwal,onResetBacklog,onResetKeputusan,onPullGCal,pulling,onFixPersonalJenis,trusmiUrl,trusmiKey,onSaveTrusmi,lastMomSync,targetBobot,onSaveTargetBobot}){
   const [key,setKey]=useState(localStorage.getItem('rsp_apikey')||'');
   const [showKey,setShowKey]=useState(false);
   const [saved,setSaved]=useState(false);
@@ -1324,6 +1361,46 @@ function SettingsModal({onClose,gTok,gCalId,gCals,gBusy,onConnect,onPickCal,onFo
                 <button onClick={function(){onFixPersonalJenis();}} className="text-[10px] font-bold text-blue-600 as underline">Fix jenis Personal</button>
               </div>
             </div>
+            {/* Target Bobot Fungsi KPI */}
+            {(function(){
+              var DEF={finansial:25,branding:25,riset:15,operasional:30,people:5};
+              var cur=targetBobot||DEF;
+              var [draft,setDraft]=React.useState({finansial:cur.finansial,branding:cur.branding,riset:cur.riset,operasional:cur.operasional,people:cur.people});
+              var total=Object.values(draft).reduce(function(s,v){return s+(parseInt(v)||0);},0);
+              var ok=total===100;
+              return(
+                <div className="border border-stone-200 rounded-2xl overflow-hidden">
+                  <div className="px-4 py-3 bg-stone-50 border-b border-stone-200 flex items-center justify-between">
+                    <div className="text-[11px] font-extrabold text-stone-700">🎯 Target Bobot Fungsi KPI (D5)</div>
+                    <span className={'text-[9px] font-bold px-2 py-0.5 rounded-full '+(ok?'bg-emerald-100 text-emerald-700':'bg-red-100 text-red-600')}>{ok?'✓ Total 100%':'Total: '+total+'%'}</span>
+                  </div>
+                  <div className="p-4 space-y-3">
+                    <div className="text-[10px] text-stone-400 mb-2">Ubah alokasi target waktu CEO per fungsi. Harus total 100%.</div>
+                    {KPI5.map(function(k){
+                      return(
+                        <div key={k.id} className="flex items-center gap-3">
+                          <span className={'text-[10px] font-bold w-28 flex-shrink-0 '+k.color}>{k.label}</span>
+                          <input type="number" min="0" max="100"
+                            className="w-16 px-2 py-1.5 rounded-lg border border-stone-200 text-[12px] font-mono text-center focus:outline-none focus:ring-1 focus:ring-stone-400"
+                            value={draft[k.id]||0}
+                            onChange={function(e){var v=parseInt(e.target.value)||0;setDraft(function(p){var n={};Object.keys(p).forEach(function(key){n[key]=p[key];});n[k.id]=v;return n;});}}
+                          />
+                          <div className="flex-1 h-2 bg-stone-100 rounded-full overflow-hidden">
+                            <div className={'h-full rounded-full '+k.bg.replace('bg-','bg-').replace('-50','-400')} style={{width:Math.min(draft[k.id]||0,100)+'%'}}/>
+                          </div>
+                          <span className="text-[10px] text-stone-400 w-8 text-right">{draft[k.id]||0}%</span>
+                        </div>
+                      );
+                    })}
+                    <button
+                      onClick={function(){if(ok)onSaveTargetBobot(draft);}}
+                      className={'w-full py-2.5 rounded-xl text-[11px] font-bold as st mt-2 '+(ok?'bg-stone-900 text-white':'bg-stone-200 text-stone-400 cursor-not-allowed')}
+                      disabled={!ok}
+                    >💾 Simpan Target Bobot</button>
+                  </div>
+                </div>
+              );
+            })()}
             {/* Quick guide link */}
             <button className="w-full py-3 rounded-2xl bg-stone-50 border border-stone-200 text-[11px] font-bold text-stone-600 as st flex items-center justify-center gap-2" onClick={()=>setTab('guide')}>📖 Lihat Panduan Deploy & Setup Lengkap →</button>
           </div>}
@@ -2533,13 +2610,75 @@ Return HANYA JSON array valid, tidak ada teks lain, tidak ada markdown fences:
 }
 
 // ── DASHBOARD ─────────────────────────────────────────────────
-function Dashboard({weekly,kpiCorp,dashMonth,onChangeMonth,booking}){
+function Dashboard({weekly,kpiCorp,dashMonth,onChangeMonth,booking,backlog,jadwal}){
   const [open,setOpen]=useState(null);
   const availMonths=Object.keys(kpiCorp||{}).sort().reverse();
   const active=WEEKS.filter(w=>weekly[w]);
   const last=weekly[active[active.length-1]];
   const crits=[];
   if(last){if((last.booking&&last.booking.pct||0)<50)crits.push({l:'Booking',p:last.booking&&last.booking.pct,k:'finansial'});if(last.fraud&&last.fraud.pct===0)crits.push({l:'Temuan Fraud',note:'ada 1.29%',k:'operasional'});if((last.lahan_baru&&last.lahan_baru.pct||0)===0)crits.push({l:'Lahan Baru',p:0,k:'riset'});if((last.sdm_rekrut&&last.sdm_rekrut.pct||0)<50)crits.push({l:'SDM Rekrut',p:last.sdm_rekrut&&last.sdm_rekrut.pct,k:'people'});}
+
+  // ── AUTO-FLAG: Backlog anomalies ──
+  var today=todayStr();
+  var flags=[];
+  var blList=backlog||[];
+  // overdue
+  var overdue=blList.filter(function(it){return it.deadline&&it.deadline<today&&it.status!=='selesai'&&it.status!=='didelegasikan';});
+  if(overdue.length>0)flags.push({icon:'🔴',label:'Backlog Overdue',val:overdue.length+'×',sub:'deadline lewat belum selesai',color:'#f43f5e'});
+  // multi-postpone
+  var multiPost=blList.filter(function(it){return(it.postponeHistory||[]).length>=3&&it.status!=='selesai';});
+  if(multiPost.length>0)flags.push({icon:'🟠',label:'Multi-Postpone ≥3×',val:multiPost.length+'×',sub:'perlu eskalasi atau drop',color:'#f59e0b'});
+  // long pending NF
+  var pendingNF=blList.filter(function(it){return it.needFeedback&&!it.feedbackStatus;});
+  var longNF=pendingNF.filter(function(it){return it.tanggal&&Math.round((new Date(today)-new Date(it.tanggal))/86400000)>5;});
+  if(longNF.length>0)flags.push({icon:'🟡',label:'Feedback Terlambat >5h',val:longNF.length+'×',sub:'menunggu respon CEO >5 hari',color:'#eab308'});
+  // D6: output fill rate
+  var allJItems=[];Object.keys(jadwal||{}).forEach(function(d){(jadwal[d]||[]).forEach(function(it){allJItems.push({...it,_date:d});});});
+  var nonMtg=allJItems.filter(function(it){return it.jenisKegiatan&&!it.jenisKegiatan.includes('Meeting')&&it.jenisKegiatan!=='Personal'&&it._date<=today;});
+  var filled=nonMtg.filter(function(it){return it.outputKeputusan&&it.outputKeputusan.trim().length>10;});
+  var fillPct=nonMtg.length>0?Math.round(filled.length/nonMtg.length*100):null;
+  if(fillPct!==null&&fillPct<60)flags.push({icon:'📝',label:'Output Fill Rate Rendah',val:fillPct+'%',sub:'target >60% — '+filled.length+'/'+nonMtg.length+' terisi',color:'#6366f1'});
+
+  // ── RINGKASAN: KPI Strip ──
+  var curMonth=dashMonth||(new Date().toISOString().slice(0,7));
+  var jamBulanIni=0;
+  Object.keys(jadwal||{}).forEach(function(d){
+    if(d.slice(0,7)===curMonth)(jadwal[d]||[]).forEach(function(it){jamBulanIni=Math.round((jamBulanIni+getDur(it.jamMulai,it.jamSelesai))*10)/10;});
+  });
+  var blAktif=(backlog||[]).filter(function(it){return it.status==='baru'||it.status==='postponed';}).length;
+  var nfQueue=(backlog||[]).filter(function(it){return it.needFeedback&&!it.feedbackStatus;}).length;
+
+  // ── DONT AUDIT: scan 14 hari terakhir ──
+  var cutoff14=new Date();cutoff14.setDate(cutoff14.getDate()-14);
+  var cut14=cutoff14.toISOString().slice(0,10);
+  var recentItems=[];
+  Object.keys(jadwal||{}).forEach(function(d){if(d>=cut14)(jadwal[d]||[]).forEach(function(it){recentItems.push({...it,_date:d});});});
+
+  var DONT_RULES=[
+    {id:'upload_konten',label:'Upload/Posting konten sendiri',why:'Eksekusi level EA atau tim Zaffan — bukan CEO',rec:'Delegasi ke EA; CEO cukup approve draft',
+     test:function(it){var d=((it.detailKegiatan||'')+' '+(it.outputKeputusan||'')).toLowerCase();return/upload.*postingan|upload.*ig|posting.*ig|post.*instagram|upload.*konten/.test(d);}},
+    {id:'ops_detail',label:'Meeting detail operasional kecil',why:'Keputusan teknis level COO/PM — ukuran, material, vendor minor',rec:'COO yang putuskan; CEO hanya intervensi jika strategic',
+     test:function(it){var d=((it.detailKegiatan||'')+' '+(it.outputKeputusan||'')).toLowerCase();return it.jenisKegiatan&&it.jenisKegiatan.indexOf('Meeting Review')===0&&/aspal|paving|kanstin|bollard|material jalan|warna cat|ukuran|vendor kecil/.test(d);}},
+  ];
+  var DONT_FOUND=[];
+  DONT_RULES.forEach(function(rule){
+    var matches=recentItems.filter(function(it){try{return rule.test(it);}catch(e){return false;}});
+    if(matches.length>0)DONT_FOUND.push({rule:rule,matches:matches});
+  });
+
+  // DO coverage check (last 7 hari)
+  var cutoff7=new Date();cutoff7.setDate(cutoff7.getDate()-7);
+  var cut7=cutoff7.toISOString().slice(0,10);
+  var recent7=recentItems.filter(function(it){return it._date>=cut7;});
+  var DO_CHECKS=[
+    {id:'deepwork',label:'Deepwork / OKR / Strategis',jenis:'Deepwork Strategic'},
+    {id:'external',label:'Ketemu External / Networking',jenis:'Ketemu External'},
+    {id:'engage',label:'Employee Engage',jenis:'Employee Engage'},
+    {id:'konten',label:'Bikin Konten CEO',jenis:'Bikin Konten'},
+  ];
+  var DO_ABSENT=DO_CHECKS.filter(function(chk){
+    return!recent7.some(function(it){return it.jenisKegiatan===chk.jenis;});
+  });
   const SC={y:'text-amber-600',r:'text-red-600',g:'text-emerald-600'};
   const scC=(s)=>s>=80?'text-emerald-600':s>=60?'text-amber-600':'text-red-600';
   // Booking summary
@@ -2558,7 +2697,84 @@ function Dashboard({weekly,kpiCorp,dashMonth,onChangeMonth,booking}){
   const hasBooking=totalAct>0||totalTgt>0;
   return(
     <div className="afi pb-4">
-      <div className="px-4 pt-4 pb-2 flex items-center justify-between">
+
+      {/* ── RINGKASAN: KPI STRIP ── */}
+      <div className="px-4 pt-4 pb-3">
+        <div className="text-[10px] font-extrabold text-stone-400 uppercase tracking-widest mb-3">📋 Ringkasan</div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+          {(function(){
+            var cards=[
+              {label:'Jam Bulan Ini',val:jamBulanIni+'h',sub:curMonth,col:'#3b82f6',bg:'#eff6ff'},
+              {label:'Backlog Aktif',val:blAktif+'×',sub:'baru + postponed',col:blAktif>10?'#f43f5e':blAktif>5?'#f59e0b':'#10b981',bg:blAktif>10?'#fff1f2':blAktif>5?'#fffbeb':'#f0fdf4'},
+              {label:'NF Pending',val:nfQueue+'×',sub:'menunggu CEO',col:nfQueue>3?'#f43f5e':nfQueue>0?'#f59e0b':'#10b981',bg:nfQueue>3?'#fff1f2':nfQueue>0?'#fffbeb':'#f0fdf4'},
+              {label:'Output Fill Rate',val:fillPct!==null?fillPct+'%':'–',sub:'kegiatan non-meeting',col:fillPct===null?'#94a3b8':fillPct>=80?'#10b981':fillPct>=60?'#f59e0b':'#f43f5e',bg:fillPct===null?'#f8fafc':fillPct>=80?'#f0fdf4':fillPct>=60?'#fffbeb':'#fff1f2'},
+            ];
+            return cards.map(function(c,i){
+              return(
+                <div key={i} className="rounded-2xl p-3.5 border" style={{background:c.bg,borderColor:c.col+'33'}}>
+                  <div className="text-[9px] font-bold uppercase tracking-wider mb-1.5" style={{color:c.col}}>{c.label}</div>
+                  <div className="text-[22px] font-black leading-none mb-1" style={{color:c.col}}>{c.val}</div>
+                  <div className="text-[9px] text-stone-400">{c.sub}</div>
+                </div>
+              );
+            });
+          })()}
+        </div>
+      </div>
+
+      {/* ── DO/DONT AUDIT ── */}
+      {(DONT_FOUND.length>0||DO_ABSENT.length>0)&&(
+        <div className="mx-4 mb-4 rounded-2xl border border-stone-200 bg-white overflow-hidden shadow-soft">
+          <div className="px-4 py-2.5 border-b border-stone-100 flex items-center justify-between">
+            <span className="text-[10px] font-extrabold text-stone-500 uppercase tracking-widest">🔍 DO / DONT Audit · 14 hari terakhir</span>
+          </div>
+          {DONT_FOUND.length>0&&(
+            <div className="px-4 py-3 border-b border-stone-100">
+              <div className="text-[9px] font-bold text-red-500 uppercase tracking-widest mb-2">DONT — Ditemukan</div>
+              {DONT_FOUND.map(function(f){
+                return(
+                  <div key={f.rule.id} className="mb-3 last:mb-0 bg-red-50 border border-red-100 rounded-xl p-3">
+                    <div className="flex items-start gap-2 mb-1">
+                      <span className="text-[9px] font-black text-red-600 bg-red-100 px-1.5 py-0.5 rounded flex-shrink-0">DONT</span>
+                      <span className="text-[11px] font-bold text-stone-800">{f.rule.label}</span>
+                    </div>
+                    <div className="text-[9px] text-stone-500 mb-1 pl-1">{f.rule.why}</div>
+                    <div className="text-[9px] text-stone-400 pl-1">→ {f.rule.rec}</div>
+                    <div className="mt-2 space-y-1">
+                      {f.matches.slice(0,3).map(function(it){
+                        return(
+                          <div key={it.id} className="flex items-center gap-2 text-[9px] text-stone-500">
+                            <span className="font-mono text-stone-400">{it._date.slice(5)}</span>
+                            <span>{(it.detailKegiatan||'').slice(0,55)}</span>
+                          </div>
+                        );
+                      })}
+                      {f.matches.length>3&&<div className="text-[9px] text-stone-400">+{f.matches.length-3} lainnya</div>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {DO_ABSENT.length>0&&(
+            <div className="px-4 py-3">
+              <div className="text-[9px] font-bold text-amber-600 uppercase tracking-widest mb-2">DO — Absen 7 hari terakhir</div>
+              <div className="space-y-1.5">
+                {DO_ABSENT.map(function(chk){
+                  return(
+                    <div key={chk.id} className="flex items-center gap-2">
+                      <span className="text-[9px] font-black text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded flex-shrink-0">✗</span>
+                      <span className="text-[11px] text-stone-600">{chk.label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="px-4 pt-2 pb-2 flex items-center justify-between">
         <div className="text-[11px] font-extrabold text-stone-500 uppercase tracking-widest">KPI Corporate</div>
         <div className="flex items-center gap-2">
           {availMonths.length>0?(
@@ -2578,6 +2794,31 @@ function Dashboard({weekly,kpiCorp,dashMonth,onChangeMonth,booking}){
         );})}
       </div>
       {crits.length>0&&<div className="mx-4 mb-4 p-3.5 rounded-2xl bg-red-50 border border-red-100"><div className="text-[11px] font-bold text-red-700 mb-2 flex items-center gap-1.5"><span>🚨</span>Perlu perhatian CEO</div>{crits.map((c,i)=><div key={i} className="flex justify-between items-center mb-1.5 last:mb-0"><span className="text-[11px] text-red-800 font-medium">● {c.l}{c.note?` — ${c.note}`:''}</span><div className="flex gap-1.5">{c.p!==undefined&&<Pct p={c.p} sm/>}<KC id={c.k} sm/></div></div>)}</div>}
+      {flags.length>0&&(
+        <div className="mx-4 mb-4 rounded-2xl border border-amber-200 bg-amber-50 overflow-hidden">
+          <div className="px-4 py-2.5 border-b border-amber-200 flex items-center gap-1.5">
+            <span>⚡</span>
+            <span className="text-[11px] font-bold text-amber-800">Auto-Flag Sistem</span>
+            <span className="ml-auto text-[9px] font-bold text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full">{flags.length} alert</span>
+          </div>
+          <div className="divide-y divide-amber-100">
+            {flags.map(function(f,i){
+              return(
+                <div key={i} className="flex items-center justify-between px-4 py-2.5">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className="text-[14px] flex-shrink-0">{f.icon}</span>
+                    <div className="min-w-0">
+                      <div className="text-[11px] font-bold text-stone-800">{f.label}</div>
+                      <div className="text-[9px] text-stone-500">{f.sub}</div>
+                    </div>
+                  </div>
+                  <span className="text-[13px] font-black flex-shrink-0 ml-3" style={{color:f.color}}>{f.val}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
       {hasBooking&&<div className="mx-4 mb-4 bg-white border border-stone-200 rounded-2xl shadow-soft p-4">
         <div className="text-[10px] font-extrabold text-stone-400 uppercase tracking-widest mb-3">📈 Booking {MONTH_LBL[currMo]} {currYr}</div>
         <div className="flex items-end gap-4 flex-wrap">
@@ -2692,7 +2933,7 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
     return function(){clearInterval(t);};
   },[]);
 
-  const EMPTY_F={jamMulai:'08:00',jamSelesai:'09:00',kategori:'RSP',jenisKegiatan:'Deepwork Strategic',detailKegiatan:'',relateMilestone:'operasional',outputKeputusan:''};
+  const EMPTY_F={jamMulai:'08:00',jamSelesai:'09:00',kategori:'RSP',jenisKegiatan:'Deepwork Strategic',detailKegiatan:'',relateMilestone:'operasional',outputKeputusan:'',ea:''};
 
   function saveOutput(item){
     var txt=outTexts[item.id]||'';if(!txt.trim())return;
@@ -2714,7 +2955,7 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
   function openRow(item){
     if(expandId===item.id){setExpandId(null);return;}
     setExpandId(item.id);
-    setEf({jamMulai:item.jamMulai||'',jamSelesai:item.jamSelesai||'',kategori:item.kategori||'RSP',jenisKegiatan:item.jenisKegiatan||'Deepwork Strategic',detailKegiatan:item.detailKegiatan||'',gcalDesc:item.gcalDesc||'',relateMilestone:item.relateMilestone||'operasional',checklistNotes:item.checklistNotes||{}});
+    setEf({jamMulai:item.jamMulai||'',jamSelesai:item.jamSelesai||'',kategori:item.kategori||'RSP',jenisKegiatan:item.jenisKegiatan||'Deepwork Strategic',detailKegiatan:item.detailKegiatan||'',gcalDesc:item.gcalDesc||'',relateMilestone:item.relateMilestone||'operasional',checklistNotes:item.checklistNotes||{},ea:item.ea||''});
     setOutTexts(function(p){var n={...p};if(n[item.id]===undefined)n[item.id]=item.outputKeputusan||'';return n;});
     setOutEvidence(function(p){var n={...p};if(n[item.id]===undefined)n[item.id]=item.outputEvidence||'';return n;});
     setOutActionItems(function(p){var n={...p};if(n[item.id]===undefined)n[item.id]=item.outputActionItems||[];return n;});
@@ -2753,6 +2994,7 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
           <div className="text-[12px] font-semibold text-stone-800 leading-snug" style={{display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden'}}>{fromBL?item.isi:item.detailKegiatan}</div>
           <div className="md:hidden mt-0.5"><span className={`px-1 py-0.5 rounded text-[8px] font-bold ${jColor}`}>{JENIS_SHORT[item.jenisKegiatan]||item.jenisKegiatan||'–'}</span></div>
           {!fromBL&&item.gcalDesc&&item.gcalDesc.trim()&&<div className="hidden md:block text-[9px] text-stone-400 mt-0.5" style={{display:'-webkit-box',WebkitLineClamp:1,WebkitBoxOrient:'vertical',overflow:'hidden'}}>{linkify(item.gcalDesc)}</div>}
+          {!fromBL&&item.ea&&<span className={`inline-block mt-0.5 px-1.5 py-0 rounded text-[8px] font-bold ${EA_COLOR[item.ea]||'bg-stone-100 text-stone-500'}`}>{item.ea}</span>}
         </td>
         <td className="hidden md:table-cell px-2 py-2.5 whitespace-nowrap">
           {kpi?<KC id={kpi.id} sm/>:<span className="text-[9px] text-stone-300">–</span>}
@@ -2809,7 +3051,7 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
     function toggleCheck(cid){if(!fromBL)onUpdateJadwal(today,item.id,{checklistDone:{...clDone,[cid]:!clDone[cid]}});}
     function setSubType(st){onUpdateJadwal(today,item.id,{meetingSubType:st,checklistDone:{}});}
     function saveEdit(){
-      onUpdateJadwal(today,item.id,{jamMulai:ef.jamMulai,jamSelesai:ef.jamSelesai,kategori:ef.kategori,jenisKegiatan:ef.jenisKegiatan,detailKegiatan:ef.detailKegiatan,gcalDesc:ef.gcalDesc,relateMilestone:ef.relateMilestone,checklistNotes:ef.checklistNotes});
+      onUpdateJadwal(today,item.id,{jamMulai:ef.jamMulai,jamSelesai:ef.jamSelesai,kategori:ef.kategori,jenisKegiatan:ef.jenisKegiatan,detailKegiatan:ef.detailKegiatan,gcalDesc:ef.gcalDesc,relateMilestone:ef.relateMilestone,checklistNotes:ef.checklistNotes,ea:ef.ea});
     }
     return(
       <tr key={item.id+'_exp'} className="border-b border-violet-100 bg-violet-50/10">
@@ -2888,6 +3130,11 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
                 <div>
                   <div className="text-[9px] font-bold text-stone-400 uppercase mb-1">Deskripsi Calendar</div>
                   <textarea className="w-full px-2.5 py-2 rounded-xl border border-stone-200 text-[11px] focus:outline-none focus:ring-1 focus:ring-stone-400" style={{overflowY:'hidden',resize:'none',minHeight:'72px'}} ref={function(el){if(el){el.style.height='auto';el.style.height=el.scrollHeight+'px';}}} onInput={function(e){e.target.style.height='auto';e.target.style.height=e.target.scrollHeight+'px';}} placeholder="Objective, attendees, agenda, context..." value={ef.gcalDesc||''} onChange={function(e){setEf(function(p){return{...p,gcalDesc:e.target.value};});}}/>
+                </div>
+                <div>
+                  <div className="text-[9px] font-bold text-stone-400 uppercase mb-1">EA yang Input</div>
+                  <div className="flex gap-1.5">{EA_LIST.map(function(name){return<button key={name} className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border st as ${ef.ea===name?(EA_COLOR[name]||'bg-stone-200 text-stone-700')+' border-transparent shadow-sm':'bg-white text-stone-500 border-stone-200'}`} onClick={function(){setEf(function(p){return{...p,ea:ef.ea===name?'':name};});}}>{name}</button>;})}
+                  </div>
                 </div>
               </>}
               {!fromBL&&!isPersonal&&<div className="space-y-3">
@@ -2974,6 +3221,7 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
         <div className="mb-3"><div className="text-[9px] font-bold text-stone-500 uppercase mb-1.5">Jenis Kegiatan</div><select className="w-full px-2.5 py-2 rounded-xl border border-stone-200 bg-white text-[11px] font-medium focus:outline-none" value={lf.jenisKegiatan} onChange={function(e){upd('jenisKegiatan',e.target.value);}}>{(lf.kategori==='Personal'?['Personal']:JENIS_KEGIATAN.filter(function(j){return j!=='Personal';})).map(function(j){return<option key={j} value={j}>{j}</option>;})}</select></div>
         <div className="mb-3"><div className="text-[9px] font-bold text-stone-500 uppercase mb-1.5">Detail Kegiatan *</div><textarea className="w-full px-2.5 py-2 rounded-xl border border-stone-200 bg-white text-[12px] focus:outline-none focus:ring-1 focus:ring-stone-400 resize-none" rows={2} placeholder="Apa yang akan dilakukan?" value={lf.detailKegiatan} onChange={function(e){upd('detailKegiatan',e.target.value);}}/></div>
         <div className="mb-4"><div className="text-[9px] font-bold text-stone-500 uppercase mb-1.5">Relate KPI</div><div className="flex gap-1.5 flex-wrap">{KPI5.map(function(k){return<button key={k.id} className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold border st as ${lf.relateMilestone===k.id?`${k.bg} ${k.color} ${k.border} shadow-sm`:'bg-white text-stone-500 border-stone-200'}`} onClick={function(){upd('relateMilestone',k.id);}}>{k.short}</button>;})}</div></div>
+        <div className="mb-4"><div className="text-[9px] font-bold text-stone-500 uppercase mb-1.5">EA yang Input</div><div className="flex gap-1.5">{EA_LIST.map(function(name){return<button key={name} className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border st as ${lf.ea===name?(EA_COLOR[name]||'bg-stone-200 text-stone-700')+' border-transparent shadow-sm':'bg-white text-stone-500 border-stone-200'}`} onClick={function(){upd('ea',lf.ea===name?'':name);}}>{name}</button>;})}</div></div>
         <div className="flex gap-2">
           <button className="flex-1 py-2 rounded-xl border border-stone-200 bg-white text-[11px] font-bold text-stone-500 as st" onClick={function(){setAddingBlok(null);setNf(null);}}>Batal</button>
           <button className={`flex-2 py-2 px-4 rounded-xl text-[11px] font-bold as st ${!lf.detailKegiatan.trim()?'bg-stone-200 text-stone-400 cursor-not-allowed':'bg-stone-800 text-white'}`} onClick={function(){if(!lf.detailKegiatan.trim())return;onAddJadwal(today,{id:'SJ-'+genId(),tanggal:today,...lf,outputKeputusan:''});setAddingBlok(null);setNf(null);}} disabled={!lf.detailKegiatan.trim()}>+ Tambahkan</button>
@@ -3726,8 +3974,9 @@ function Heatmap({backlog}){
 }
 
 // ── ANALISA TAB ───────────────────────────────────────────────
-function AnalisaTab({backlog,jadwal,kpiCorp,dashMonth,mom,kpiCeo}){
+function AnalisaTab({backlog,jadwal,kpiCorp,dashMonth,mom,kpiCeo,targetBobot}){
   const [entityFilter,setEntityFilter]=useState('all');
+  const [heatTip,setHeatTip]=useState(null);
   const stats=computeAnalisaFiltered(jadwal||{},entityFilter);
   const today=todayStr();
 
@@ -3774,7 +4023,7 @@ function AnalisaTab({backlog,jadwal,kpiCorp,dashMonth,mom,kpiCeo}){
     avgPendingAge=Math.round(totalAge/pendingQueue.length*10)/10;
   }
 
-  const TARGET_PCT={finansial:25,branding:25,riset:15,operasional:30,people:5};
+  const TARGET_PCT=targetBobot||{finansial:25,branding:25,riset:15,operasional:30,people:5};
   const coverageGaps=KPI5.map(function(k){
     var actual=0;
     if(stats&&stats.coverage){stats.coverage.forEach(function(c){if(c.kpi.id===k.id)actual=c.hours;});}
@@ -3922,6 +4171,100 @@ function AnalisaTab({backlog,jadwal,kpiCorp,dashMonth,mom,kpiCeo}){
               </div>
             </>);
           })()}
+        </div>
+      </div>
+
+      {/* ── ALOKASI WAKTU ── */}
+      <div className="px-4 md:px-6 mb-5">
+        <div className="text-[10px] font-extrabold text-stone-400 uppercase tracking-widest mb-0.5">📊 Alokasi Waktu</div>
+        <div className="text-[10px] text-stone-400 mb-3">Distribusi jam CEO — entitas &amp; jenis kegiatan</div>
+        <div className="space-y-3">
+
+          {/* Bar 1: Per Entitas */}
+          {(function(){
+            var KAT_HEX={RSP:'#f43f5e',BT:'#3b82f6',TKB:'#f59e0b',Personal:'#94a3b8',Eksternal:'#10b981',Holding:'#a855f7'};
+            var entMap={};
+            Object.keys(jadwal||{}).forEach(function(date){
+              (jadwal[date]||[]).forEach(function(it){
+                var e=it.kategori||'Personal';
+                var dur=getDur(it.jamMulai,it.jamSelesai);
+                entMap[e]=Math.round(((entMap[e]||0)+dur)*10)/10;
+              });
+            });
+            var entList=Object.keys(entMap).map(function(k){return{k:k,h:entMap[k]};}).sort(function(a,b){return b.h-a.h;});
+            var totalH=entList.reduce(function(s,e){return s+e.h;},0);
+            var maxH=entList.length>0?entList[0].h:1;
+            if(entList.length===0)return null;
+            return(
+              <div className="bg-white border border-stone-200 rounded-2xl p-4 shadow-soft">
+                <div className="flex justify-between items-center mb-3">
+                  <div className="text-[10px] font-bold text-stone-500 uppercase tracking-wider">Per Entitas</div>
+                  <div className="text-[10px] text-stone-400">{Math.round(totalH*10)/10}h total</div>
+                </div>
+                <div className="space-y-2.5">
+                  {entList.map(function(e){
+                    var pct=totalH>0?Math.round(e.h/totalH*100):0;
+                    var col=KAT_HEX[e.k]||'#94a3b8';
+                    var barW=Math.round(e.h/maxH*100);
+                    return(
+                      <div key={e.k}>
+                        <div className="flex justify-between text-[11px] mb-1">
+                          <span className="font-semibold text-stone-700">{e.k}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-stone-400 text-[10px]">{pct}%</span>
+                            <span className="font-black text-stone-800">{e.h}h</span>
+                          </div>
+                        </div>
+                        <div className="w-full h-3 bg-stone-100 rounded-full overflow-hidden">
+                          <div className="h-full rounded-full" style={{width:barW+'%',background:col}}/>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Bar 2: Per Jenis Kegiatan */}
+          {stats&&stats.distribusi&&(function(){
+            var JENIS_HEX={'Deepwork Strategic':'#7c3aed','Meeting Strategic/Problem Solving/Approval':'#be185d','Meeting Review Operasional + Evaluasi Tim':'#b45309','Ketemu External':'#6d28d9','Bikin Konten':'#1d4ed8','Genba':'#065f46','Employee Engage':'#9f1239','Personal':'#78716c'};
+            var list=stats.distribusi.filter(function(d){return d.hours>0;});
+            var totalH=list.reduce(function(s,d){return s+d.hours;},0);
+            var maxH=list.length>0?list[0].hours:1;
+            if(list.length===0)return null;
+            return(
+              <div className="bg-white border border-stone-200 rounded-2xl p-4 shadow-soft">
+                <div className="flex justify-between items-center mb-3">
+                  <div className="text-[10px] font-bold text-stone-500 uppercase tracking-wider">Per Jenis Kegiatan</div>
+                  <div className="text-[10px] text-stone-400">{Math.round(totalH*10)/10}h total</div>
+                </div>
+                <div className="space-y-2.5">
+                  {list.map(function(d){
+                    var pct=totalH>0?Math.round(d.hours/totalH*100):0;
+                    var col=JENIS_HEX[d.jenis]||'#94a3b8';
+                    var barW=Math.round(d.hours/maxH*100);
+                    var lbl=JENIS_SHORT[d.jenis]||d.jenis;
+                    return(
+                      <div key={d.jenis}>
+                        <div className="flex justify-between text-[11px] mb-1">
+                          <span className="font-semibold text-stone-700">{lbl}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-stone-400 text-[10px]">{pct}%</span>
+                            <span className="font-black text-stone-800">{d.hours}h</span>
+                          </div>
+                        </div>
+                        <div className="w-full h-3 bg-stone-100 rounded-full overflow-hidden">
+                          <div className="h-full rounded-full" style={{width:barW+'%',background:col}}/>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
+
         </div>
       </div>
 
@@ -4147,6 +4490,104 @@ function AnalisaTab({backlog,jadwal,kpiCorp,dashMonth,mom,kpiCeo}){
         })()}
       </div>
 
+      {/* ── HEATMAP JAM × HARI ── */}
+      {(function(){
+        // ambil 7 tanggal terbaru yang ada isinya
+        var allDates=Object.keys(jadwal||{}).filter(function(d){return(jadwal[d]||[]).length>0;}).sort();
+        var dates=allDates.slice(-7);
+        if(dates.length===0)return null;
+        var HOURS=[];for(var hh=5;hh<24;hh++)HOURS.push(hh);
+        var DAYS_ID=['Min','Sen','Sel','Rab','Kam','Jum','Sab'];
+        // build lookup: date+hour → item
+        function getCell(date,hour){
+          var items=jadwal[date]||[];
+          for(var i=0;i<items.length;i++){
+            var it=items[i];
+            var h1=parseInt((it.jamMulai||'00').split(':')[0]);
+            var h2=parseInt((it.jamSelesai||'00').split(':')[0]);
+            if(h1<=hour&&hour<h2)return it;
+          }
+          return null;
+        }
+        var colW=Math.floor(100/dates.length);
+        return(
+          <div className="px-4 md:px-6 mb-5">
+            <div className="text-[10px] font-extrabold text-stone-400 uppercase tracking-widest mb-0.5">🕐 Heatmap Jam × Hari</div>
+            <div className="text-[10px] text-stone-400 mb-3">{dates.length} hari terakhir · warna = fungsi dominan per jam</div>
+            <div className="bg-white border border-stone-200 rounded-2xl shadow-soft overflow-hidden">
+              <div className="overflow-x-auto">
+                <table style={{width:'100%',borderCollapse:'collapse',tableLayout:'fixed'}}>
+                  <thead>
+                    <tr style={{background:'#f8fafc',borderBottom:'1px solid #e2e8f0'}}>
+                      <th style={{width:36,padding:'6px 4px',fontSize:9,color:'#94a3b8',fontWeight:700,textAlign:'right',paddingRight:6}}></th>
+                      {dates.map(function(d){
+                        var dow=new Date(d+'T12:00:00').getDay();
+                        return(
+                          <th key={d} style={{padding:'6px 2px',fontSize:9,fontWeight:700,color:'#475569',textAlign:'center'}}>
+                            <div style={{color:'#94a3b8'}}>{DAYS_ID[dow]}</div>
+                            <div>{d.slice(8)}/{d.slice(5,7)}</div>
+                          </th>
+                        );
+                      })}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {HOURS.map(function(hour){
+                      var hasAny=dates.some(function(d){return getCell(d,hour)!==null;});
+                      if(!hasAny)return null;
+                      return(
+                        <tr key={hour} style={{borderBottom:'1px solid #f8fafc'}}>
+                          <td style={{padding:'1px 6px 1px 4px',fontSize:9,color:'#94a3b8',textAlign:'right',whiteSpace:'nowrap',fontFamily:'monospace'}}>{String(hour).padStart(2,'0')}</td>
+                          {dates.map(function(d){
+                            var item=getCell(d,hour);
+                            if(!item){
+                              return<td key={d} style={{padding:1}}><div style={{height:18,background:'#f8fafc',borderRadius:2}}/></td>;
+                            }
+                            var fn=getFunc(item);
+                            var col=FUNC_HEX[fn]||'#94a3b8';
+                            var lbl=fn.split(' ')[0].slice(0,3);
+                            return(
+                              <td key={d} style={{padding:1}}>
+                                <div
+                                  style={{height:18,background:col,borderRadius:2,display:'flex',alignItems:'center',justifyContent:'center',cursor:'default'}}
+                                  onMouseEnter={function(e){setHeatTip({x:e.clientX,y:e.clientY,fn:fn,detail:(item.detailKegiatan||'').slice(0,50),jam:item.jamMulai+'-'+item.jamSelesai,ea:item.ea||''});}}
+                                  onMouseLeave={function(){setHeatTip(null);}}
+                                >
+                                  <span style={{fontSize:7,fontWeight:700,color:'rgba(255,255,255,0.85)'}}>{lbl}</span>
+                                </div>
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              {/* Legend */}
+              <div style={{padding:'10px 14px',borderTop:'1px solid #f1f5f9',display:'flex',flexWrap:'wrap',gap:6}}>
+                {FUNC_ORDER.map(function(fn){
+                  return(
+                    <span key={fn} style={{display:'inline-flex',alignItems:'center',gap:4,fontSize:9,color:'#475569'}}>
+                      <span style={{width:10,height:10,borderRadius:2,background:FUNC_HEX[fn],flexShrink:0,display:'inline-block'}}/>
+                      {fn}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+            {/* Tooltip */}
+            {heatTip&&(
+              <div style={{position:'fixed',left:heatTip.x+14,top:heatTip.y+14,background:'#1e293b',color:'white',fontSize:11,padding:'8px 12px',borderRadius:8,zIndex:9999,pointerEvents:'none',boxShadow:'0 4px 12px rgba(0,0,0,0.3)',maxWidth:220,lineHeight:1.5}}>
+                <div style={{fontWeight:700,marginBottom:2}}>{heatTip.fn}</div>
+                <div style={{color:'#94a3b8',fontSize:10}}>{heatTip.jam}{heatTip.ea?' · '+heatTip.ea:''}</div>
+                <div style={{color:'#cbd5e1',fontSize:10,marginTop:2}}>{heatTip.detail}</div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
       {/* ── HEATMAP ── */}
       {stats?<>
         <div className="px-4 md:px-6 mb-2">
@@ -4165,6 +4606,322 @@ function AnalisaTab({backlog,jadwal,kpiCorp,dashMonth,mom,kpiCeo}){
         </div>
       </>:<div className="px-4 md:px-6 py-8 text-center"><div className="text-4xl mb-3 opacity-30">📊</div><div className="text-[13px] font-bold text-stone-400">Isi output kegiatan di Jadwal untuk melihat heatmap & coverage</div></div>}
 
+    </div>
+  );
+}
+
+function PenilaianEATab({jadwal}){
+  var allItems=[];
+  Object.keys(jadwal||{}).sort().forEach(function(date){
+    (jadwal[date]||[]).forEach(function(it){
+      if(it.ea){allItems.push({id:it.id,_date:date,ea:it.ea,kategori:it.kategori||'',outputKeputusan:it.outputKeputusan||''});}
+    });
+  });
+
+  function computeEA(name){
+    var items=allItems.filter(function(it){return it.ea===name;});
+    if(items.length===0)return null;
+    var nonPersonal=items.filter(function(it){return it.kategori!=='Personal';});
+    var filled=nonPersonal.filter(function(it){return it.outputKeputusan.trim().length>20;});
+    var thin=items.filter(function(it){return it.outputKeputusan.trim().length<20;});
+    var richItems=nonPersonal.filter(function(it){return it.outputKeputusan.trim().length>0;});
+    var totalLen=richItems.reduce(function(s,it){return s+it.outputKeputusan.trim().length;},0);
+    var avgRich=richItems.length>0?Math.round(totalLen/richItems.length):0;
+    var fillRate=nonPersonal.length>0?Math.round(filled.length/nonPersonal.length*100):0;
+    var thinRate=items.length>0?Math.round(thin.length/items.length*100):0;
+    var richScore=Math.min(Math.round(avgRich/150*100),100);
+    var score=Math.round(fillRate*0.5+richScore*0.3+(100-thinRate)*0.2);
+    return{name:name,total:items.length,nonPersonal:nonPersonal.length,filled:filled.length,thin:thin.length,avgRich:avgRich,fillRate:fillRate,thinRate:thinRate,richScore:richScore,score:score};
+  }
+
+  function gradeCol(s){return s>=80?'#10b981':s>=65?'#3b82f6':s>=50?'#f59e0b':'#f43f5e';}
+  function gradeLbl(s){return s>=80?'Sangat Baik':s>=65?'Baik':s>=50?'Cukup':'Perlu Perbaikan';}
+
+  function renderRing(score,col){
+    var sz=72;var r=(sz-10)/2;var c=2*Math.PI*r;var off=c*(1-score/100);
+    return(
+      <svg width={sz} height={sz} viewBox={'0 0 '+sz+' '+sz}>
+        <circle cx={sz/2} cy={sz/2} r={r} fill="none" stroke="#f1f5f9" strokeWidth="8"/>
+        <circle cx={sz/2} cy={sz/2} r={r} fill="none" stroke={col} strokeWidth="8" strokeLinecap="round"
+          strokeDasharray={c} strokeDashoffset={off} transform={'rotate(-90 '+sz/2+' '+sz/2+')'}/>
+        <text x={sz/2} y={sz/2+7} textAnchor="middle" fontFamily="sans-serif" fontSize="20" fontWeight="700" fill="#1e293b">{score}</text>
+      </svg>
+    );
+  }
+
+  function renderMetricBar(label,val,note){
+    var col=val>=80?'#10b981':val>=60?'#f59e0b':'#f43f5e';
+    return(
+      <div className="mb-3">
+        <div className="flex justify-between text-[11px] mb-1">
+          <span className="text-stone-600 font-medium">{label}</span>
+          <span className="font-black" style={{color:col}}>{val}/100</span>
+        </div>
+        <div className="w-full h-2 bg-stone-100 rounded-full overflow-hidden">
+          <div className="h-full rounded-full" style={{width:val+'%',background:col}}/>
+        </div>
+        {note&&<div className="text-[9px] text-stone-400 mt-0.5 pl-2 border-l-2 border-stone-200 leading-relaxed">{note}</div>}
+      </div>
+    );
+  }
+
+  var eaData=EA_LIST.map(computeEA).filter(function(d){return d!==null;});
+
+  if(eaData.length===0){
+    return(
+      <div className="px-4 py-12 text-center">
+        <div className="text-4xl mb-3 opacity-20">👤</div>
+        <div className="text-[13px] font-bold text-stone-400 mb-1">Belum ada data EA</div>
+        <div className="text-[11px] text-stone-400 max-w-xs mx-auto leading-relaxed">Isi field "EA yang Input" di setiap aktivitas Jadwal untuk mulai mengukur kinerja EA</div>
+      </div>
+    );
+  }
+
+  return(
+    <div className="pb-8">
+      <div className="px-4 md:px-6 pt-4 pb-2">
+        <div className="text-[10px] text-stone-400 leading-relaxed">Skor = Fill Rate ×0.5 + Richness ×0.3 + (100−Thin) ×0.2 · Personal dikecualikan dari Fill &amp; Richness</div>
+      </div>
+
+      {/* Score cards */}
+      <div className="px-4 md:px-6 mt-3 space-y-4">
+        {eaData.map(function(m){
+          var col=gradeCol(m.score);
+          var lbl=gradeLbl(m.score);
+          var eaClr=EA_COLOR[m.name]||'bg-stone-100 text-stone-600';
+          return(
+            <div key={m.name} className="bg-white border border-stone-200 rounded-2xl shadow-soft overflow-hidden">
+              <div className="flex items-center gap-4 p-4 border-b border-stone-100">
+                {renderRing(m.score,col)}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <span className={'px-2.5 py-0.5 rounded-full text-[10px] font-bold '+eaClr}>{m.name}</span>
+                    <span className="text-[11px] font-bold" style={{color:col}}>{lbl}</span>
+                  </div>
+                  <div className="text-[10px] text-stone-400">{m.total} entri total · {m.nonPersonal} kegiatan kerja</div>
+                </div>
+              </div>
+              <div className="p-4">
+                {renderMetricBar(
+                  'Output Fill Rate (bobot 50%)',
+                  m.fillRate,
+                  m.filled+' dari '+m.nonPersonal+' kegiatan kerja berisi output bermakna (>20 char)'
+                )}
+                {renderMetricBar(
+                  'Output Richness (bobot 30%)',
+                  m.richScore,
+                  'Rata-rata '+m.avgRich+' char per output · benchmark 150 char = skor 100'
+                )}
+                {renderMetricBar(
+                  'Non-Thin Rate (bobot 20%)',
+                  100-m.thinRate,
+                  m.thin+' dari '+m.total+' entri berisi kurang dari 20 karakter atau kosong'
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Comparison table — hanya tampil kalau 2+ EA ada data */}
+      {eaData.length>=2&&(
+        <div className="mx-4 md:mx-6 mt-4 bg-white border border-stone-200 rounded-2xl shadow-soft overflow-hidden">
+          <div className="px-4 py-3 border-b border-stone-100 text-[10px] font-extrabold text-stone-400 uppercase tracking-widest">Perbandingan EA</div>
+          <div className="overflow-x-auto">
+            <table style={{width:'100%',borderCollapse:'collapse',fontSize:11}}>
+              <thead>
+                <tr style={{background:'#f8fafc',borderBottom:'1px solid #e2e8f0'}}>
+                  <th style={{padding:'8px 12px',textAlign:'left',fontSize:9,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em'}}>Indikator</th>
+                  {eaData.map(function(m){return<th key={m.name} style={{padding:'8px 12px',textAlign:'center',fontSize:9,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em'}}>{m.name}</th>;})}
+                  <th style={{padding:'8px 12px',textAlign:'left',fontSize:9,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em'}}>Interpretasi</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  {lbl:'Total Entri',key:'total',fmt:function(v){return v+'×';},note:function(d){var mx=d.reduce(function(a,b){return a.total>=b.total?a:b;});return mx.name+' lebih banyak entri';}},
+                  {lbl:'Fill Rate',key:'fillRate',fmt:function(v){return v+'%';},note:function(d){var mx=d.reduce(function(a,b){return a.fillRate>=b.fillRate?a:b;});return mx.name+' lebih lengkap outputnya';}},
+                  {lbl:'Avg Output',key:'avgRich',fmt:function(v){return v+' char';},note:function(d){var mx=d.reduce(function(a,b){return a.avgRich>=b.avgRich?a:b;});return mx.name+' lebih rinci outputnya';}},
+                  {lbl:'Thin Entry',key:'thinRate',fmt:function(v){return v+'%';},note:function(d){var mn=d.reduce(function(a,b){return a.thinRate<=b.thinRate?a:b;});return mn.name+' lebih sedikit entry tipis';}},
+                  {lbl:'Skor Akhir',key:'score',fmt:function(v){return v+'/100';},note:function(d){if(d.length<2)return'—';return'Selisih '+Math.abs(d[0].score-d[1].score)+' poin';}},
+                ].map(function(row){
+                  return(
+                    <tr key={row.lbl} style={{borderBottom:'1px solid #f1f5f9'}}>
+                      <td style={{padding:'9px 12px',color:'#475569',fontWeight:500}}>{row.lbl}</td>
+                      {eaData.map(function(m){
+                        var v=m[row.key];
+                        var scoreVal=row.key==='score'?v:row.key==='thinRate'?(100-v):v;
+                        var col=scoreVal>=80?'#10b981':scoreVal>=60?'#f59e0b':'#f43f5e';
+                        return<td key={m.name} style={{padding:'9px 12px',textAlign:'center',fontWeight:700,color:row.key==='score'?col:'#1e293b'}}>{row.fmt(v)}</td>;
+                      })}
+                      <td style={{padding:'9px 12px',color:'#64748b',fontSize:10}}>{row.note(eaData)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LogAktivitasTab({jadwal}){
+  const [fEa,setFEa]=useState('all');
+  const [fKat,setFKat]=useState('all');
+  const [fJenis,setFJenis]=useState('all');
+  const [fOrder,setFOrder]=useState('desc');
+
+  // flatten semua jadwal items
+  var allItems=[];
+  Object.keys(jadwal||{}).sort().forEach(function(date){
+    (jadwal[date]||[]).forEach(function(it){
+      allItems.push({
+        id:it.id,date:date,jamMulai:it.jamMulai||'',jamSelesai:it.jamSelesai||'',
+        kategori:it.kategori||'',jenisKegiatan:it.jenisKegiatan||'',
+        detailKegiatan:it.detailKegiatan||'',outputKeputusan:it.outputKeputusan||'',
+        ea:it.ea||'',relateMilestone:it.relateMilestone||''
+      });
+    });
+  });
+
+  // sort
+  allItems.sort(function(a,b){
+    var cmp=a.date.localeCompare(b.date)||a.jamMulai.localeCompare(b.jamMulai);
+    return fOrder==='desc'?-cmp:cmp;
+  });
+
+  // filter
+  var filtered=allItems.filter(function(it){
+    if(fEa!=='all'&&it.ea!==fEa)return false;
+    if(fKat!=='all'&&it.kategori!==fKat)return false;
+    if(fJenis!=='all'&&it.jenisKegiatan!==fJenis)return false;
+    return true;
+  });
+
+  // unique values for filter options
+  var allKat=[...new Set(allItems.map(function(it){return it.kategori;}))].filter(Boolean).sort();
+  var allJenis=[...new Set(allItems.map(function(it){return it.jenisKegiatan;}))].filter(Boolean).sort();
+
+  var KAT_HEX={RSP:'#f43f5e',BT:'#3b82f6',TKB:'#f59e0b',Personal:'#94a3b8',Eksternal:'#10b981',Holding:'#a855f7'};
+
+  function renderFilterBtn(val,cur,set,label,color){
+    var active=cur===val;
+    return(
+      <button key={val} onClick={function(){set(active?'all':val);}}
+        className={'px-2.5 py-1 rounded-lg text-[10px] font-bold border st as whitespace-nowrap '+(active?'bg-stone-800 text-white border-stone-800 shadow-sm':'bg-white text-stone-500 border-stone-200')}>
+        {label}
+      </button>
+    );
+  }
+
+  return(
+    <div className="pb-8">
+      {/* ── FILTER BAR ── */}
+      <div className="px-4 md:px-6 pt-4 mb-4 space-y-2">
+        {/* EA filter */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1">
+          <span className="text-[9px] font-extrabold text-stone-400 uppercase tracking-widest flex-shrink-0 w-14">EA</span>
+          <div className="flex gap-1.5">
+            {renderFilterBtn('all',fEa,setFEa,'Semua',null)}
+            {EA_LIST.map(function(name){
+              return renderFilterBtn(name,fEa,setFEa,name,null);
+            })}
+          </div>
+        </div>
+        {/* Entitas filter */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1">
+          <span className="text-[9px] font-extrabold text-stone-400 uppercase tracking-widest flex-shrink-0 w-14">Entitas</span>
+          <div className="flex gap-1.5">
+            {renderFilterBtn('all',fKat,setFKat,'Semua',null)}
+            {allKat.map(function(k){return renderFilterBtn(k,fKat,setFKat,k,null);})}
+          </div>
+        </div>
+        {/* Jenis filter */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1">
+          <span className="text-[9px] font-extrabold text-stone-400 uppercase tracking-widest flex-shrink-0 w-14">Jenis</span>
+          <div className="flex gap-1.5">
+            {renderFilterBtn('all',fJenis,setFJenis,'Semua',null)}
+            {allJenis.map(function(j){return renderFilterBtn(j,fJenis,setFJenis,JENIS_SHORT[j]||j,null);})}
+          </div>
+        </div>
+        {/* Sort + count */}
+        <div className="flex items-center justify-between pt-1">
+          <span className="text-[10px] text-stone-400">{filtered.length} dari {allItems.length} aktivitas</span>
+          <button onClick={function(){setFOrder(fOrder==='desc'?'asc':'desc');}}
+            className="text-[10px] font-bold text-stone-500 border border-stone-200 px-2.5 py-1 rounded-lg bg-white st as">
+            {fOrder==='desc'?'↓ Terbaru':'↑ Terlama'}
+          </button>
+        </div>
+      </div>
+
+      {/* ── TABLE ── */}
+      {filtered.length===0?(
+        <div className="mx-4 md:mx-6 bg-stone-50 border border-stone-200 rounded-2xl p-8 text-center">
+          <div className="text-3xl mb-2 opacity-20">📋</div>
+          <div className="text-[12px] font-bold text-stone-400">Tidak ada aktivitas yang cocok dengan filter</div>
+        </div>
+      ):(
+        <div className="mx-4 md:mx-6 bg-white rounded-2xl border border-stone-200 shadow-soft overflow-hidden">
+          <div className="overflow-x-auto">
+            <table style={{width:'100%',borderCollapse:'collapse',fontSize:11}}>
+              <thead>
+                <tr style={{background:'#f8fafc',borderBottom:'2px solid #1e293b'}}>
+                  <th style={{padding:'8px 12px',textAlign:'left',fontSize:9,letterSpacing:'0.1em',textTransform:'uppercase',color:'#94a3b8',fontWeight:700,whiteSpace:'nowrap'}}>Tanggal</th>
+                  <th style={{padding:'8px 12px',textAlign:'left',fontSize:9,letterSpacing:'0.1em',textTransform:'uppercase',color:'#94a3b8',fontWeight:700,whiteSpace:'nowrap'}}>Jam</th>
+                  <th style={{padding:'8px 12px',textAlign:'left',fontSize:9,letterSpacing:'0.1em',textTransform:'uppercase',color:'#94a3b8',fontWeight:700}}>Entitas</th>
+                  <th style={{padding:'8px 12px',textAlign:'left',fontSize:9,letterSpacing:'0.1em',textTransform:'uppercase',color:'#94a3b8',fontWeight:700}}>Jenis</th>
+                  <th style={{padding:'8px 12px',textAlign:'left',fontSize:9,letterSpacing:'0.1em',textTransform:'uppercase',color:'#94a3b8',fontWeight:700}}>Aktivitas</th>
+                  <th style={{padding:'8px 12px',textAlign:'left',fontSize:9,letterSpacing:'0.1em',textTransform:'uppercase',color:'#94a3b8',fontWeight:700}}>Output</th>
+                  <th style={{padding:'8px 12px',textAlign:'left',fontSize:9,letterSpacing:'0.1em',textTransform:'uppercase',color:'#94a3b8',fontWeight:700}}>EA</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(function(it,i){
+                  var katCol=KAT_HEX[it.kategori]||'#94a3b8';
+                  var jColor=JENIS_COLOR[it.jenisKegiatan]||'bg-stone-100 text-stone-600';
+                  var eaColor=EA_COLOR[it.ea]||'';
+                  var rowBg=i%2===0?'#ffffff':'#f8fafc';
+                  var hasOut=it.outputKeputusan&&it.outputKeputusan.trim();
+                  return(
+                    <tr key={it.id} style={{background:rowBg,borderBottom:'1px solid #f1f5f9'}}>
+                      <td style={{padding:'9px 12px',whiteSpace:'nowrap',color:'#475569',fontWeight:500}}>{it.date.slice(5)}</td>
+                      <td style={{padding:'9px 12px',whiteSpace:'nowrap',color:'#64748b',fontFamily:'monospace',fontSize:10}}>{it.jamMulai||'--'}{it.jamMulai&&it.jamSelesai?'–':''}{it.jamSelesai||''}</td>
+                      <td style={{padding:'9px 12px'}}>
+                        <span style={{display:'inline-block',padding:'2px 8px',borderRadius:20,fontSize:10,fontWeight:700,color:'white',background:katCol}}>{it.kategori||'–'}</span>
+                      </td>
+                      <td style={{padding:'9px 12px'}}>
+                        <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold ${jColor}`}>{JENIS_SHORT[it.jenisKegiatan]||it.jenisKegiatan||'–'}</span>
+                      </td>
+                      <td style={{padding:'9px 12px',color:'#1e293b',maxWidth:240}}>
+                        <div style={{fontWeight:600,lineHeight:1.4}}>{it.detailKegiatan||'–'}</div>
+                      </td>
+                      <td style={{padding:'9px 12px',color:'#64748b',maxWidth:200}}>
+                        {hasOut?(
+                          <div style={{fontSize:10,lineHeight:1.4,display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden'}}>{it.outputKeputusan}</div>
+                        ):(
+                          <span style={{color:'#cbd5e1',fontSize:10}}>–</span>
+                        )}
+                      </td>
+                      <td style={{padding:'9px 12px'}}>
+                        {it.ea?(
+                          <span className={`inline-block px-2 py-0.5 rounded text-[9px] font-bold ${eaColor||'bg-stone-100 text-stone-500'}`}>{it.ea}</span>
+                        ):(
+                          <span style={{color:'#cbd5e1',fontSize:10}}>–</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div style={{padding:'10px 16px',borderTop:'1px solid #f1f5f9',display:'flex',justifyContent:'space-between',fontSize:11,color:'#94a3b8'}}>
+            <span>{filtered.length} aktivitas ditampilkan</span>
+            <span>{allItems.filter(function(it){return it.outputKeputusan&&it.outputKeputusan.trim();}).length} dari {allItems.length} sudah ada output</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -4975,6 +5732,9 @@ function App(){
   function forceSyncNow(){setSyncMsg('Syncing...');var p=[];if(backlog.length>0)p.push(new Promise(function(res){sbSave('backlog',backlog);res();}));if(keputusan.length>0)p.push(new Promise(function(res){sbSave('keputusan',keputusan);res();}));if(Object.keys(jadwal).length>0)p.push(new Promise(function(res){sbSave('jadwal',jadwal);res();}));Promise.all(p).then(function(){setSyncMsg('✓ Sync selesai!');setTimeout(function(){setSyncMsg('');},3000);});}
   const [kpiCorp,setKpiCorp]=useState(()=>ld('kpi_corp')||{});
   const [kpiCeo,setKpiCeo]=useState(()=>ld('kpi_ceo')||{});
+  const DEFAULT_BOBOT={finansial:25,branding:25,riset:15,operasional:30,people:5};
+  const [targetBobot,setTargetBobot]=useState(function(){return ld('targetBobot')||DEFAULT_BOBOT;});
+  function saveTargetBobot(v){setTargetBobot(v);sv('targetBobot',v);}
   const [dashMonth,setDashMonth]=useState(()=>{try{var s=localStorage.getItem('rsp_dash_month');return s||new Date().toISOString().slice(0,7);}catch(e){return new Date().toISOString().slice(0,7);}});
   function saveKpiCorp(month,data){const n={...kpiCorp,[month]:data};setKpiCorp(n);sv('kpi_corp',n);setDashMonth(month);try{localStorage.setItem('rsp_dash_month',month);}catch(e){}}
   function saveKpiCeo(month,items){const n={...kpiCeo,[month]:items};setKpiCeo(n);sv('kpi_ceo',n);}
@@ -5155,7 +5915,7 @@ function App(){
     {id:'jadwal',ico:'📅',lbl:'Jadwal',subs:[{id:'harian',lbl:'Harian'},{id:'mingguan',lbl:'Mingguan'},{id:'bulanan',lbl:'Bulanan'}]},
     {id:'dump'},
     {id:'backlog',ico:'📋',lbl:'Backlog',subs:[{id:'need_feedback',lbl:'Need Feedback'},{id:'backlog',lbl:'Backlog'},{id:'kamar_pa',lbl:'Kamar PA'},{id:'keputusan',lbl:'Keputusan & Tracking'},{id:'pdca',lbl:'PDCA'},{id:'arsip',lbl:'Riwayat & Arsip'}]},
-    {id:'resume',ico:'📈',lbl:'Resume',subs:[{id:'analisa',lbl:'Analisa'},{id:'rekomendasi',lbl:'Rekomendasi'}]},
+    {id:'resume',ico:'📈',lbl:'Resume',subs:[{id:'analisa',lbl:'Analisa'},{id:'rekomendasi',lbl:'Rekomendasi'},{id:'ea',lbl:'Penilaian EA'},{id:'log',lbl:'Log Aktivitas'}]},
   ];
   const AT=TABS.find(t=>t.id===tab);
 
@@ -5163,7 +5923,7 @@ function App(){
 
   return(
     <div id="ac">
-      {showSettings&&<SettingsModal onClose={()=>setShowSettings(false)} gTok={gTok} gCalId={gCalId} gCals={gCals} gBusy={gBusy} onConnect={connectCal} onPickCal={pickCal} onForceSync={forceSyncNow} syncMsg={syncMsg} onResetJadwal={resetJadwal} onResetBacklog={resetBacklog} onResetKeputusan={resetKeputusan} onPullGCal={pullFromGCal} pulling={pulling} onFixPersonalJenis={fixPersonalJenis} trusmiUrl={trusmiUrl} trusmiKey={trusmiKey} lastMomSync={lastMomSync} onSaveTrusmi={function(u,k){setTrusmiUrl(u);setTrusmiKey(k);sv('trusmiUrl',u);sv('trusmiKey',k);}}/>}
+      {showSettings&&<SettingsModal onClose={()=>setShowSettings(false)} gTok={gTok} gCalId={gCalId} gCals={gCals} gBusy={gBusy} onConnect={connectCal} onPickCal={pickCal} onForceSync={forceSyncNow} syncMsg={syncMsg} onResetJadwal={resetJadwal} onResetBacklog={resetBacklog} onResetKeputusan={resetKeputusan} onPullGCal={pullFromGCal} pulling={pulling} onFixPersonalJenis={fixPersonalJenis} trusmiUrl={trusmiUrl} trusmiKey={trusmiKey} lastMomSync={lastMomSync} onSaveTrusmi={function(u,k){setTrusmiUrl(u);setTrusmiKey(k);sv('trusmiUrl',u);sv('trusmiKey',k);}} targetBobot={targetBobot} onSaveTargetBobot={saveTargetBobot}/>}
       {/* ── DESKTOP SIDEBAR ── */}
       <aside className="hidden md:flex md:flex-col md:w-56 md:flex-shrink-0 md:sticky md:top-0 md:h-screen md:border-r md:border-stone-200 md:bg-white md:shadow-[2px_0_12px_rgba(0,0,0,0.04)] md:z-50">
         <Sidebar tab={tab} sub={sub} setTab={setTab} setST={setST} nc={nc} belumCount={belumCount}/>
@@ -5222,7 +5982,7 @@ function App(){
 
         {/* Content */}
         <div className="flex-1 pb-24 md:pb-8 md:max-w-5xl md:w-full md:mx-auto md:px-0">
-          {tab==='dashboard'&&<Dashboard weekly={dashWeekly} kpiCorp={kpiCorp} dashMonth={dashMonth} onChangeMonth={setDashMonth} booking={booking}/>}
+          {tab==='dashboard'&&<Dashboard weekly={dashWeekly} kpiCorp={kpiCorp} dashMonth={dashMonth} onChangeMonth={setDashMonth} booking={booking} backlog={backlog} jadwal={jadwal}/>}
           {tab==='jadwal'&&sub.jadwal==='harian'&&<JadwalHarian backlog={backlog} jadwal={jadwal} onAddJadwal={addToJadwal} onRemoveJadwal={removeFromJadwal} onUpdateJadwal={updateJadwal} onUpdate={updI} onAddKeputusan={addK} filter={jadwalFilter} gcalOn={!!(gTok&&gCalId)} onPushItem={pushItem} onPushDay={pushDay} onAddMomBatch={batchAddMom}/>}
           {tab==='jadwal'&&sub.jadwal==='mingguan'&&<JadwalMingguan backlog={backlog} jadwal={jadwal} filter={jadwalFilter} onUpdateJadwal={updateJadwal} onRemoveJadwal={removeFromJadwal} onUpdateBacklog={updI}/>}
           {tab==='jadwal'&&sub.jadwal==='bulanan'&&<JadwalBulanan jadwal={jadwal} filter={jadwalFilter}/>}
@@ -5233,8 +5993,10 @@ function App(){
           {tab==='backlog'&&sub.backlog==='keputusan'&&<Keputusan keputusan={keputusan} onUpdate={updK} onDelete={delK} onAddKeputusan={addK}/>}
           {tab==='backlog'&&sub.backlog==='pdca'&&<PdcaTab backlog={backlog} onUpdateBacklog={updI} mom={mom} onUpdateMom={updMom} onDeleteMom={delMom} onAddKeputusan={addK} onSyncMom={trusmiKey?syncTrusmiMom:null} syncingMom={syncingMom} lastMomSync={lastMomSync} onResetMomSync={trusmiKey?function(){var kept=(mom||[]).filter(function(m){return!m._trusmiId;});setMom(kept);sv('mom',kept);sbSave('mom',kept);setLastMomSync('');sv('lastMomSync','');}:null}/>}
           {tab==='backlog'&&sub.backlog==='arsip'&&<RiwayatSampahTab sampah={sampah} onRestore={restoreSampah} onHardDel={hardDelSampah}/>}
-          {tab==='resume'&&sub.resume==='analisa'&&<AnalisaTab backlog={backlog} jadwal={jadwal} kpiCorp={kpiCorp} dashMonth={dashMonth} mom={mom} kpiCeo={kpiCeo}/>}
+          {tab==='resume'&&sub.resume==='analisa'&&<AnalisaTab backlog={backlog} jadwal={jadwal} kpiCorp={kpiCorp} dashMonth={dashMonth} mom={mom} kpiCeo={kpiCeo} targetBobot={targetBobot}/>}
           {tab==='resume'&&sub.resume==='rekomendasi'&&<AnalisaJadwal backlog={backlog} jadwal={jadwal} onAddJadwal={addToJadwal} onAddBacklog={addI} onUpdateBacklog={updI}/>}
+          {tab==='resume'&&sub.resume==='ea'&&<PenilaianEATab jadwal={jadwal}/>}
+          {tab==='resume'&&sub.resume==='log'&&<LogAktivitasTab jadwal={jadwal}/>}
         </div>
 
         {/* ── MOBILE BOTTOM NAV (hidden on desktop) ── */}
