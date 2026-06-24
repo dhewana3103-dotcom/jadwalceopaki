@@ -3726,7 +3726,7 @@ function Heatmap({backlog}){
 }
 
 // ── ANALISA TAB ───────────────────────────────────────────────
-function AnalisaTab({backlog,jadwal,kpiCorp,dashMonth,mom}){
+function AnalisaTab({backlog,jadwal,kpiCorp,dashMonth,mom,kpiCeo}){
   const [entityFilter,setEntityFilter]=useState('all');
   const stats=computeAnalisaFiltered(jadwal||{},entityFilter);
   const today=todayStr();
@@ -3956,6 +3956,196 @@ function AnalisaTab({backlog,jadwal,kpiCorp,dashMonth,mom}){
           })}
         </div>
       </div>}
+
+      {/* ── D2: PERSONAL BRANDING ── */}
+      <div className="px-4 md:px-6 mb-5">
+        <div className="text-[10px] font-extrabold text-stone-400 uppercase tracking-widest mb-0.5">🎨 D2 · Personal Branding</div>
+        <div className="text-[10px] text-stone-400 mb-3">Aktivitas konten CEO + KPI branding — dampak terukur lag 2–4 minggu</div>
+        {(function(){
+          var brandKpis=(kpiCeo&&kpiCeo[curMonth])?kpiCeo[curMonth].filter(function(it){return it.fn==='branding';}):[];
+          var kontenByWeek=stats?stats.byJenis['Bikin Konten']||{}:{};
+          var weekKeys=stats?stats.weekKeys:[];
+          var kontenTotal=weekKeys.reduce(function(s,w){return s+(kontenByWeek[w]||0);},0);
+          var kontenItems=[];
+          Object.keys(jadwal||{}).forEach(function(date){(jadwal[date]||[]).forEach(function(it){if(it.jenisKegiatan==='Bikin Konten'){kontenItems.push({id:it.id,_date:date,detailKegiatan:it.detailKegiatan,outputKeputusan:it.outputKeputusan});}});});
+          kontenItems.sort(function(a,b){return b._date.localeCompare(a._date);});
+          return(
+            <div className="space-y-3">
+              {brandKpis.length>0?(
+                <div className="bg-white border border-purple-100 rounded-2xl p-4 shadow-soft">
+                  <div className="text-[10px] font-bold text-purple-600 uppercase tracking-wider mb-3">📊 KPI Branding — {curMonth}</div>
+                  <div className="space-y-2.5">
+                    {brandKpis.map(function(kp,i){
+                      var skor=parseFloat(kp.skor)||0;
+                      var barCol=skor>=kp.target?'bg-emerald-500':skor>=(kp.target*0.7)?'bg-amber-400':'bg-red-400';
+                      var txtCol=skor>=kp.target?'text-emerald-600':skor>=(kp.target*0.7)?'text-amber-600':'text-red-600';
+                      return(
+                        <div key={i}>
+                          <div className="flex justify-between text-[11px] mb-1">
+                            <span className="text-stone-700 font-medium">{kp.goals.replace('Personal Branding: ','')}</span>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <span className="text-stone-400 text-[9px]">target {kp.target}%</span>
+                              <span className={'font-black '+txtCol}>{kp.skor||'–'}</span>
+                            </div>
+                          </div>
+                          <div className="w-full h-2 bg-stone-100 rounded-full overflow-hidden">
+                            <div className={'h-full rounded-full '+barCol} style={{width:Math.min(skor,100)+'%'}}/>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ):(
+                <div className="bg-stone-50 border border-stone-200 rounded-2xl p-3 text-center text-[11px] text-stone-400">Belum ada KPI Branding — input di tab Dump → 📊 KPI CEO</div>
+              )}
+              <div className="bg-white border border-blue-100 rounded-2xl p-4 shadow-soft">
+                <div className="flex justify-between items-center mb-3">
+                  <div className="text-[10px] font-bold text-blue-600 uppercase tracking-wider">🎬 Aktivitas Bikin Konten</div>
+                  <div className="text-[11px] font-black text-stone-700">{Math.round(kontenTotal*10)/10}h total</div>
+                </div>
+                {weekKeys.length>0&&(
+                  <div className="flex gap-2 mb-3">
+                    {weekKeys.map(function(w){
+                      var h=kontenByWeek[w]||0;
+                      var bg=h>=4?'bg-blue-500 text-white':h>=2?'bg-blue-200 text-blue-800':h>0?'bg-blue-100 text-blue-600':'bg-stone-100 text-stone-300';
+                      return(
+                        <div key={w} className="flex-1 text-center">
+                          <div className="text-[8px] text-stone-400 mb-1">{getWeekLabel(w)}</div>
+                          <div className={'rounded-lg py-1.5 text-[11px] font-black '+bg}>{h||'–'}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                {kontenItems.length>0?(
+                  <div className="space-y-1.5 max-h-28 overflow-y-auto">
+                    {kontenItems.slice(0,5).map(function(it){
+                      return(
+                        <div key={it.id} className="flex items-center gap-2 text-[10px]">
+                          <span className="text-stone-400 flex-shrink-0">{it._date}</span>
+                          <span className="text-stone-600 truncate">{it.detailKegiatan||'Bikin Konten'}</span>
+                          {it.outputKeputusan&&<span className="text-blue-500 flex-shrink-0 font-bold ml-auto">✓</span>}
+                        </div>
+                      );
+                    })}
+                    {kontenItems.length>5&&<div className="text-[10px] text-stone-400 text-center pt-1">+{kontenItems.length-5} lainnya</div>}
+                  </div>
+                ):(
+                  <div className="text-[10px] text-stone-400 text-center py-2">Belum ada aktivitas Bikin Konten tercatat</div>
+                )}
+                <div className="mt-3 pt-2.5 border-t border-stone-100 text-[9px] text-stone-400">⏱ Lag 2–4 minggu sebelum dampak konten terukur di reach &amp; engagement</div>
+              </div>
+            </div>
+          );
+        })()}
+      </div>
+
+      {/* ── D3: NETWORKING ── */}
+      <div className="px-4 md:px-6 mb-5">
+        <div className="text-[10px] font-extrabold text-stone-400 uppercase tracking-widest mb-0.5">🤝 D3 · Networking &amp; External</div>
+        <div className="text-[10px] text-stone-400 mb-3">Volume pertemuan external CEO — signal volume saja, tidak ada Y variable kausal langsung</div>
+        {(function(){
+          var extItems=[];
+          Object.keys(jadwal||{}).forEach(function(date){(jadwal[date]||[]).forEach(function(it){if(it.jenisKegiatan==='Ketemu External'){extItems.push({id:it.id,_date:date,detailKegiatan:it.detailKegiatan});}});});
+          extItems.sort(function(a,b){return b._date.localeCompare(a._date);});
+          var extByWeek=stats?stats.byJenis['Ketemu External']||{}:{};
+          var weekKeys=stats?stats.weekKeys:[];
+          var totalH=weekKeys.reduce(function(s,w){return s+(extByWeek[w]||0);},0);
+          return(
+            <div className="bg-white border border-violet-100 rounded-2xl p-4 shadow-soft">
+              <div className="flex justify-between items-center mb-3">
+                <div className="text-[10px] font-bold text-violet-600 uppercase tracking-wider">📋 Volume Ketemu External</div>
+                <div className="flex items-center gap-3">
+                  <span className="text-[10px] text-stone-400">{extItems.length} sesi</span>
+                  <span className="text-[11px] font-black text-stone-700">{Math.round(totalH*10)/10}h</span>
+                </div>
+              </div>
+              {weekKeys.length>0&&(
+                <div className="flex gap-2 mb-3">
+                  {weekKeys.map(function(w){
+                    var h=extByWeek[w]||0;
+                    var bg=h>=6?'bg-violet-500 text-white':h>=3?'bg-violet-200 text-violet-800':h>0?'bg-violet-100 text-violet-600':'bg-stone-100 text-stone-300';
+                    return(
+                      <div key={w} className="flex-1 text-center">
+                        <div className="text-[8px] text-stone-400 mb-1">{getWeekLabel(w)}</div>
+                        <div className={'rounded-lg py-1.5 text-[11px] font-black '+bg}>{h||'–'}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              {extItems.length>0?(
+                <div className="space-y-1.5 max-h-28 overflow-y-auto">
+                  {extItems.slice(0,6).map(function(it){
+                    return(
+                      <div key={it.id} className="flex items-center gap-2 text-[10px]">
+                        <span className="text-stone-400 flex-shrink-0">{it._date}</span>
+                        <span className="text-stone-600 truncate">{it.detailKegiatan||'Ketemu External'}</span>
+                      </div>
+                    );
+                  })}
+                  {extItems.length>6&&<div className="text-[10px] text-stone-400 text-center pt-1">+{extItems.length-6} lainnya</div>}
+                </div>
+              ):(
+                <div className="text-[10px] text-stone-400 text-center py-2">Belum ada sesi Ketemu External tercatat</div>
+              )}
+              <div className="mt-3 pt-2.5 border-t border-stone-100 text-[9px] text-stone-400">ℹ️ D3 = volume signal saja — tidak ada target atau Y variable yang diwajibkan</div>
+            </div>
+          );
+        })()}
+      </div>
+
+      {/* ── D4: BUDAYA ORGANISASI ── */}
+      <div className="px-4 md:px-6 mb-5">
+        <div className="text-[10px] font-extrabold text-stone-400 uppercase tracking-widest mb-0.5">🌱 D4 · Budaya Organisasi</div>
+        <div className="text-[10px] text-stone-400 mb-3">Employee Engage CEO langsung — target 2×/bulan (KPI #14)</div>
+        {(function(){
+          var engItems=[];
+          Object.keys(jadwal||{}).forEach(function(date){(jadwal[date]||[]).forEach(function(it){if(it.jenisKegiatan==='Employee Engage'){engItems.push({id:it.id,_date:date,detailKegiatan:it.detailKegiatan,outputKeputusan:it.outputKeputusan});}});});
+          var curItems=engItems.filter(function(it){return it._date.slice(0,7)===curMonth;});
+          curItems.sort(function(a,b){return b._date.localeCompare(a._date);});
+          var monthTarget=2;
+          var count=curItems.length;
+          var statusCol=count>=monthTarget?'text-emerald-600':count>0?'text-amber-600':'text-red-500';
+          var statusLbl=count>=monthTarget?'✅ Target tercapai':count>0?'⚠️ Belum capai target':'❌ Belum ada sesi bulan ini';
+          var barCol=count>=monthTarget?'bg-emerald-500':count>0?'bg-amber-400':'bg-red-300';
+          var barPct=Math.min(count/monthTarget*100,100);
+          return(
+            <div className="bg-white border border-rose-100 rounded-2xl p-4 shadow-soft">
+              <div className="flex justify-between items-start mb-3">
+                <div>
+                  <div className="text-[10px] font-bold text-rose-600 uppercase tracking-wider mb-0.5">🌱 Employee Engage — {curMonth}</div>
+                  <div className={'text-[10px] font-semibold '+statusCol}>{statusLbl}</div>
+                </div>
+                <div className="text-right">
+                  <div className={'text-[28px] font-black leading-none '+statusCol}>{count}</div>
+                  <div className="text-[9px] text-stone-400">dari {monthTarget}× target</div>
+                </div>
+              </div>
+              <div className="w-full h-2.5 bg-stone-100 rounded-full overflow-hidden mb-3">
+                <div className={'h-full rounded-full '+barCol} style={{width:barPct+'%'}}/>
+              </div>
+              {curItems.length>0?(
+                <div className="space-y-1.5">
+                  {curItems.map(function(it){
+                    return(
+                      <div key={it.id} className="flex items-center gap-2 text-[10px]">
+                        <span className="text-stone-400 flex-shrink-0">{it._date}</span>
+                        <span className="text-stone-600 truncate">{it.detailKegiatan||'Employee Engage'}</span>
+                        {it.outputKeputusan&&<span className="text-rose-500 flex-shrink-0 font-bold ml-auto">✓</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              ):(
+                <div className="text-[10px] text-stone-400 text-center py-2">Belum ada sesi Employee Engage bulan ini</div>
+              )}
+              <div className="mt-3 pt-2.5 border-t border-stone-100 text-[9px] text-stone-400">→ KPI #14: Keterlaksanaan Budaya Org (Speech + Bedah Buku per bulan)</div>
+            </div>
+          );
+        })()}
+      </div>
 
       {/* ── HEATMAP ── */}
       {stats?<>
@@ -5043,7 +5233,7 @@ function App(){
           {tab==='backlog'&&sub.backlog==='keputusan'&&<Keputusan keputusan={keputusan} onUpdate={updK} onDelete={delK} onAddKeputusan={addK}/>}
           {tab==='backlog'&&sub.backlog==='pdca'&&<PdcaTab backlog={backlog} onUpdateBacklog={updI} mom={mom} onUpdateMom={updMom} onDeleteMom={delMom} onAddKeputusan={addK} onSyncMom={trusmiKey?syncTrusmiMom:null} syncingMom={syncingMom} lastMomSync={lastMomSync} onResetMomSync={trusmiKey?function(){var kept=(mom||[]).filter(function(m){return!m._trusmiId;});setMom(kept);sv('mom',kept);sbSave('mom',kept);setLastMomSync('');sv('lastMomSync','');}:null}/>}
           {tab==='backlog'&&sub.backlog==='arsip'&&<RiwayatSampahTab sampah={sampah} onRestore={restoreSampah} onHardDel={hardDelSampah}/>}
-          {tab==='resume'&&sub.resume==='analisa'&&<AnalisaTab backlog={backlog} jadwal={jadwal} kpiCorp={kpiCorp} dashMonth={dashMonth} mom={mom}/>}
+          {tab==='resume'&&sub.resume==='analisa'&&<AnalisaTab backlog={backlog} jadwal={jadwal} kpiCorp={kpiCorp} dashMonth={dashMonth} mom={mom} kpiCeo={kpiCeo}/>}
           {tab==='resume'&&sub.resume==='rekomendasi'&&<AnalisaJadwal backlog={backlog} jadwal={jadwal} onAddJadwal={addToJadwal} onAddBacklog={addI} onUpdateBacklog={updI}/>}
         </div>
 
