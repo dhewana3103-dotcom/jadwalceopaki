@@ -2949,7 +2949,7 @@ function getChecklistInfo(item){
   return{total:total,checked:checked};
 }
 
-function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,onUpdate,onAddKeputusan,filter,gcalOn,onPushItem,onPushDay,onAddMomBatch}){
+function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,onUpdate,onAddKeputusan,filter,gcalOn,onPushItem,onPushDay,onAddMomBatch,lastGCalPull}){
   const todayActual=todayStr();
   const [selectedDate,setSelectedDate]=useState(todayActual);
   const today=selectedDate; // semua referensi 'today' otomatis pakai tanggal yang dipilih
@@ -3325,6 +3325,14 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
           <div className="text-[11px] font-medium text-stone-400">{dayItems.length} kegiatan{hiddenCount>0?' · '+hiddenCount+' disembunyikan':''}{isToday?' · '+nowStr:''}</div>
           <div className="flex items-center gap-2">
             {gcalOn&&<button className="px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200 text-[10px] font-bold text-blue-600 as st" onClick={function(){onPushDay(today);}}>📅 Push</button>}
+            {gcalOn&&lastGCalPull&&(function(){
+              var d=new Date(lastGCalPull);
+              var pad=function(n){return String(n).padStart(2,'0');};
+              var lbl=pad(d.getHours())+':'+pad(d.getMinutes());
+              var dayDiff=Math.floor((Date.now()-d.getTime())/86400000);
+              var dayLbl=dayDiff===0?'hari ini':dayDiff===1?'kemarin':dayDiff+'h lalu';
+              return<span className="text-[9px] text-stone-400 flex items-center gap-1 flex-shrink-0"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0"/>GCal {lbl} <span className="text-stone-300">{dayLbl}</span></span>;
+            })()}
             <button className="px-2.5 py-1 rounded-lg bg-violet-50 border border-violet-200 text-[10px] font-bold text-violet-600 as st" onClick={function(){setShowConvert(true);}}>🤖 ke MoM</button>
             <button className="px-2.5 py-1 rounded-lg bg-stone-100 border border-stone-200 text-[10px] font-bold text-stone-600 as st" onClick={function(){setShowExport(function(p){return !p;});}}>⬇️ Export</button>
             {showExport&&<div className="absolute right-4 mt-1 bg-white border border-stone-200 rounded-2xl shadow-float z-30 overflow-hidden afi" style={{minWidth:160}}>
@@ -5921,6 +5929,7 @@ function App(){
   function resetBacklog(){setBacklog([]);sv('backlog',[]);sbSave('backlog',[]);alert('✓ Semua backlog dihapus.');}
   function resetKeputusan(){setKeputusan([]);sv('keputusan',[]);sbSave('keputusan',[]);alert('✓ Semua keputusan dihapus.');}
   const [pulling,setPulling]=useState(false);
+  const [lastGCalPull,setLastGCalPull]=useState(function(){return ld('lastGCalPull')||null;});
   function pullFromGCal(dateMin,dateMax){
     if(!gTok||!gCalId){alert('Connect Google Calendar dulu di ⚙️');return;}
     setPulling(true);
@@ -5968,6 +5977,7 @@ function App(){
         return n;
       });
       setPulling(false);
+      var pullTs=new Date().toISOString();setLastGCalPull(pullTs);sv('lastGCalPull',pullTs);
       alert('✅ '+evs.length+' event berhasil diimport dari Google Calendar!');
     }).catch(function(e){setPulling(false);alert('❌ Gagal: '+e.message+'\nCoba reconnect Google Calendar.');});
   }
@@ -6225,7 +6235,7 @@ function App(){
         {/* Content */}
         <div className="flex-1 pb-24 md:pb-8 md:max-w-5xl md:w-full md:mx-auto md:px-0">
           {tab==='dashboard'&&<Dashboard weekly={dashWeekly} kpiCorp={kpiCorp} dashMonth={dashMonth} onChangeMonth={setDashMonth} booking={booking} backlog={backlog} jadwal={jadwal}/>}
-          {tab==='jadwal'&&sub.jadwal==='harian'&&<JadwalHarian backlog={backlog} jadwal={jadwal} onAddJadwal={addToJadwal} onRemoveJadwal={removeFromJadwal} onUpdateJadwal={updateJadwal} onUpdate={updI} onAddKeputusan={addK} filter={jadwalFilter} gcalOn={!!(gTok&&gCalId)} onPushItem={pushItem} onPushDay={pushDay} onAddMomBatch={batchAddMom}/>}
+          {tab==='jadwal'&&sub.jadwal==='harian'&&<JadwalHarian backlog={backlog} jadwal={jadwal} onAddJadwal={addToJadwal} onRemoveJadwal={removeFromJadwal} onUpdateJadwal={updateJadwal} onUpdate={updI} onAddKeputusan={addK} filter={jadwalFilter} gcalOn={!!(gTok&&gCalId)} onPushItem={pushItem} onPushDay={pushDay} onAddMomBatch={batchAddMom} lastGCalPull={lastGCalPull}/>}
           {tab==='jadwal'&&sub.jadwal==='mingguan'&&<JadwalMingguan backlog={backlog} jadwal={jadwal} filter={jadwalFilter} onUpdateJadwal={updateJadwal} onRemoveJadwal={removeFromJadwal} onUpdateBacklog={updI}/>}
           {tab==='jadwal'&&sub.jadwal==='bulanan'&&<JadwalBulanan jadwal={jadwal} filter={jadwalFilter}/>}
           {tab==='dump'&&<DumpPage onAdd={addI} onAddKeputusan={addK} onAddJadwal={addToJadwal} onBatchAddJadwal={batchAddToJadwal} onUpdateJadwal={updateJadwal} onResetICSBatch={resetJadwalBatch} onSaveKpiCorp={saveKpiCorp} onSaveKpiCeo={saveKpiCeo} onSaveBooking={saveBooking} onAddMom={addMom} jadwal={jadwal} backlog={backlog} onDone={()=>{setTab('backlog');setST('backlog','backlog');}}/>}
