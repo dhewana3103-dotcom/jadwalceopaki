@@ -1265,7 +1265,7 @@ function Keputusan({keputusan,onUpdate,onDelete,onAddKeputusan}){
 }
 
 // ── SETTINGS ──────────────────────────────────────────────────
-function SettingsModal({onClose,gTok,gCalId,gCals,gBusy,onConnect,onPickCal,onForceSync,syncMsg,onResetJadwal,onResetBacklog,onResetKeputusan,onPullGCal,pulling,onFixPersonalJenis,trusmiUrl,trusmiKey,onSaveTrusmi,lastMomSync,targetBobot,onSaveTargetBobot}){
+function SettingsModal({onClose,gTok,gCalId,gCals,gBusy,onConnect,onPickCal,onForceSync,syncMsg,lastSyncAt,onResetJadwal,onResetBacklog,onResetKeputusan,onPullGCal,pulling,onFixPersonalJenis,trusmiUrl,trusmiKey,onSaveTrusmi,lastMomSync,targetBobot,onSaveTargetBobot}){
   const [key,setKey]=useState(localStorage.getItem('rsp_apikey')||'');
   const [showKey,setShowKey]=useState(false);
   const [saved,setSaved]=useState(false);
@@ -1343,6 +1343,12 @@ function SettingsModal({onClose,gTok,gCalId,gCals,gBusy,onConnect,onPickCal,onFo
               <div className="flex items-center justify-between mb-2">
                 <div className="text-[11px] font-bold text-blue-800">☁️ Supabase Sync</div>
                 {syncMsg&&<span className="text-[10px] font-bold text-emerald-600">{syncMsg}</span>}
+                {!syncMsg&&lastSyncAt&&(function(){
+                  var d=new Date(lastSyncAt);var pad=function(n){return String(n).padStart(2,'0');};
+                  var dayDiff=Math.floor((Date.now()-d.getTime())/86400000);
+                  var dayLbl=dayDiff===0?'hari ini':dayDiff===1?'kemarin':dayDiff+'h lalu';
+                  return<span className="text-[10px] text-stone-400">Terakhir sync: {d.getDate()}/{pad(d.getMonth()+1)} {pad(d.getHours())}:{pad(d.getMinutes())} · {dayLbl}</span>;
+                })()}
               </div>
               <div className="text-[10px] text-blue-700 leading-relaxed mb-3">Data sync otomatis antar device. Tekan tombol ini pertama kali untuk upload data lokal ke cloud.</div>
               <button className="w-full py-2.5 rounded-xl bg-blue-600 text-white text-[11px] font-bold as st" onClick={onForceSync}>🔄 Sync Data ke Supabase Sekarang</button>
@@ -5901,7 +5907,7 @@ function App(){
   const [gCals,setGCals]=useState([]);
   const [gBusy,setGBusy]=useState(false);
   const [syncMsg,setSyncMsg]=useState('');
-  function connectCal(){setGBusy(true);doConnectGCal(function(tok){setGTok(tok);listGCals(tok).then(function(cs){setGCals(cs);setGBusy(false);}).catch(function(){setGBusy(false);});},function(e){alert('Gagal: '+e);setGBusy(false);});}
+  const [lastSyncAt,setLastSyncAt]=useState(function(){return ld('lastSyncAt')||null;});setGBusy(true);doConnectGCal(function(tok){setGTok(tok);listGCals(tok).then(function(cs){setGCals(cs);setGBusy(false);}).catch(function(){setGBusy(false);});},function(e){alert('Gagal: '+e);setGBusy(false);});}
   function pickCal(id){setGCalId(id);localStorage.setItem('rsp_gcal_id',id);}
   function pushItem(item,onUpdateItem){
     if(!gTok||!gCalId)return Promise.resolve(false);
@@ -5981,7 +5987,7 @@ function App(){
       alert('✅ '+evs.length+' event berhasil diimport dari Google Calendar!');
     }).catch(function(e){setPulling(false);alert('❌ Gagal: '+e.message+'\nCoba reconnect Google Calendar.');});
   }
-  function forceSyncNow(){setSyncMsg('Syncing...');var p=[];if(backlog.length>0)p.push(new Promise(function(res){sbSave('backlog',backlog);res();}));if(keputusan.length>0)p.push(new Promise(function(res){sbSave('keputusan',keputusan);res();}));if(Object.keys(jadwal).length>0)p.push(new Promise(function(res){sbSave('jadwal',jadwal);res();}));Promise.all(p).then(function(){setSyncMsg('✓ Sync selesai!');setTimeout(function(){setSyncMsg('');},3000);});}
+  function forceSyncNow(){setSyncMsg('Syncing...');var p=[];if(backlog.length>0)p.push(new Promise(function(res){sbSave('backlog',backlog);res();}));if(keputusan.length>0)p.push(new Promise(function(res){sbSave('keputusan',keputusan);res();}));if(Object.keys(jadwal).length>0)p.push(new Promise(function(res){sbSave('jadwal',jadwal);res();}));Promise.all(p).then(function(){var ts=new Date().toISOString();setLastSyncAt(ts);sv('lastSyncAt',ts);var d=new Date(ts);var pad=function(n){return String(n).padStart(2,'0');};setSyncMsg('✓ Sync selesai · '+d.getDate()+'/'+pad(d.getMonth()+1)+' '+pad(d.getHours())+':'+pad(d.getMinutes()));setTimeout(function(){setSyncMsg('');},5000);});}
   const [kpiCorp,setKpiCorp]=useState(()=>ld('kpi_corp')||{});
   const [kpiCeo,setKpiCeo]=useState(()=>ld('kpi_ceo')||{});
   const DEFAULT_BOBOT={finansial:25,branding:25,riset:15,operasional:30,people:5};
@@ -6175,7 +6181,7 @@ function App(){
 
   return(
     <div id="ac">
-      {showSettings&&<SettingsModal onClose={()=>setShowSettings(false)} gTok={gTok} gCalId={gCalId} gCals={gCals} gBusy={gBusy} onConnect={connectCal} onPickCal={pickCal} onForceSync={forceSyncNow} syncMsg={syncMsg} onResetJadwal={resetJadwal} onResetBacklog={resetBacklog} onResetKeputusan={resetKeputusan} onPullGCal={pullFromGCal} pulling={pulling} onFixPersonalJenis={fixPersonalJenis} trusmiUrl={trusmiUrl} trusmiKey={trusmiKey} lastMomSync={lastMomSync} onSaveTrusmi={function(u,k){setTrusmiUrl(u);setTrusmiKey(k);sv('trusmiUrl',u);sv('trusmiKey',k);}} targetBobot={targetBobot} onSaveTargetBobot={saveTargetBobot}/>}
+      {showSettings&&<SettingsModal onClose={()=>setShowSettings(false)} gTok={gTok} gCalId={gCalId} gCals={gCals} gBusy={gBusy} onConnect={connectCal} onPickCal={pickCal} onForceSync={forceSyncNow} syncMsg={syncMsg} lastSyncAt={lastSyncAt} onResetJadwal={resetJadwal} onResetBacklog={resetBacklog} onResetKeputusan={resetKeputusan} onPullGCal={pullFromGCal} pulling={pulling} onFixPersonalJenis={fixPersonalJenis} trusmiUrl={trusmiUrl} trusmiKey={trusmiKey} lastMomSync={lastMomSync} onSaveTrusmi={function(u,k){setTrusmiUrl(u);setTrusmiKey(k);sv('trusmiUrl',u);sv('trusmiKey',k);}} targetBobot={targetBobot} onSaveTargetBobot={saveTargetBobot}/>}
       {/* ── DESKTOP SIDEBAR ── */}
       <aside className="hidden md:flex md:flex-col md:w-56 md:flex-shrink-0 md:sticky md:top-0 md:h-screen md:border-r md:border-stone-200 md:bg-white md:shadow-[2px_0_12px_rgba(0,0,0,0.04)] md:z-50">
         <Sidebar tab={tab} sub={sub} setTab={setTab} setST={setST} nc={nc} belumCount={belumCount}/>
