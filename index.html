@@ -5907,7 +5907,8 @@ function App(){
   const [gCals,setGCals]=useState([]);
   const [gBusy,setGBusy]=useState(false);
   const [syncMsg,setSyncMsg]=useState('');
-  const [lastSyncAt,setLastSyncAt]=useState(function(){return ld('lastSyncAt')||null;});setGBusy(true);doConnectGCal(function(tok){setGTok(tok);listGCals(tok).then(function(cs){setGCals(cs);setGBusy(false);}).catch(function(){setGBusy(false);});},function(e){alert('Gagal: '+e);setGBusy(false);});}
+  const [lastSyncAt,setLastSyncAt]=useState(function(){return ld('lastSyncAt')||null;});
+  function connectCal(){setGBusy(true);doConnectGCal(function(tok){setGTok(tok);listGCals(tok).then(function(cs){setGCals(cs);setGBusy(false);}).catch(function(){setGBusy(false);});},function(e){alert('Gagal: '+e);setGBusy(false);});}
   function pickCal(id){setGCalId(id);localStorage.setItem('rsp_gcal_id',id);}
   function pushItem(item,onUpdateItem){
     if(!gTok||!gCalId)return Promise.resolve(false);
