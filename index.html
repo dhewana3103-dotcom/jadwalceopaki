@@ -2983,6 +2983,7 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
   const [outTexts,setOutTexts]=useState({});
   const [outEvidence,setOutEvidence]=useState({});
   const [outActionItems,setOutActionItems]=useState({});
+  const [savedId,setSavedId]=useState(null); // flash feedback after save
 
   useEffect(function(){
     var t=setInterval(function(){setNowStr(nowTimeStr());},30000);
@@ -3007,17 +3008,18 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
     }
     // Kamar PA → backlog dengan hideFromBacklogList:true
     if(paItems.length>0&&onAddBacklog){
-      paItems.forEach(function(ai){
-        onAddBacklog({id:'BL-'+genId(),isi:ai.aksi,pic:ai.pic||'',deadline:ai.deadline||'',konteks:item.detailKegiatan.slice(0,60),sumber:'output-jadwal',status:'baru',fungsiKPI:item.relateMilestone||'',hideFromBacklogList:true,needFeedback:false,pdcaFlag:false,tanggal:today});
-      });
+      onAddBacklog(paItems.map(function(ai){
+        return{id:'BL-'+genId(),isi:ai.aksi,pic:ai.pic||'',deadline:ai.deadline||'',konteks:item.detailKegiatan.slice(0,60),sumber:'output-jadwal',status:'baru',fungsiKPI:item.relateMilestone||'',hideFromBacklogList:true,needFeedback:false,pdcaFlag:false,tanggal:today};
+      }));
     }
     // Backlog biasa
     if(blItems.length>0&&onAddBacklog){
-      blItems.forEach(function(ai){
-        onAddBacklog({id:'BL-'+genId(),isi:ai.aksi,pic:ai.pic||'',deadline:ai.deadline||'',konteks:item.detailKegiatan.slice(0,60),sumber:'output-jadwal',status:'baru',fungsiKPI:item.relateMilestone||'',hideFromBacklogList:false,needFeedback:false,pdcaFlag:false,tanggal:today});
-      });
+      onAddBacklog(blItems.map(function(ai){
+        return{id:'BL-'+genId(),isi:ai.aksi,pic:ai.pic||'',deadline:ai.deadline||'',konteks:item.detailKegiatan.slice(0,60),sumber:'output-jadwal',status:'baru',fungsiKPI:item.relateMilestone||'',hideFromBacklogList:false,needFeedback:false,pdcaFlag:false,tanggal:today};
+      }));
     }
     setExpandId(null);
+    setSavedId(item.id+'-output');setTimeout(function(){setSavedId(null);},2000);
     setOutTexts(function(p){var n={...p};n[item.id]='';return n;});
     setOutEvidence(function(p){var n={...p};n[item.id]='';return n;});
     setOutActionItems(function(p){var n={...p};n[item.id]=[];return n;});
@@ -3073,6 +3075,7 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
           <div className="md:hidden mt-0.5"><span className={`px-1 py-0.5 rounded text-[8px] font-bold ${jColor}`}>{JENIS_SHORT[item.jenisKegiatan]||item.jenisKegiatan||'–'}</span></div>
           {!fromBL&&item.gcalDesc&&item.gcalDesc.trim()&&<div className="hidden md:block text-[9px] text-stone-400 mt-0.5" style={{display:'-webkit-box',WebkitLineClamp:1,WebkitBoxOrient:'vertical',overflow:'hidden'}}>{linkify(item.gcalDesc)}</div>}
           {!fromBL&&item.ea&&<span className={`inline-block mt-0.5 px-1.5 py-0 rounded text-[8px] font-bold ${EA_COLOR[item.ea]||'bg-stone-100 text-stone-500'}`}>{item.ea}</span>}
+          {(savedId===item.id+'-edit'||savedId===item.id+'-output')&&<span className="inline-block mt-0.5 ml-1 px-1.5 py-0 rounded text-[8px] font-bold bg-emerald-100 text-emerald-700 animate-pulse">{savedId===item.id+'-output'?'✓ Output tersimpan':'✓ Tersimpan'}</span>}
         </td>
         <td className="hidden md:table-cell px-2 py-2.5 whitespace-nowrap">
           {kpi?<KC id={kpi.id} sm/>:<span className="text-[9px] text-stone-300">–</span>}
@@ -3130,6 +3133,7 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
     function setSubType(st){onUpdateJadwal(today,item.id,{meetingSubType:st,checklistDone:{}});}
     function saveEdit(){
       onUpdateJadwal(today,item.id,{jamMulai:ef.jamMulai,jamSelesai:ef.jamSelesai,kategori:ef.kategori,jenisKegiatan:ef.jenisKegiatan,detailKegiatan:ef.detailKegiatan,gcalDesc:ef.gcalDesc,relateMilestone:ef.relateMilestone,checklistNotes:ef.checklistNotes,ea:ef.ea});
+      setSavedId(item.id+'-edit');setTimeout(function(){setSavedId(null);},2000);
     }
     return(
       <tr key={item.id+'_exp'} className="border-b border-violet-100 bg-violet-50/10">
