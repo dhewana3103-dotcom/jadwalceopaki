@@ -3000,6 +3000,7 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
     var momItems=actionItems.filter(function(ai){return ai.route==='pdca_mom';});
     var paItems=actionItems.filter(function(ai){return ai.route==='kamar_pa';});
     var blItems=actionItems.filter(function(ai){return !ai.route||ai.route==='backlog';});
+    // route:'none' → skip, tidak dikirim kemana-mana
     // PDCA MoM → masuk MoM batch
     if(momItems.length>0&&onAddMomBatch){
       onAddMomBatch([{id:'MOM-'+genId(),tanggal:today,meetingName:item.detailKegiatan.slice(0,60),gcalDesc:'',sumber:'output-'+item.id,items:momItems.map(function(ai){return{id:'MI-'+genId(),konteks:item.detailKegiatan.slice(0,40),action:ai.aksi,jenis:'Immediately',pic:ai.pic||'',deadline:ai.deadline||null,ekspektasi:'',status:'pending',hasil:''};}) }]);
@@ -3230,16 +3231,20 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
                   {isMeeting
                     ?<div className="space-y-2">
                       <textarea className="w-full px-2.5 py-2 rounded-xl border border-stone-200 bg-white text-[11px] focus:outline-none focus:ring-1 focus:ring-stone-400 resize-y" rows={2} placeholder="Catatan sementara EA sambil menunggu MoM..." value={outVal} onChange={function(e){var v=e.target.value;setOutTexts(function(p){var n={...p};n[item.id]=v;return n;});}}/>
-                      <div className="px-3 py-2 rounded-xl bg-stone-50 border border-stone-200 flex items-center gap-2"><span className="text-[10px]">📥</span><div className="text-[9px] text-stone-400">Import MoM formal via Dump Think → Import MoM</div></div>
+                      <div className="px-3 py-2 rounded-xl bg-violet-50 border border-violet-200 flex items-center gap-2">
+                        <span className="text-[12px]">🔎</span>
+                        <div className="flex-1 text-[9px] text-violet-700 font-bold">Tandai ke PDCA — buat MoM segera</div>
+                        <input type="checkbox" checked={!!(item.pdcaMomFlag)} onChange={function(e){onUpdateJadwal(today,item.id,{pdcaMomFlag:e.target.checked});}} className="w-4 h-4 accent-violet-600"/>
+                      </div>
                     </div>
                     :<textarea className="w-full px-2.5 py-2 rounded-xl border border-stone-200 bg-white text-[11px] focus:outline-none focus:ring-1 focus:ring-emerald-400 resize-y" rows={3} placeholder={isGenba?'Kondisi lapangan, masalah ditemukan, rekomendasi...':isExternal?'Insight, kesepakatan, peluang yang ditemukan...':'Apa yang diputuskan atau dihasilkan...'} value={outTexts[item.id]!==undefined?outTexts[item.id]:(item.outputKeputusan||'')} onChange={function(e){var v=e.target.value;setOutTexts(function(p){var n={...p};n[item.id]=v;return n;});}}/>
                   }
                 </div>
-                {/* Action items */}
-                {!isMeeting&&<div>
+                {/* Action items — semua jenis */}
+                <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <div className="text-[9px] font-bold text-stone-400 uppercase">Action item <span className="font-normal normal-case text-stone-300">(opsional — siapa, ngapain, kapan)</span></div>
-                    <button className="text-[9px] font-bold text-blue-500 as" onClick={function(){setOutActionItems(function(p){var n={...p};n[item.id]=[...(n[item.id]||[]),{pic:'',aksi:'',deadline:'',route:'backlog'}];return n;});}}>+ Tambah</button>
+                    <button className="text-[9px] font-bold text-blue-500 as" onClick={function(){setOutActionItems(function(p){var n={...p};n[item.id]=[...(n[item.id]||[]),{pic:'',aksi:'',deadline:'',route:isMeeting?'pdca_mom':'backlog'}];return n;});}}>+ Tambah</button>
                   </div>
                   {(outActionItems[item.id]||[]).length===0
                     ?<div className="px-3 py-2 rounded-xl border border-dashed border-stone-200 text-center text-[9px] text-stone-300">Tap "+ Tambah" kalau ada tindak lanjut</div>
@@ -3261,7 +3266,7 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
                       );})}
                     </div>
                   }
-                </div>}
+                </div>
                 {/* Evidence */}
                 <div>
                   <div className="text-[9px] font-bold text-stone-400 uppercase mb-1">Evidence <span className="font-normal normal-case text-stone-300">(opsional — link dokumen/foto/file)</span></div>
@@ -3271,9 +3276,31 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
                   </div>
                 </div>
               </div>}
-              {!fromBL&&isPersonal&&<div>
-                <div className="text-[9px] font-bold text-stone-400 uppercase mb-1">Output</div>
-                <textarea className="w-full px-2.5 py-2 rounded-xl border border-stone-200 bg-white text-[11px] focus:outline-none focus:ring-1 focus:ring-emerald-400 resize-y" rows={2} placeholder="Catatan singkat..." value={outVal} onChange={function(e){var v=e.target.value;setOutTexts(function(p){var n={...p};n[item.id]=v;return n;});}}/>
+              {!fromBL&&isPersonal&&<div className="space-y-3">
+                <div>
+                  <div className="text-[9px] font-bold text-stone-400 uppercase mb-1">Output / Catatan</div>
+                  <textarea className="w-full px-2.5 py-2 rounded-xl border border-stone-200 bg-white text-[11px] focus:outline-none focus:ring-1 focus:ring-emerald-400 resize-y" rows={2} placeholder="Catatan singkat..." value={outVal} onChange={function(e){var v=e.target.value;setOutTexts(function(p){var n={...p};n[item.id]=v;return n;});}}/>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="text-[9px] font-bold text-stone-400 uppercase">Action item <span className="font-normal normal-case text-stone-300">(opsional)</span></div>
+                    <button className="text-[9px] font-bold text-blue-500 as" onClick={function(){setOutActionItems(function(p){var n={...p};n[item.id]=[...(n[item.id]||[]),{pic:'',aksi:'',deadline:'',route:'none'}];return n;});}}>+ Tambah</button>
+                  </div>
+                  {(outActionItems[item.id]||[]).length>0&&<div className="space-y-2">
+                    {(outActionItems[item.id]||[]).map(function(ai,idx){return(
+                      <div key={idx} className="flex gap-1.5 items-start p-2.5 bg-stone-50 rounded-xl border border-stone-200">
+                        <div className="flex-1 space-y-1.5">
+                          <input className="w-full px-2 py-1.5 rounded-lg border border-stone-200 bg-white text-[10px] focus:outline-none" placeholder="Tindak lanjut..." value={ai.aksi} onChange={function(e){var v=e.target.value;setOutActionItems(function(p){var n={...p};var arr=n[item.id].slice();arr[idx]={...arr[idx],aksi:v};n[item.id]=arr;return n;});}}/>
+                          <select value={ai.route||'none'} onChange={function(e){var v=e.target.value;setOutActionItems(function(p){var n={...p};var arr=n[item.id].slice();arr[idx]={...arr[idx],route:v};n[item.id]=arr;return n;});}} className="w-full px-2 py-1.5 rounded-lg border border-stone-200 text-[10px] font-bold focus:outline-none" style={{color:ai.route==='backlog'?'#475569':ai.route==='kamar_pa'?'#2563eb':'#94a3b8'}}>
+                            <option value="none">🚫 Jangan kirim</option>
+                            <option value="backlog">📋 Backlog</option>
+                            <option value="kamar_pa">📅 Kamar PA</option>
+                          </select>
+                        </div>
+                        <button className="flex-shrink-0 w-6 h-6 rounded-lg bg-red-50 text-red-400 text-[10px] flex items-center justify-center as" onClick={function(){setOutActionItems(function(p){var n={...p};n[item.id]=n[item.id].filter(function(_,i){return i!==idx;});return n;});}}>✕</button>
+                      </div>
+                    );})}</div>}
+                </div>
               </div>}
               <div className="flex gap-2 items-center pt-1 flex-wrap">
                 {!fromBL&&<button className="px-3 py-2 rounded-xl bg-red-50 text-red-500 border border-red-200 text-[10px] font-bold as st" onClick={function(){if(confirm('Hapus kegiatan ini?'))onRemoveJadwal(today,item.id);setExpandId(null);}}>🗑️ Hapus</button>}
