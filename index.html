@@ -2955,7 +2955,7 @@ function getChecklistInfo(item){
   return{total:total,checked:checked};
 }
 
-function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,onUpdate,onAddKeputusan,filter,gcalOn,onPushItem,onPushDay,onAddMomBatch,lastGCalPull}){
+function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,onUpdate,onAddKeputusan,filter,gcalOn,onPushItem,onPushDay,onAddMomBatch,lastGCalPull,onAddBacklog}){
   const todayActual=todayStr();
   const [selectedDate,setSelectedDate]=useState(todayActual);
   const today=selectedDate; // semua referensi 'today' otomatis pakai tanggal yang dipilih
@@ -2996,9 +2996,25 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
     var evidence=outEvidence[item.id]||'';
     var actionItems=(outActionItems[item.id]||[]).filter(function(ai){return(ai.aksi||'').trim();});
     onUpdateJadwal(today,item.id,{outputKeputusan:txt,outputEvidence:evidence,outputActionItems:actionItems});
-    onAddKeputusan({id:'KP-'+genId(),tanggal:today,backlogId:item.masalahBacklogId||null,konteks:item.detailKegiatan.slice(0,50),deskripsi:item.detailKegiatan,fungsiKPI:item.relateMilestone,dampak:'sedang',status:'disampaikan',output:txt,sumber:item.jenisKegiatan,evidence:evidence});
-    if(actionItems.length>0&&onAddMomBatch){
-      onAddMomBatch([{id:'MOM-'+genId(),tanggal:today,meetingName:item.detailKegiatan.slice(0,60),gcalDesc:'',sumber:'output-'+item.id,items:actionItems.map(function(ai){return{id:'MI-'+genId(),konteks:item.detailKegiatan.slice(0,40),action:ai.aksi,jenis:'Immediately',pic:ai.pic||'',deadline:ai.deadline||null,ekspektasi:'',status:'pending',hasil:''};})  }]);
+    // Route action items per pilihan
+    var momItems=actionItems.filter(function(ai){return ai.route==='pdca_mom';});
+    var paItems=actionItems.filter(function(ai){return ai.route==='kamar_pa';});
+    var blItems=actionItems.filter(function(ai){return !ai.route||ai.route==='backlog';});
+    // PDCA MoM → masuk MoM batch
+    if(momItems.length>0&&onAddMomBatch){
+      onAddMomBatch([{id:'MOM-'+genId(),tanggal:today,meetingName:item.detailKegiatan.slice(0,60),gcalDesc:'',sumber:'output-'+item.id,items:momItems.map(function(ai){return{id:'MI-'+genId(),konteks:item.detailKegiatan.slice(0,40),action:ai.aksi,jenis:'Immediately',pic:ai.pic||'',deadline:ai.deadline||null,ekspektasi:'',status:'pending',hasil:''};}) }]);
+    }
+    // Kamar PA → backlog dengan hideFromBacklogList:true
+    if(paItems.length>0&&onAddBacklog){
+      paItems.forEach(function(ai){
+        onAddBacklog({id:'BL-'+genId(),isi:ai.aksi,pic:ai.pic||'',deadline:ai.deadline||'',konteks:item.detailKegiatan.slice(0,60),sumber:'output-jadwal',status:'baru',fungsiKPI:item.relateMilestone||'',hideFromBacklogList:true,needFeedback:false,pdcaFlag:false,tanggal:today});
+      });
+    }
+    // Backlog biasa
+    if(blItems.length>0&&onAddBacklog){
+      blItems.forEach(function(ai){
+        onAddBacklog({id:'BL-'+genId(),isi:ai.aksi,pic:ai.pic||'',deadline:ai.deadline||'',konteks:item.detailKegiatan.slice(0,60),sumber:'output-jadwal',status:'baru',fungsiKPI:item.relateMilestone||'',hideFromBacklogList:false,needFeedback:false,pdcaFlag:false,tanggal:today});
+      });
     }
     setExpandId(null);
     setOutTexts(function(p){var n={...p};n[item.id]='';return n;});
@@ -3223,7 +3239,7 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
                 {!isMeeting&&<div>
                   <div className="flex items-center justify-between mb-1.5">
                     <div className="text-[9px] font-bold text-stone-400 uppercase">Action item <span className="font-normal normal-case text-stone-300">(opsional — siapa, ngapain, kapan)</span></div>
-                    <button className="text-[9px] font-bold text-blue-500 as" onClick={function(){setOutActionItems(function(p){var n={...p};n[item.id]=[...(n[item.id]||[]),{pic:'',aksi:'',deadline:''}];return n;});}}>+ Tambah</button>
+                    <button className="text-[9px] font-bold text-blue-500 as" onClick={function(){setOutActionItems(function(p){var n={...p};n[item.id]=[...(n[item.id]||[]),{pic:'',aksi:'',deadline:'',route:'backlog'}];return n;});}}>+ Tambah</button>
                   </div>
                   {(outActionItems[item.id]||[]).length===0
                     ?<div className="px-3 py-2 rounded-xl border border-dashed border-stone-200 text-center text-[9px] text-stone-300">Tap "+ Tambah" kalau ada tindak lanjut</div>
@@ -3234,6 +3250,11 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
                             <input className="w-full px-2 py-1.5 rounded-lg border border-stone-200 bg-white text-[10px] focus:outline-none focus:ring-1 focus:ring-blue-300" placeholder="Siapa (PIC)..." value={ai.pic} onChange={function(e){var v=e.target.value;setOutActionItems(function(p){var n={...p};var arr=n[item.id].slice();arr[idx]={...arr[idx],pic:v};n[item.id]=arr;return n;});}}/>
                             <input className="w-full px-2 py-1.5 rounded-lg border border-stone-200 bg-white text-[10px] focus:outline-none focus:ring-1 focus:ring-blue-300" placeholder="Ngapain..." value={ai.aksi} onChange={function(e){var v=e.target.value;setOutActionItems(function(p){var n={...p};var arr=n[item.id].slice();arr[idx]={...arr[idx],aksi:v};n[item.id]=arr;return n;});}}/>
                             <input type="date" className="w-full px-2 py-1.5 rounded-lg border border-stone-200 bg-white text-[10px] font-mono focus:outline-none focus:ring-1 focus:ring-blue-300" value={ai.deadline||''} onChange={function(e){var v=e.target.value;setOutActionItems(function(p){var n={...p};var arr=n[item.id].slice();arr[idx]={...arr[idx],deadline:v};n[item.id]=arr;return n;});}}/>
+                            <select value={ai.route||'backlog'} onChange={function(e){var v=e.target.value;setOutActionItems(function(p){var n={...p};var arr=n[item.id].slice();arr[idx]={...arr[idx],route:v};n[item.id]=arr;return n;});}} className="w-full px-2 py-1.5 rounded-lg border border-stone-200 text-[10px] font-bold focus:outline-none" style={{color:ai.route==='kamar_pa'?'#2563eb':ai.route==='pdca_mom'?'#7c3aed':'#64748b'}}>
+                              <option value="backlog">📋 Backlog</option>
+                              <option value="kamar_pa">📅 Kamar PA</option>
+                              <option value="pdca_mom">🔎 PDCA MoM</option>
+                            </select>
                           </div>
                           <button className="flex-shrink-0 w-6 h-6 rounded-lg bg-red-50 text-red-400 text-[10px] flex items-center justify-center as" onClick={function(){setOutActionItems(function(p){var n={...p};n[item.id]=n[item.id].filter(function(_,i){return i!==idx;});return n;});}}>✕</button>
                         </div>
@@ -5895,6 +5916,16 @@ function MoMList({mom,onDelete,onUpdateMom,onAddKeputusan}){
   );
 }
 
+function exportCSV(filename,headers,rows){
+  var csv=[headers.join(',')].concat(rows.map(function(r){
+    return r.map(function(v){var s=String(v===null||v===undefined?'':v);return'"'+s.replace(/"/g,'""')+'"';}).join(',');
+  })).join('\n');
+  var blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'});
+  var url=URL.createObjectURL(blob);var a=document.createElement('a');
+  a.href=url;a.download=filename;document.body.appendChild(a);a.click();
+  setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url);},100);
+}
+
 // ── MAIN APP ──────────────────────────────────────────────────
 
 function App(){
@@ -6242,7 +6273,7 @@ function App(){
         {/* Content */}
         <div className="flex-1 pb-24 md:pb-8 md:max-w-5xl md:w-full md:mx-auto md:px-0">
           {tab==='dashboard'&&<Dashboard weekly={dashWeekly} kpiCorp={kpiCorp} dashMonth={dashMonth} onChangeMonth={setDashMonth} booking={booking} backlog={backlog} jadwal={jadwal}/>}
-          {tab==='jadwal'&&sub.jadwal==='harian'&&<JadwalHarian backlog={backlog} jadwal={jadwal} onAddJadwal={addToJadwal} onRemoveJadwal={removeFromJadwal} onUpdateJadwal={updateJadwal} onUpdate={updI} onAddKeputusan={addK} filter={jadwalFilter} gcalOn={!!(gTok&&gCalId)} onPushItem={pushItem} onPushDay={pushDay} onAddMomBatch={batchAddMom} lastGCalPull={lastGCalPull}/>}
+          {tab==='jadwal'&&sub.jadwal==='harian'&&<JadwalHarian backlog={backlog} jadwal={jadwal} onAddJadwal={addToJadwal} onRemoveJadwal={removeFromJadwal} onUpdateJadwal={updateJadwal} onUpdate={updI} onAddKeputusan={addK} filter={jadwalFilter} gcalOn={!!(gTok&&gCalId)} onPushItem={pushItem} onPushDay={pushDay} onAddMomBatch={batchAddMom} lastGCalPull={lastGCalPull} onAddBacklog={addI}/>}
           {tab==='jadwal'&&sub.jadwal==='mingguan'&&<JadwalMingguan backlog={backlog} jadwal={jadwal} filter={jadwalFilter} onUpdateJadwal={updateJadwal} onRemoveJadwal={removeFromJadwal} onUpdateBacklog={updI}/>}
           {tab==='jadwal'&&sub.jadwal==='bulanan'&&<JadwalBulanan jadwal={jadwal} filter={jadwalFilter}/>}
           {tab==='dump'&&<DumpPage onAdd={addI} onAddKeputusan={addK} onAddJadwal={addToJadwal} onBatchAddJadwal={batchAddToJadwal} onUpdateJadwal={updateJadwal} onResetICSBatch={resetJadwalBatch} onSaveKpiCorp={saveKpiCorp} onSaveKpiCeo={saveKpiCeo} onSaveBooking={saveBooking} onAddMom={addMom} jadwal={jadwal} backlog={backlog} onDone={()=>{setTab('backlog');setST('backlog','backlog');}}/>}
