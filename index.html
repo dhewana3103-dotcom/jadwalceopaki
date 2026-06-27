@@ -622,7 +622,7 @@ function BacklogCard({item,onUpdate,onDelete,onAddKeputusan,onAddMom,isActOpen,a
 }
 
 // ── NEED FEEDBACK TAB ─────────────────────────────────────────
-function NeedFeedbackTab({backlog,onUpdate,onAddKeputusan,mom,onUpdateMom,onAddBacklog}){
+function NeedFeedbackTab({backlog,onUpdate,onAddKeputusan,mom,onUpdateMom,onAddBacklog,onAddSampah}){
   const [expandCeo,setExpandCeo]=useState(null);
   const [ceoTexts,setCeoTexts]=useState({});
   const [momOutcome,setMomOutcome]=useState({});
@@ -657,8 +657,15 @@ function NeedFeedbackTab({backlog,onUpdate,onAddKeputusan,mom,onUpdateMom,onAddB
     setExpandCeo(null);
   }
   function markMoM(item){onUpdate(item.id,{momDone:true,feedbackStatus:'pdca_done'});}
-  function scheduleMeeting(item){onUpdate(item.id,{needFeedback:false,feedbackStatus:'scheduled'});}
-  function dismiss(item){onUpdate(item.id,{needFeedback:false,feedbackStatus:'dismissed'});}
+  function scheduleMeeting(item){
+    onUpdate(item.id,{needFeedback:false,feedbackStatus:'scheduled'});
+    onAddBacklog([{id:'BL-'+genId(),isi:(item.isi||item.action||'Jadwalkan meeting').slice(0,100),konteks:item.konteks||item._momEntryName||'',pic:null,deadline:null,status:'baru',fungsiKPI:item.fungsiKPI||'operasional',hideFromBacklogList:true,needFeedback:false,pdcaFlag:false,tanggal:todayStr(),_sourceNeedFeedbackId:item.id,sumber:'CEO: Jadwalkan Meeting'}]);
+  }
+  function dismiss(item){
+    var note=prompt('Alasan dismiss (opsional):');
+    onUpdate(item.id,{needFeedback:false,feedbackStatus:'dismissed',dismissedAt:new Date().toISOString(),dismissNote:note||''});
+    onAddSampah({...item,_type:'dismissed_feedback',deletedAt:new Date().toLocaleString('id-ID'),dismissNote:note||''});
+  }
 
   function Brief({brief}){
     if(!brief)return null;
@@ -1132,7 +1139,7 @@ function BacklogList({backlog,onUpdate,onDelete,onAddKeputusan,onAddMom}){
 // Keputusan = keputusan yang sudah disampaikan CEO.
 // Tracking = nge-track apakah keputusan itu sudah dijalankan & sesuai.
 // Keduanya satu tab karena yang ditrack ya keputusannya itu sendiri.
-function Keputusan({keputusan,onUpdate,onDelete,onAddKeputusan}){
+function Keputusan({keputusan,onUpdate,onDelete,onAddKeputusan,onUpdateBacklog,onAddBacklog}){
   const [view,setView]=useState('aktivitas'); // 'aktivitas' | 'semua'
   const [expGroup,setExpGroup]=useState(null);
   const [expKpt,setExpKpt]=useState(null);
@@ -1217,6 +1224,18 @@ function Keputusan({keputusan,onUpdate,onDelete,onAddKeputusan}){
               <button className="flex-1 py-1.5 rounded-lg text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 st as" onClick={()=>onUpdate(kpt.id,{status:'sesuai'})}>Sesuai ✅</button>
               <button className="flex-1 py-1.5 rounded-lg text-[10px] font-bold bg-red-50 text-red-700 border border-red-200 st as" onClick={()=>onUpdate(kpt.id,{status:'tidak-sesuai'})}>Tidak ❌</button>
             </>}
+            {kpt.status==='tidak-sesuai'&&(function(){
+              function eskalasi(){
+                var pdcaNote='[Eskalasi Keputusan Tidak Sesuai]\nKonteks: '+kpt.konteks+'\nDeskripsi: '+kpt.deskripsi+(kpt.output?'\nOutput/Hasil: '+kpt.output:'')+(kpt.updateTL?'\nUpdate TL: '+kpt.updateTL:'');
+                if(kpt.backlogId&&onUpdateBacklog){
+                  onUpdateBacklog(kpt.backlogId,{pdcaFlag:true,pdcaNotes:pdcaNote});
+                } else if(onAddBacklog){
+                  onAddBacklog([{id:'BL-'+genId(),isi:kpt.deskripsi||kpt.konteks,konteks:kpt.konteks||'',pic:null,deadline:null,status:'baru',fungsiKPI:kpt.fungsiKPI||'operasional',pdcaFlag:true,pdcaNotes:pdcaNote,needFeedback:false,tanggal:todayStr(),sumber:'Eskalasi Keputusan'}]);
+                }
+                onUpdate(kpt.id,{status:'tidak-sesuai',_eskalasi:true,_eskalasiAt:new Date().toISOString()});
+              }
+              return<button className={'flex-1 py-1.5 rounded-lg text-[10px] font-bold border st as '+(kpt._eskalasi?'bg-stone-100 text-stone-400 border-stone-200 cursor-not-allowed':'bg-violet-50 text-violet-700 border-violet-200')} onClick={kpt._eskalasi?null:eskalasi} disabled={kpt._eskalasi}>{kpt._eskalasi?'↗ Sudah Dieskalasi':'↗ Eskalasi ke PDCA'}</button>;
+            })()}
             <button className="py-1.5 px-2.5 rounded-lg text-[10px] font-bold bg-stone-50 text-red-500 border border-stone-200 st as" onClick={()=>{if(confirm('Hapus?'))onDelete(kpt.id);}}>🗑</button>
           </div>
           {/* Inline update form */}
@@ -5712,7 +5731,7 @@ function MoMList({mom,onDelete,onUpdateMom,onAddKeputusan}){
 
   function saveHasil(momEntry,item){
     const txt=hasilTexts[item.id]||'';if(!txt.trim())return;
-    updateItemStatus(momEntry.id,item.id,{hasil:txt,status:'selesai'});
+    updateItemStatus(momEntry.id,item.id,{hasil:txt,status:'selesai',_localHasil:true});
     onAddKeputusan({
       id:'KP-'+genId(),
       tanggal:todayStr(),
@@ -6213,7 +6232,8 @@ function App(){
                 jenis:item.level||'Follow Up',
                 kategori:item.kategori||'',
                 status:item.owner_verified_status===1?'selesai':item.owner_verified_status===2?'ditolak':'pending',
-                hasil:item.owner_verified_note||(exItem?exItem.hasil:''),
+                hasil:exItem&&exItem._localHasil?exItem.hasil:(item.owner_verified_note||(exItem?exItem.hasil:'')),
+                _localHasil:exItem?!!(exItem._localHasil):false,
                 needCeoReview:exItem?!!(exItem.needCeoReview):false,
                 ceoReviewStatus:exItem?(exItem.ceoReviewStatus||null):null,
                 ceoReviewBrief:exItem?(exItem.ceoReviewBrief||null):null,
@@ -6344,10 +6364,10 @@ function App(){
           {tab==='jadwal'&&sub.jadwal==='mingguan'&&<JadwalMingguan backlog={backlog} jadwal={jadwal} filter={jadwalFilter} onUpdateJadwal={updateJadwal} onRemoveJadwal={removeFromJadwal} onUpdateBacklog={updI}/>}
           {tab==='jadwal'&&sub.jadwal==='bulanan'&&<JadwalBulanan jadwal={jadwal} filter={jadwalFilter}/>}
           {tab==='dump'&&<DumpPage onAdd={addI} onAddKeputusan={addK} onAddJadwal={addToJadwal} onBatchAddJadwal={batchAddToJadwal} onUpdateJadwal={updateJadwal} onResetICSBatch={resetJadwalBatch} onSaveKpiCorp={saveKpiCorp} onSaveKpiCeo={saveKpiCeo} onSaveBooking={saveBooking} onAddMom={addMom} jadwal={jadwal} backlog={backlog} onDone={()=>{setTab('backlog');setST('backlog','backlog');}}/>}
-          {tab==='backlog'&&sub.backlog==='need_feedback'&&<NeedFeedbackTab backlog={backlog} onUpdate={updI} onAddKeputusan={addK} mom={mom} onUpdateMom={updMom} onAddBacklog={addI}/>}
+          {tab==='backlog'&&sub.backlog==='need_feedback'&&<NeedFeedbackTab backlog={backlog} onUpdate={updI} onAddKeputusan={addK} mom={mom} onUpdateMom={updMom} onAddBacklog={addI} onAddSampah={function(item){var ns=[item,...sampah];setSampah(ns);sv('sampah',ns);}}/>}
           {tab==='backlog'&&sub.backlog==='backlog'&&<BacklogList backlog={backlog} onUpdate={updI} onDelete={delI} onAddKeputusan={addK} onAddMom={addMom}/>}
           {tab==='backlog'&&sub.backlog==='kamar_pa'&&<KamarPATab backlog={backlog} onUpdateBacklog={updI} onAddJadwal={addToJadwal}/>}
-          {tab==='backlog'&&sub.backlog==='keputusan'&&<Keputusan keputusan={keputusan} onUpdate={updK} onDelete={delK} onAddKeputusan={addK}/>}
+          {tab==='backlog'&&sub.backlog==='keputusan'&&<Keputusan keputusan={keputusan} onUpdate={updK} onDelete={delK} onAddKeputusan={addK} onUpdateBacklog={updI} onAddBacklog={addI}/>}
           {tab==='backlog'&&sub.backlog==='pdca'&&<PdcaTab backlog={backlog} jadwal={jadwal} onUpdateBacklog={updI} mom={mom} onUpdateMom={updMom} onDeleteMom={delMom} onAddKeputusan={addK} onSyncMom={trusmiKey?syncTrusmiMom:null} syncingMom={syncingMom} lastMomSync={lastMomSync} onResetMomSync={trusmiKey?function(){var kept=(mom||[]).filter(function(m){return!m._trusmiId;});setMom(kept);sv('mom',kept);sbSave('mom',kept);setLastMomSync('');sv('lastMomSync','');}:null}/>}
           {tab==='backlog'&&sub.backlog==='arsip'&&<RiwayatSampahTab sampah={sampah} onRestore={restoreSampah} onHardDel={hardDelSampah}/>}
           {tab==='resume'&&sub.resume==='analisa'&&<AnalisaTab backlog={backlog} jadwal={jadwal} kpiCorp={kpiCorp} dashMonth={dashMonth} mom={mom} kpiCeo={kpiCeo} targetBobot={targetBobot}/>}
