@@ -3570,8 +3570,11 @@ function ConvertOutputModal({dayItemsAll,today,onAddMomBatch,onClose}){
         }
       }
       if(!parsed)throw new Error('Gagal parse response AI. Coba lagi atau kurangi jumlah kegiatan.');
-      // Normalize field names (short or long)
-      var withItems=parsed.filter(function(p){return p.hasItems&&p.items&&p.items.length>0;}).map(function(p){return{...p,items:(p.items||[]).map(function(it){return{konteks:it.k||it.konteks||'',action:it.a||it.action||'',jenis:it.j||it.jenis||'',pic:it.p||it.pic||null,deadline:it.d||it.deadline||null};});};});
+      var withItems=parsed.filter(function(p){return p.hasItems&&p.items&&p.items.length>0;}).map(function(p){
+        return{id:p.id,name:p.name||p.n||'',hasItems:p.hasItems,items:(p.items||[]).map(function(it){
+          return{konteks:it.k||it.konteks||'',action:it.a||it.action||'',jenis:it.j||it.jenis||'Immediately',pic:it.p||it.pic||null,deadline:it.d||it.deadline||null};
+        })};
+      });
       setPreview(withItems);
       setLoading(false);
     }catch(e){
