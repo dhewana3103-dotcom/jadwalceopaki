@@ -4350,7 +4350,7 @@ function AnalisaTab({backlog,jadwal,kpiCorp,dashMonth,mom,kpiCeo,targetBobot}){
               <thead>
                 <tr style={{background:'#f8fafc',borderBottom:'1px solid #e2e8f0'}}>
                   <th style={{padding:'8px 12px',textAlign:'left',fontSize:9,color:'#94a3b8',fontWeight:700,width:130}}>Kategori</th>
-                  {weekDates.map(function(d,i){return<th key={d} style={{padding:'8px 6px',textAlign:'center',fontSize:9,color:'#64748b',fontWeight:700,background:i===5?'#f8fafc':'inherit'}}>{dayLbls[i]}<br/><span style={{color:'#94a3b8',fontWeight:400}}>{d.slice(8)}/{d.slice(5,7)}</span></th>;})}</tr>
+                  {weekDates.map(function(d,i){return<th key={d} style={{padding:'8px 6px',textAlign:'center',fontSize:9,color:'#64748b',fontWeight:700,background:i===5?'#f8fafc':'inherit'}}>{dayLbls[i]}<br/><span style={{color:'#94a3b8',fontWeight:400}}>{d.slice(8)}/{d.slice(5,7)}</span></th>;})}
                   <th style={{padding:'8px 10px',textAlign:'center',fontSize:9,color:'#94a3b8',fontWeight:700}}>Total</th>
                 </tr>
               </thead>
