@@ -3545,25 +3545,37 @@ function ConvertOutputModal({dayItemsAll,today,onAddMomBatch,onClose}){
   async function doConvert(){
     setErr('');setLoading(true);
     try{
-      function sanitize(s){return(s||'').replace(/["\\\n\r\t]/g,' ').replace(/\s+/g,' ').trim();}
-      var payload=itemsWithOutput.map(function(it){return{id:it.id,name:sanitize(it.detailKegiatan).slice(0,50),jenis:(it.jenisKegiatan||'').split(' ')[0],out:sanitize(it.outputKeputusan).slice(0,300)};});
-      var prompt='AI assistant CEO GTD OS RSP. Analisa kegiatan berikut, extract action items konkret. Personal/olahraga/makan = hasItems:false. '
-        +'Untuk tiap kegiatan, field: konteks(max30), action(max80), jenis(Immediately/Konsep/Feedback), pic(null jika tidak ada), deadline(YYYY-MM-DD/null). '
+      function sanitize(s){return(s||'').replace(/["'\\\n\r\t<>]/g,' ').replace(/\s+/g,' ').trim();}
+      var allItems=itemsWithOutput;
+      if(allItems.length>8){setErr('Terlalu banyak kegiatan ('+allItems.length+'). Pilih max 8 kegiatan atau filter dulu.');setLoading(false);return;}
+      var payload=allItems.map(function(it){return{id:it.id,n:sanitize(it.detailKegiatan).slice(0,40),j:(it.jenisKegiatan||'').split(' ')[0],o:sanitize(it.outputKeputusan).slice(0,150)};});
+      var prompt='Extract action items dari kegiatan CEO RSP ini. Personal/olahraga = hasItems:false. '
+        +'Field tiap item: k(konteks,max25), a(action,max70), j(Immediately/Konsep/Feedback), p(pic/null), d(deadline YYYY-MM-DD/null). '
         +'Data:'+JSON.stringify(payload)+' '
-        +'Return ONLY compact JSON: [{"id":"...","hasItems":true,"items":[{"konteks":"...","action":"...","jenis":"...","pic":null,"deadline":null}]}]';
-            var raw=await callAI([{role:'user',content:prompt}],4096);
+        +'Return ONLY JSON array: [{"id":"...","hasItems":true,"items":[{"k":"...","a":"...","j":"...","p":null,"d":null}]}]';
+      var raw=await callAI([{role:'user',content:prompt}],2048);
       var clean=raw.replace(/```json|```/g,'').trim();
-      var parsed;
-      try{parsed=JSON.parse(clean);}catch(e){
-        var lb=clean.lastIndexOf(']');
-        if(lb>0){try{parsed=JSON.parse(clean.slice(0,lb+1));}catch(e2){throw new Error('Response AI terpotong. Coba kurangi jumlah kegiatan atau coba lagi.');}}
-        else throw new Error('Response AI tidak valid. Coba lagi.');
+      var parsed=null;
+      // Try 1: direct parse
+      try{parsed=JSON.parse(clean);}catch(e1){
+        // Try 2: cut at last valid ']'
+        var attempts=[
+          function(){var i=clean.lastIndexOf('}]');return i>0?clean.slice(0,i+2):null;},
+          function(){var i=clean.lastIndexOf(']');return i>0?clean.slice(0,i+1):null;},
+          function(){var i=clean.lastIndexOf('}');return i>0?clean.slice(0,i+1)+']':null;},
+        ];
+        for(var ai=0;ai<attempts.length;ai++){
+          var s=attempts[ai]();
+          if(s){try{parsed=JSON.parse(s);break;}catch(e2){continue;}}
+        }
       }
-      var withItems=parsed.filter(function(p){return p.hasItems&&p.items&&p.items.length>0;});
+      if(!parsed)throw new Error('Gagal parse response AI. Coba lagi atau kurangi jumlah kegiatan.');
+      // Normalize field names (short or long)
+      var withItems=parsed.filter(function(p){return p.hasItems&&p.items&&p.items.length>0;}).map(function(p){return{...p,items:(p.items||[]).map(function(it){return{konteks:it.k||it.konteks||'',action:it.a||it.action||'',jenis:it.j||it.jenis||'',pic:it.p||it.pic||null,deadline:it.d||it.deadline||null};});};});
       setPreview(withItems);
       setLoading(false);
     }catch(e){
-      setErr('Gagal convert: '+e.message);
+      setErr('Gagal: '+e.message);
       setLoading(false);
     }
   }
