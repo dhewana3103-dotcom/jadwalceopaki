@@ -3545,7 +3545,7 @@ function ConvertOutputModal({dayItemsAll,today,onAddMomBatch,onClose}){
   async function doConvert(){
     setErr('');setLoading(true);
     try{
-      var payload=itemsWithOutput.map(function(it){return{activityId:it.id,activityName:it.detailKegiatan||'',jenisKegiatan:it.jenisKegiatan||'',jamMulai:it.jamMulai||'',output:it.outputKeputusan||''};});
+      var payload=itemsWithOutput.map(function(it){return{activityId:it.id,activityName:(it.detailKegiatan||'').slice(0,60),jenisKegiatan:it.jenisKegiatan||'',jamMulai:it.jamMulai||'',output:(it.outputKeputusan||'').slice(0,400)};});
       var prompt='Kamu adalah AI assistant untuk CEO GTD OS di PT Raja Sukses Properindo (developer perumahan subsidi).\n\n'
         +'Berikut daftar kegiatan CEO hari ini beserta catatan Output/Keputusan yang ditulis PA setelah kegiatan selesai. Tugasmu: untuk SETIAP kegiatan, analisa apakah ada action item / keputusan konkret / follow-up yang perlu di-track. Kegiatan personal (olahraga, makan, tidur, dll) biasanya TIDAK punya action item — set hasActionItems:false untuk itu.\n\n'
         +'Untuk kegiatan yang punya action item, extract setiap item dengan field:\n'
@@ -3557,9 +3557,14 @@ function ConvertOutputModal({dayItemsAll,today,onAddMomBatch,onClose}){
         +'Data kegiatan:\n'+JSON.stringify(payload)+'\n\n'
         +'Return HANYA JSON array valid, tidak ada teks lain, tidak ada markdown fences:\n'
         +'[{"activityId":"...","activityName":"...","jenisKegiatan":"...","hasActionItems":true,"items":[{"konteks":"...","action":"...","jenis":"...","pic":null,"deadline":null}]}]';
-      var raw=await callAI([{role:'user',content:prompt}],3500);
+      var raw=await callAI([{role:'user',content:prompt}],4096);
       var clean=raw.replace(/```json|```/g,'').trim();
-      var parsed=JSON.parse(clean);
+      var parsed;
+      try{parsed=JSON.parse(clean);}catch(e){
+        var lb=clean.lastIndexOf(']');
+        if(lb>0){try{parsed=JSON.parse(clean.slice(0,lb+1));}catch(e2){throw new Error('Response AI terpotong. Coba kurangi jumlah kegiatan atau coba lagi.');}}
+        else throw new Error('Response AI tidak valid. Coba lagi.');
+      }
       var withItems=parsed.filter(function(p){return p.hasActionItems&&p.items&&p.items.length>0;});
       setPreview(withItems);
       setLoading(false);
