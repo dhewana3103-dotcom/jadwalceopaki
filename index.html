@@ -3545,19 +3545,13 @@ function ConvertOutputModal({dayItemsAll,today,onAddMomBatch,onClose}){
   async function doConvert(){
     setErr('');setLoading(true);
     try{
-      var payload=itemsWithOutput.map(function(it){return{activityId:it.id,activityName:(it.detailKegiatan||'').slice(0,60),jenisKegiatan:it.jenisKegiatan||'',jamMulai:it.jamMulai||'',output:(it.outputKeputusan||'').slice(0,400)};});
-      var prompt='Kamu adalah AI assistant untuk CEO GTD OS di PT Raja Sukses Properindo (developer perumahan subsidi).\n\n'
-        +'Berikut daftar kegiatan CEO hari ini beserta catatan Output/Keputusan yang ditulis PA setelah kegiatan selesai. Tugasmu: untuk SETIAP kegiatan, analisa apakah ada action item / keputusan konkret / follow-up yang perlu di-track. Kegiatan personal (olahraga, makan, tidur, dll) biasanya TIDAK punya action item — set hasActionItems:false untuk itu.\n\n'
-        +'Untuk kegiatan yang punya action item, extract setiap item dengan field:\n'
-        +'- konteks: topik singkat (max 40 karakter)\n'
-        +'- action: apa yang perlu dilakukan / keputusan yang diambil (max 120 karakter)\n'
-        +'- jenis: salah satu dari [Immediately, Konsep Strategis, Feedback]\n'
-        +'- pic: nama orang yang bertanggung jawab jika disebutkan di teks, atau null\n'
-        +'- deadline: tanggal dalam format YYYY-MM-DD jika disebutkan, atau null\n\n'
-        +'Data kegiatan:\n'+JSON.stringify(payload)+'\n\n'
-        +'Return HANYA JSON array valid, tidak ada teks lain, tidak ada markdown fences:\n'
-        +'[{"activityId":"...","activityName":"...","jenisKegiatan":"...","hasActionItems":true,"items":[{"konteks":"...","action":"...","jenis":"...","pic":null,"deadline":null}]}]';
-      var raw=await callAI([{role:'user',content:prompt}],4096);
+      function sanitize(s){return(s||'').replace(/["\\\n\r\t]/g,' ').replace(/\s+/g,' ').trim();}
+      var payload=itemsWithOutput.map(function(it){return{id:it.id,name:sanitize(it.detailKegiatan).slice(0,50),jenis:(it.jenisKegiatan||'').split(' ')[0],out:sanitize(it.outputKeputusan).slice(0,300)};});
+      var prompt='AI assistant CEO GTD OS RSP. Analisa kegiatan berikut, extract action items konkret. Personal/olahraga/makan = hasItems:false. '
+        +'Untuk tiap kegiatan, field: konteks(max30), action(max80), jenis(Immediately/Konsep/Feedback), pic(null jika tidak ada), deadline(YYYY-MM-DD/null). '
+        +'Data:'+JSON.stringify(payload)+' '
+        +'Return ONLY compact JSON: [{"id":"...","hasItems":true,"items":[{"konteks":"...","action":"...","jenis":"...","pic":null,"deadline":null}]}]';
+            var raw=await callAI([{role:'user',content:prompt}],4096);
       var clean=raw.replace(/```json|```/g,'').trim();
       var parsed;
       try{parsed=JSON.parse(clean);}catch(e){
@@ -3565,7 +3559,7 @@ function ConvertOutputModal({dayItemsAll,today,onAddMomBatch,onClose}){
         if(lb>0){try{parsed=JSON.parse(clean.slice(0,lb+1));}catch(e2){throw new Error('Response AI terpotong. Coba kurangi jumlah kegiatan atau coba lagi.');}}
         else throw new Error('Response AI tidak valid. Coba lagi.');
       }
-      var withItems=parsed.filter(function(p){return p.hasActionItems&&p.items&&p.items.length>0;});
+      var withItems=parsed.filter(function(p){return p.hasItems&&p.items&&p.items.length>0;});
       setPreview(withItems);
       setLoading(false);
     }catch(e){
@@ -3575,15 +3569,15 @@ function ConvertOutputModal({dayItemsAll,today,onAddMomBatch,onClose}){
   }
 
   function doConfirm(){
-    var toSave=preview.filter(function(p){return!excluded[p.activityId];});
+    var toSave=preview.filter(function(p){return!excluded[p.id];});
     var entries=toSave.map(function(p){
       return{
         id:'MOM-'+genId(),
         tanggal:today,
-        meetingName:p.activityName,
+        meetingName:p.name,
         gcalDesc:'',
         items:(p.items||[]).map(function(it){return{id:'MI-'+genId(),konteks:it.konteks||'',action:it.action||'',jenis:it.jenis||'',pic:it.pic||'',deadline:it.deadline||'',status:'pending'};}),
-        sumber:p.activityId,
+        sumber:p.id,
         createdAt:todayStr(),
       };
     });
@@ -3628,12 +3622,12 @@ function ConvertOutputModal({dayItemsAll,today,onAddMomBatch,onClose}){
                 <div className="text-[11px] font-bold text-stone-600 mb-3">{preview.length} kegiatan menghasilkan action item — cek sebelum simpan</div>
                 <div className="space-y-3 mb-4">
                   {preview.map(function(p){
-                    var isExcl=!!excluded[p.activityId];
+                    var isExcl=!!excluded[p.id];
                     return(
-                      <div key={p.activityId} className={'rounded-xl border overflow-hidden '+(isExcl?'border-stone-200 bg-stone-50 opacity-50':'border-violet-200 bg-violet-50/30')}>
+                      <div key={p.id} className={'rounded-xl border overflow-hidden '+(isExcl?'border-stone-200 bg-stone-50 opacity-50':'border-violet-200 bg-violet-50/30')}>
                         <div className="px-3 py-2 flex items-center justify-between bg-white border-b border-stone-100">
-                          <div className="text-[11px] font-bold text-stone-800 truncate flex-1">{p.activityName}</div>
-                          <button className="text-[9px] font-bold text-stone-400 as ml-2" onClick={function(){toggleExclude(p.activityId);}}>{isExcl?'↩ Sertakan':'✕ Kecualikan'}</button>
+                          <div className="text-[11px] font-bold text-stone-800 truncate flex-1">{p.name}</div>
+                          <button className="text-[9px] font-bold text-stone-400 as ml-2" onClick={function(){toggleExclude(p.id);}}>{isExcl?'↩ Sertakan':'✕ Kecualikan'}</button>
                         </div>
                         <div className="px-3 py-2 space-y-1.5">
                           {(p.items||[]).map(function(it,idx){return(
@@ -3649,7 +3643,7 @@ function ConvertOutputModal({dayItemsAll,today,onAddMomBatch,onClose}){
                     );
                   })}
                 </div>
-                <button className="w-full py-3 rounded-xl bg-emerald-600 text-white text-[12px] font-extrabold as st shadow-md" onClick={doConfirm}>✓ Simpan {preview.filter(function(p){return!excluded[p.activityId];}).length} MoM Entry</button>
+                <button className="w-full py-3 rounded-xl bg-emerald-600 text-white text-[12px] font-extrabold as st shadow-md" onClick={doConfirm}>✓ Simpan {preview.filter(function(p){return!excluded[p.id];}).length} MoM Entry</button>
               </>
             }
           </>}
@@ -4158,8 +4152,25 @@ function Heatmap({backlog}){
 function AnalisaTab({backlog,jadwal,kpiCorp,dashMonth,mom,kpiCeo,targetBobot}){
   const [entityFilter,setEntityFilter]=useState('all');
   const [heatTip,setHeatTip]=useState(null);
-  const stats=computeAnalisaFiltered(jadwal||{},entityFilter);
+  const [weekOff,setWeekOff]=useState(0);
   const today=todayStr();
+
+  // ── Week filtering ──
+  function getMonStr(offset){
+    var t=new Date();var dow=t.getDay();
+    var m=new Date(t);m.setDate(t.getDate()-(dow===0?6:dow-1)+offset*7);
+    return m.toISOString().slice(0,10);
+  }
+  var monStr=getMonStr(weekOff);
+  var weekDates=[];
+  for(var wi=0;wi<7;wi++){var wd=new Date(monStr+'T12:00:00');wd.setDate(wd.getDate()+wi);weekDates.push(wd.toISOString().slice(0,10));}
+  var sunStr=weekDates[6];
+  var weekLbl=(function(){var m=new Date(monStr+'T12:00:00');var s=new Date(sunStr+'T12:00:00');return m.getDate()+' – '+s.getDate()+' '+m.toLocaleDateString('id-ID',{month:'long',year:'numeric'});})();
+  // Filter jadwal ke minggu yang dipilih
+  var weekJadwal={};
+  weekDates.forEach(function(d){if(jadwal[d])weekJadwal[d]=jadwal[d];});
+
+  const stats=computeAnalisaFiltered(weekJadwal,entityFilter);
 
   const blBaru=backlog.filter(function(it){return it.status==='baru';}).length;
   const blDijadwalkan=backlog.filter(function(it){return it.status==='dijadwalkan';}).length;
@@ -4172,7 +4183,7 @@ function AnalisaTab({backlog,jadwal,kpiCorp,dashMonth,mom,kpiCeo,targetBobot}){
   // ── D6: Disiplin Sistem CEO ──
   const curMonth=dashMonth||today.slice(0,7);
   const monthJadwalItems=[];
-  Object.keys(jadwal||{}).forEach(function(date){
+  Object.keys(weekJadwal).forEach(function(date){
     if(date.slice(0,7)===curMonth){(jadwal[date]||[]).forEach(function(it){monthJadwalItems.push({...it,_date:date});});}
   });
   const totalJadwalBulan=monthJadwalItems.length;
@@ -4235,893 +4246,235 @@ function AnalisaTab({backlog,jadwal,kpiCorp,dashMonth,mom,kpiCeo,targetBobot}){
 
   function heatCls(v){if(!v)return'bg-stone-100 text-stone-400';if(v<=3)return'bg-sky-100 text-sky-800';if(v<=7)return'bg-sky-300 text-sky-900';if(v<=12)return'bg-sky-500 text-white';return'bg-sky-700 text-white';}
 
+  // ── Heatmap K1-K7 per hari ──
+  var K_DEF=[
+    {id:'K1',lbl:'K1 · Deepwork',kw:'Deepwork',col:'#3b82f6'},
+    {id:'K2',lbl:'K2 · Strategis',kw:'Strategis',col:'#0ea5e9'},
+    {id:'K3',lbl:'K3 · Review',kw:'Review',col:'#f59e0b'},
+    {id:'K4',lbl:'K4 · Konten',kw:'Konten',col:'#10b981'},
+    {id:'K5',lbl:'K5 · Genba',kw:'Genba',col:'#14b8a6'},
+    {id:'K6',lbl:'K6 · External',kw:'External',col:'#a855f7'},
+    {id:'K7',lbl:'K7 · Engage',kw:'Engage',col:'#f43f5e'},
+  ];
+  var heatMap={};
+  K_DEF.forEach(function(k){heatMap[k.id]={};weekDates.forEach(function(d){heatMap[k.id][d]=0;});});
+  weekDates.forEach(function(d){
+    (weekJadwal[d]||[]).forEach(function(it){
+      var j=it.jenisKegiatan||'';var h=getDur(it.jamMulai,it.jamSelesai);
+      K_DEF.forEach(function(k){if(j.indexOf(k.kw)!==-1)heatMap[k.id][d]=Math.round((heatMap[k.id][d]+h)*10)/10;});
+    });
+  });
+  var heatTotals={};K_DEF.forEach(function(k){heatTotals[k.id]=Math.round(weekDates.reduce(function(s,d){return s+(heatMap[k.id][d]||0);},0)*10)/10;});
+
+  // ── Jam & pct per fungsi ──
+  var totalJamMinggu=Math.round(weekDates.reduce(function(s,d){return s+(weekJadwal[d]||[]).reduce(function(ss,it){return ss+getDur(it.jamMulai,it.jamSelesai);},0);},0)*10)/10;
+  var JFMAP={'Deepwork':['finansial','branding','riset','people'],'Meeting Strategis':['finansial','branding','riset','operasional'],'Meeting Review':['finansial','branding','riset','operasional','people'],'Bikin Konten':['branding','people'],'Genba':['riset','operasional'],'Ketemu External':['finansial','branding','riset','operasional','people'],'Employee Engage':['people']};
+  var jamFungsi={finansial:0,branding:0,operasional:0,riset:0,people:0};
+  weekDates.forEach(function(d){(weekJadwal[d]||[]).forEach(function(it){var j=it.jenisKegiatan||'';var h=getDur(it.jamMulai,it.jamSelesai);var fs=JFMAP[j];if(fs){var share=h/fs.length;fs.forEach(function(f){jamFungsi[f]=(jamFungsi[f]||0)+share;});}});});
+  Object.keys(jamFungsi).forEach(function(k){jamFungsi[k]=Math.round(jamFungsi[k]*10)/10;});
+  var pctFungsi={};Object.keys(jamFungsi).forEach(function(k){pctFungsi[k]=totalJamMinggu>0?Math.round(jamFungsi[k]/totalJamMinggu*100):0;});
+  var TB={finansial:(targetBobot&&targetBobot.finansial)||25,branding:(targetBobot&&targetBobot.branding)||25,operasional:(targetBobot&&targetBobot.operasional)||30,riset:(targetBobot&&targetBobot.riset)||15,people:(targetBobot&&targetBobot.people)||5};
+
+  function fStatus(pct,target){var r=target>0?pct/target:1;if(pct===0&&target>0)return{lbl:'Kritis 🔴',cls:'text-rose-600 bg-rose-50 border-rose-200'};if(r<0.5)return{lbl:'Under ⚠️',cls:'text-amber-600 bg-amber-50 border-amber-200'};if(r>1.4)return{lbl:'Over ⚠️',cls:'text-amber-600 bg-amber-50 border-amber-200'};return{lbl:'OK ✅',cls:'text-emerald-600 bg-emerald-50 border-emerald-200'};}
+  function hexRgb(h){var r=parseInt(h.slice(1,3),16);var g=parseInt(h.slice(3,5),16);var b=parseInt(h.slice(5,7),16);return r+','+g+','+b;}
+  function cellSt(h,col){if(!h)return{background:'#f1f5f9',color:'#94a3b8'};var a=h>=3?1:h>=2?0.8:h>=1?0.55:0.3;return{background:'rgba('+hexRgb(col)+','+a+')',color:a>0.55?'white':col,fontWeight:700};}
+  var dayLbls=['Sen','Sel','Rab','Kam','Jum','Sab','Min'];
+  var FNMETA=[{id:'finansial',lbl:'Finansial',col:'#f43f5e'},{id:'branding',lbl:'Branding',col:'#10b981'},{id:'operasional',lbl:'Operasional',col:'#f59e0b'},{id:'riset',lbl:'Riset',col:'#3b82f6'},{id:'people',lbl:'People',col:'#a855f7'}];
+  var totalAktivitas=Object.values(weekJadwal).reduce(function(s,a){return s+a.length;},0);
+  var kontenJam=heatTotals['K4']||0;
+  var extJam=heatTotals['K6']||0;
+  var engageCount=weekDates.reduce(function(s,d){return s+(weekJadwal[d]||[]).filter(function(it){return it.jenisKegiatan&&it.jenisKegiatan.indexOf('Engage')!==-1;}).length;},0);
+
   return(
-    <div className="afi pb-8">
+    <div className="pb-10" style={{fontFamily:'Inter,sans-serif',background:'#f8fafc',minHeight:'100vh'}}>
 
-      {/* ── ENTITY FILTER ── */}
-      <div className="px-4 pt-4 md:px-6 mb-4">
-        <div className="flex bg-stone-100 p-1 rounded-2xl border border-stone-200 gap-1 overflow-x-auto">
+      {/* WEEK NAV */}
+      <div className="px-4 md:px-6 pt-4 pb-3 flex items-center justify-between border-b border-slate-200 bg-white">
+        <button onClick={function(){setWeekOff(weekOff-1);}} className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-[11px] font-bold text-slate-600 as st">← Lalu</button>
+        <div className="text-center">
+          <div className="text-[13px] font-extrabold text-slate-900">{weekOff===0?'Minggu Ini':weekOff===-1?'Minggu Lalu':Math.abs(weekOff)+' Minggu Lalu'}</div>
+          <div className="text-[10px] text-slate-400">{weekLbl} · {totalAktivitas} aktivitas · {totalJamMinggu}h produktif</div>
+        </div>
+        <button onClick={function(){setWeekOff(Math.min(weekOff+1,0));}} disabled={weekOff===0} className={'px-3 py-1.5 rounded-xl border border-slate-200 text-[11px] font-bold as st '+(weekOff===0?'bg-slate-50 text-slate-300 cursor-not-allowed':'bg-white text-slate-600')}>Depan →</button>
+      </div>
+
+      {/* ENTITY FILTER */}
+      <div className="px-4 md:px-6 pt-3 pb-2 bg-white border-b border-slate-100">
+        <div className="flex gap-1.5 flex-wrap">
           {[['all','🏢 Semua'],['RSP','🏠 RSP'],['BT','🧵 BT'],['TKB','🏗 TKB'],['Personal','👤 Personal']].map(function(opt){
-            var id=opt[0],lbl=opt[1];
-            return(<button key={id} onClick={function(){setEntityFilter(id);}} className={`flex-1 py-2 rounded-xl text-[10px] font-bold st as whitespace-nowrap px-2 ${entityFilter===id?'bg-white shadow-sm text-stone-900 border border-stone-200/60':'text-stone-500'}`}>{lbl}</button>);
+            var isA=entityFilter===opt[0];
+            return<button key={opt[0]} onClick={function(){setEntityFilter(opt[0]);}} className={'px-3 py-1 rounded-full text-[10px] font-bold as '+(isA?'bg-slate-900 text-white':'bg-slate-100 text-slate-500')}>{opt[1]}</button>;
           })}
         </div>
       </div>
 
-      {/* ── GAP CARDS: BACKLOG ── */}
-      <div className="px-4 md:px-6 mb-5">
-        <div className="text-[10px] font-extrabold text-stone-400 uppercase tracking-widest mb-3">📋 Status Backlog</div>
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <div className="bg-white border border-stone-200 rounded-2xl p-4 shadow-soft">
-            <div className="text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-2">Total</div>
-            <div className="text-3xl font-black text-stone-900 mb-2">{backlog.length}</div>
-            <div className="space-y-0.5">
-              <div className="flex justify-between text-[10px]"><span className="text-stone-400">Baru</span><span className="font-bold text-red-500">{blBaru}</span></div>
-              <div className="flex justify-between text-[10px]"><span className="text-stone-400">Dijadwalkan</span><span className="font-bold text-blue-500">{blDijadwalkan}</span></div>
-              <div className="flex justify-between text-[10px]"><span className="text-stone-400">Selesai</span><span className="font-bold text-emerald-600">{blSelesai}</span></div>
-            </div>
-          </div>
-          <div className={`border rounded-2xl p-4 shadow-soft ${blUrgent>0?'bg-red-50 border-red-100':'bg-white border-stone-200'}`}>
-            <div className="text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-2">Prioritas Tinggi</div>
-            <div className={`text-3xl font-black mb-1 ${blUrgent>3?'text-red-600':blUrgent>0?'text-amber-600':'text-emerald-600'}`}>{blUrgent}</div>
-            <div className={`text-[10px] font-semibold ${blUrgent>0?'text-red-400':'text-stone-400'}`}>{blUrgent>0?'belum selesai':'semua clear'}</div>
-          </div>
-          <div className={`border rounded-2xl p-4 shadow-soft ${blOverdue>0?'bg-orange-50 border-orange-100':'bg-white border-stone-200'}`}>
-            <div className="text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-2">Deadline Lewat</div>
-            <div className={`text-3xl font-black mb-1 ${blOverdue>0?'text-orange-600':'text-emerald-600'}`}>{blOverdue}</div>
-            <div className={`text-[10px] font-semibold ${blOverdue>0?'text-orange-400':'text-stone-400'}`}>{blOverdue>0?'perlu tindak lanjut':'tidak ada'}</div>
-          </div>
-          <div className={`border rounded-2xl p-4 shadow-soft ${blPostponed>0?'bg-amber-50 border-amber-100':'bg-white border-stone-200'}`}>
-            <div className="text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-2">Postponed</div>
-            <div className={`text-3xl font-black mb-1 ${blPostponed>2?'text-amber-600':'text-stone-700'}`}>{blPostponed}</div>
-            {multiPost>0?<div className="text-[10px] font-bold text-red-500">{multiPost}x postpone ≥3</div>:<div className={`text-[10px] font-semibold ${blPostponed>0?'text-amber-500':'text-stone-400'}`}>{blPostponed>0?'perlu dijadwalkan':'tidak ada'}</div>}
-          </div>
-        </div>
-      </div>
+      {totalAktivitas===0
+        ?<div className="mx-4 mt-8 bg-white rounded-xl border border-slate-200 p-10 text-center"><div className="text-4xl mb-3 opacity-20">📅</div><div className="text-[13px] font-bold text-slate-400">Tidak ada aktivitas minggu ini</div><div className="text-[10px] text-slate-300 mt-1">Isi jadwal untuk melihat analisa</div></div>
+        :<div>
 
-      {/* ── D1: KUALITAS KEPUTUSAN ── */}
-      <div className="px-4 md:px-6 mb-5">
-        <div className="text-[10px] font-extrabold text-stone-400 uppercase tracking-widest mb-0.5">⊛ D1 · Kualitas & Eksekusi Keputusan</div>
-        <div className="text-[10px] text-stone-400 mb-3">Decision items dari MoM → PDCA check H+30 → korelasi ke KPI aktual</div>
-        {allDecisions.length===0?
-          <div className="bg-stone-50 border border-stone-200 rounded-2xl p-5 text-center">
-            <div className="text-3xl mb-2 opacity-20">⊛</div>
-            <div className="text-[12px] font-bold text-stone-400 mb-1">Belum ada Decision tercatat</div>
-            <div className="text-[10px] text-stone-400">Buka tab Backlog → MoM → action item → tombol ⊛ Decision</div>
-          </div>
-        :
-          <div className="bg-white rounded-2xl border border-stone-200 shadow-soft overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-[11px]" style={{minWidth:480}}>
-                <thead><tr className="bg-stone-50 border-b border-stone-200 text-[9px] text-stone-400 uppercase">
-                  <th className="px-3 py-2.5 text-left font-bold">Domain</th>
-                  <th className="px-3 py-2.5 text-center font-bold">Aktivitas CEO</th>
-                  <th className="px-3 py-2.5 text-center font-bold">Keputusan</th>
-                  <th className="px-3 py-2.5 text-center font-bold">Sesuai</th>
-                  <th className="px-3 py-2.5 text-center font-bold">%</th>
-                  <th className="px-3 py-2.5 text-center font-bold">Y KPI Corp</th>
-                </tr></thead>
-                <tbody className="divide-y divide-stone-100">
-                  {d1Data.map(function(row){
-                    var pctColor=row.pct===null?'text-stone-300':row.pct>=70?'text-emerald-600':row.pct>=40?'text-amber-600':'text-red-600';
-                    var yColor=row.yScore===null?'text-stone-300':row.yScore>=80?'text-emerald-600':row.yScore>=60?'text-amber-600':'text-red-600';
-                    return(
-                      <tr key={row.d.id} className={'hover:bg-stone-50/50 '+(row.total===0?'opacity-40':'')}>
-                        <td className="px-3 py-2.5"><span className={'font-bold '+row.d.color}>{row.d.label}</span></td>
-                        <td className="px-3 py-2.5 text-center font-semibold text-stone-600">{row.jam>0?row.jam+'h':'—'}</td>
-                        <td className="px-3 py-2.5 text-center font-black text-stone-800">{row.total>0?row.total:'—'}</td>
-                        <td className="px-3 py-2.5 text-center font-bold text-emerald-600">{row.sesuai>0?row.sesuai:'—'}</td>
-                        <td className="px-3 py-2.5 text-center">{row.pct!==null?<span className={'font-black text-[13px] '+pctColor}>{row.pct}%</span>:<span className="text-stone-300">—</span>}</td>
-                        <td className="px-3 py-2.5 text-center">{row.yScore!==null?<span className={'font-black text-[13px] '+yColor}>{row.yScore}%</span>:<span className="text-stone-300">—</span>}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        }
-      </div>
-
-      {/* ── D6: DISIPLIN SISTEM CEO ── */}
-      <div className="px-4 md:px-6 mb-5">
-        <div className="text-[10px] font-extrabold text-stone-400 uppercase tracking-widest mb-0.5">⏱ D6 · Disiplin Sistem CEO</div>
-        <div className="text-[10px] text-stone-400 mb-3">Kepatuhan ke jadwal & antrian sendiri — bulan {curMonth}</div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        {/* SUMMARY CARDS */}
+        <div className="px-4 md:px-6 pt-4 grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
           {(function(){
-            var pColor=postponeRate===null?'text-stone-300':postponeRate<15?'text-emerald-600':postponeRate<=30?'text-amber-600':'text-red-600';
-            var oColor=outputFillRate===null?'text-stone-300':outputFillRate>85?'text-emerald-600':outputFillRate>=60?'text-amber-600':'text-red-600';
-            var rVal=avgResponseDays!==null?avgResponseDays:avgPendingAge;
-            var rLabel=avgResponseDays!==null?'Avg. respon bulan ini':'Avg. umur antrian saat ini';
-            var rColor=rVal===null?'text-stone-300':rVal<2?'text-emerald-600':rVal<=5?'text-amber-600':'text-red-600';
-            return(<>
-              <div className="bg-white rounded-2xl border border-stone-200 shadow-soft p-4">
-                <div className="text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1">Postpone Rate</div>
-                <div className={`text-[24px] font-black ${pColor}`}>{postponeRate!==null?postponeRate+'%':'–'}</div>
-                <div className="text-[9px] text-stone-400 mt-1">{postponeEventsBulan} dari {totalJadwalBulan} kegiatan terjadwal</div>
-              </div>
-              <div className="bg-white rounded-2xl border border-stone-200 shadow-soft p-4">
-                <div className="text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1">Output Fill Rate</div>
-                <div className={`text-[24px] font-black ${oColor}`}>{outputFillRate!==null?outputFillRate+'%':'–'}</div>
-                <div className="text-[9px] text-stone-400 mt-1">{filledCount} dari {pastNonMeeting.length} kegiatan lewat terisi</div>
-              </div>
-              <div className="bg-white rounded-2xl border border-stone-200 shadow-soft p-4">
-                <div className="text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1">Response Time</div>
-                <div className={`text-[24px] font-black ${rColor}`}>{rVal!==null?rVal+'h':'–'}</div>
-                <div className="text-[9px] text-stone-400 mt-1">{rLabel}{pendingQueue.length>0?' · '+pendingQueue.length+' nunggu':''}</div>
-              </div>
-            </>);
-          })()}
-        </div>
-      </div>
-
-      {/* ── ALOKASI WAKTU ── */}
-      <div className="px-4 md:px-6 mb-5">
-        <div className="text-[10px] font-extrabold text-stone-400 uppercase tracking-widest mb-0.5">📊 Alokasi Waktu</div>
-        <div className="text-[10px] text-stone-400 mb-3">Distribusi jam CEO — entitas &amp; jenis kegiatan</div>
-        <div className="space-y-3">
-
-          {/* Bar 1: Per Entitas */}
-          {(function(){
-            var KAT_HEX={RSP:'#f43f5e',BT:'#3b82f6',TKB:'#f59e0b',Personal:'#94a3b8',Eksternal:'#10b981',Holding:'#a855f7'};
-            var entMap={};
-            Object.keys(jadwal||{}).forEach(function(date){
-              (jadwal[date]||[]).forEach(function(it){
-                var e=it.kategori||'Personal';
-                var dur=getDur(it.jamMulai,it.jamSelesai);
-                entMap[e]=Math.round(((entMap[e]||0)+dur)*10)/10;
-              });
+            var cards=[
+              {lbl:'Total Produktif',val:totalJamMinggu+'h',sub:totalAktivitas+' aktivitas',col:'#3b82f6',status:null},
+              {lbl:'Finansial vs Target',val:pctFungsi['finansial']+'%',sub:'Target '+TB.finansial+'%',col:'#f43f5e',status:fStatus(pctFungsi['finansial'],TB.finansial)},
+              {lbl:'Jam Konten (K4)',val:kontenJam+'h',sub:'External: '+extJam+'h',col:'#10b981',status:null},
+              {lbl:'Budaya (K7)',val:engageCount+'×',sub:'Employee Engage sesi',col:'#a855f7',status:null},
+            ];
+            return cards.map(function(c,i){
+              return(
+                <div key={i} className="bg-white rounded-xl border border-slate-200 p-4 relative overflow-hidden" style={{boxShadow:'0 2px 8px rgba(0,0,0,0.05)'}}>
+                  <div className="absolute top-0 right-0 w-1 h-full" style={{background:c.col}}/>
+                  <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">{c.lbl}</div>
+                  <div className="text-[26px] font-extrabold leading-none mb-1" style={{color:c.col}}>{c.val}</div>
+                  <div className="text-[9px] text-slate-400">{c.sub}</div>
+                  {c.status&&<span className={'mt-2 inline-block text-[9px] font-bold px-2 py-0.5 rounded-full border '+c.status.cls}>{c.status.lbl}</span>}
+                </div>
+              );
             });
-            var entList=Object.keys(entMap).map(function(k){return{k:k,h:entMap[k]};}).sort(function(a,b){return b.h-a.h;});
-            var totalH=entList.reduce(function(s,e){return s+e.h;},0);
-            var maxH=entList.length>0?entList[0].h:1;
-            if(entList.length===0)return null;
-            return(
-              <div className="bg-white border border-stone-200 rounded-2xl p-4 shadow-soft">
-                <div className="flex justify-between items-center mb-3">
-                  <div className="text-[10px] font-bold text-stone-500 uppercase tracking-wider">Per Entitas</div>
-                  <div className="text-[10px] text-stone-400">{Math.round(totalH*10)/10}h total</div>
-                </div>
-                <div className="space-y-2.5">
-                  {entList.map(function(e){
-                    var pct=totalH>0?Math.round(e.h/totalH*100):0;
-                    var col=KAT_HEX[e.k]||'#94a3b8';
-                    var barW=Math.round(e.h/maxH*100);
-                    return(
-                      <div key={e.k}>
-                        <div className="flex justify-between text-[11px] mb-1">
-                          <span className="font-semibold text-stone-700">{e.k}</span>
-                          <div className="flex items-center gap-2">
-                            <span className="text-stone-400 text-[10px]">{pct}%</span>
-                            <span className="font-black text-stone-800">{e.h}h</span>
-                          </div>
-                        </div>
-                        <div className="w-full h-3 bg-stone-100 rounded-full overflow-hidden">
-                          <div className="h-full rounded-full" style={{width:barW+'%',background:col}}/>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            );
           })()}
-
-          {/* Bar 2: Per Jenis Kegiatan */}
-          {stats&&stats.distribusi&&(function(){
-            var JENIS_HEX={'Deepwork Strategic':'#7c3aed','Meeting Strategic/Problem Solving/Approval':'#be185d','Meeting Review Operasional + Evaluasi Tim':'#b45309','Ketemu External':'#6d28d9','Bikin Konten':'#1d4ed8','Genba':'#065f46','Employee Engage':'#9f1239','Personal':'#78716c'};
-            var list=stats.distribusi.filter(function(d){return d.hours>0;});
-            var totalH=list.reduce(function(s,d){return s+d.hours;},0);
-            var maxH=list.length>0?list[0].hours:1;
-            if(list.length===0)return null;
-            return(
-              <div className="bg-white border border-stone-200 rounded-2xl p-4 shadow-soft">
-                <div className="flex justify-between items-center mb-3">
-                  <div className="text-[10px] font-bold text-stone-500 uppercase tracking-wider">Per Jenis Kegiatan</div>
-                  <div className="text-[10px] text-stone-400">{Math.round(totalH*10)/10}h total</div>
-                </div>
-                <div className="space-y-2.5">
-                  {list.map(function(d){
-                    var pct=totalH>0?Math.round(d.hours/totalH*100):0;
-                    var col=JENIS_HEX[d.jenis]||'#94a3b8';
-                    var barW=Math.round(d.hours/maxH*100);
-                    var lbl=JENIS_SHORT[d.jenis]||d.jenis;
-                    return(
-                      <div key={d.jenis}>
-                        <div className="flex justify-between text-[11px] mb-1">
-                          <span className="font-semibold text-stone-700">{lbl}</span>
-                          <div className="flex items-center gap-2">
-                            <span className="text-stone-400 text-[10px]">{pct}%</span>
-                            <span className="font-black text-stone-800">{d.hours}h</span>
-                          </div>
-                        </div>
-                        <div className="w-full h-3 bg-stone-100 rounded-full overflow-hidden">
-                          <div className="h-full rounded-full" style={{width:barW+'%',background:col}}/>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })()}
-
         </div>
-      </div>
 
-      {/* ── COVERAGE VS TARGET ── */}
-      {stats&&<div className="px-4 md:px-6 mb-5">
-        <div className="text-[10px] font-extrabold text-stone-400 uppercase tracking-widest mb-3">🎯 Coverage vs Target per Fungsi (Jam Aktual)</div>
-        <div className="bg-white rounded-2xl border border-stone-200 shadow-soft p-4 space-y-3">
-          {[...coverageGaps].sort(function(a,b){return a.gap-b.gap;}).map(function(cg){
-            var barColor=cg.gap<-10?'bg-red-400':cg.gap<0?'bg-amber-400':cg.gap>15?'bg-amber-500':'bg-emerald-500';
-            var txtColor=cg.gap<-10?'text-red-600':cg.gap<0?'text-amber-600':cg.gap>15?'text-amber-600':'text-emerald-600';
-            var gapLbl=(cg.gap>0?'+':'')+cg.gap+'pp';
-            return(
-              <div key={cg.kpi.id}>
-                <div className="flex justify-between items-center text-[11px] mb-1">
-                  <span className={'font-bold '+cg.kpi.color}>{cg.kpi.label}</span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-stone-400 text-[10px]">target {cg.target}%</span>
-                    <span className={'font-bold text-[10px] '+txtColor}>{gapLbl}</span>
-                    <span className="font-black text-stone-700">{cg.actualPct}%</span>
-                  </div>
-                </div>
-                <div className="relative w-full h-3 bg-stone-100 rounded-full overflow-hidden">
-                  <div className={'h-full rounded-full '+barColor} style={{width:Math.min(cg.actualPct,100)+'%'}}/>
-                  <div className="absolute top-0 bottom-0 w-px bg-stone-800 opacity-40" style={{left:cg.target+'%'}}/>
-                </div>
-                <div className="flex justify-between mt-0.5">
-                  <span className="text-[9px] text-stone-400">{cg.actual}h aktual · {cg.actualPct}% dari total</span>
-                  {Math.abs(cg.gap)>10&&<span className={'text-[9px] font-bold '+(cg.gap<0?'text-red-500':'text-amber-500')}>{cg.gap<0?'⚠️ Under':'⚡ Over'} {Math.abs(cg.gap)}pp</span>}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>}
-
-      {/* ── D2: PERSONAL BRANDING ── */}
-      <div className="px-4 md:px-6 mb-5">
-        <div className="text-[10px] font-extrabold text-stone-400 uppercase tracking-widest mb-0.5">🎨 D2 · Personal Branding</div>
-        <div className="text-[10px] text-stone-400 mb-3">Aktivitas konten CEO + KPI branding — dampak terukur lag 2–4 minggu</div>
-        {(function(){
-          var brandKpis=(kpiCeo&&kpiCeo[curMonth])?kpiCeo[curMonth].filter(function(it){return it.fn==='branding';}):[];
-          var kontenByWeek=stats?stats.byJenis['Bikin Konten']||{}:{};
-          var weekKeys=stats?stats.weekKeys:[];
-          var kontenTotal=weekKeys.reduce(function(s,w){return s+(kontenByWeek[w]||0);},0);
-          var kontenItems=[];
-          Object.keys(jadwal||{}).forEach(function(date){(jadwal[date]||[]).forEach(function(it){if(it.jenisKegiatan==='Bikin Konten'){kontenItems.push({id:it.id,_date:date,detailKegiatan:it.detailKegiatan,outputKeputusan:it.outputKeputusan});}});});
-          kontenItems.sort(function(a,b){return b._date.localeCompare(a._date);});
-          return(
-            <div className="space-y-3">
-              {brandKpis.length>0?(
-                <div className="bg-white border border-purple-100 rounded-2xl p-4 shadow-soft">
-                  <div className="text-[10px] font-bold text-purple-600 uppercase tracking-wider mb-3">📊 KPI Branding — {curMonth}</div>
-                  <div className="space-y-2.5">
-                    {brandKpis.map(function(kp,i){
-                      var skor=parseFloat(kp.skor)||0;
-                      var barCol=skor>=kp.target?'bg-emerald-500':skor>=(kp.target*0.7)?'bg-amber-400':'bg-red-400';
-                      var txtCol=skor>=kp.target?'text-emerald-600':skor>=(kp.target*0.7)?'text-amber-600':'text-red-600';
-                      return(
-                        <div key={i}>
-                          <div className="flex justify-between text-[11px] mb-1">
-                            <span className="text-stone-700 font-medium">{kp.goals.replace('Personal Branding: ','')}</span>
-                            <div className="flex items-center gap-2 flex-shrink-0">
-                              <span className="text-stone-400 text-[9px]">target {kp.target}%</span>
-                              <span className={'font-black '+txtCol}>{kp.skor||'–'}</span>
-                            </div>
-                          </div>
-                          <div className="w-full h-2 bg-stone-100 rounded-full overflow-hidden">
-                            <div className={'h-full rounded-full '+barCol} style={{width:Math.min(skor,100)+'%'}}/>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ):(
-                <div className="bg-stone-50 border border-stone-200 rounded-2xl p-3 text-center text-[11px] text-stone-400">Belum ada KPI Branding — input di tab Dump → 📊 KPI CEO</div>
-              )}
-              <div className="bg-white border border-blue-100 rounded-2xl p-4 shadow-soft">
-                <div className="flex justify-between items-center mb-3">
-                  <div className="text-[10px] font-bold text-blue-600 uppercase tracking-wider">🎬 Aktivitas Bikin Konten</div>
-                  <div className="text-[11px] font-black text-stone-700">{Math.round(kontenTotal*10)/10}h total</div>
-                </div>
-                {weekKeys.length>0&&(
-                  <div className="flex gap-2 mb-3">
-                    {weekKeys.map(function(w){
-                      var h=kontenByWeek[w]||0;
-                      var bg=h>=4?'bg-blue-500 text-white':h>=2?'bg-blue-200 text-blue-800':h>0?'bg-blue-100 text-blue-600':'bg-stone-100 text-stone-300';
-                      return(
-                        <div key={w} className="flex-1 text-center">
-                          <div className="text-[8px] text-stone-400 mb-1">{getWeekLabel(w)}</div>
-                          <div className={'rounded-lg py-1.5 text-[11px] font-black '+bg}>{h||'–'}</div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-                {kontenItems.length>0?(
-                  <div className="space-y-1.5 max-h-28 overflow-y-auto">
-                    {kontenItems.slice(0,5).map(function(it){
-                      return(
-                        <div key={it.id} className="flex items-center gap-2 text-[10px]">
-                          <span className="text-stone-400 flex-shrink-0">{it._date}</span>
-                          <span className="text-stone-600 truncate">{it.detailKegiatan||'Bikin Konten'}</span>
-                          {it.outputKeputusan&&<span className="text-blue-500 flex-shrink-0 font-bold ml-auto">✓</span>}
-                        </div>
-                      );
-                    })}
-                    {kontenItems.length>5&&<div className="text-[10px] text-stone-400 text-center pt-1">+{kontenItems.length-5} lainnya</div>}
-                  </div>
-                ):(
-                  <div className="text-[10px] text-stone-400 text-center py-2">Belum ada aktivitas Bikin Konten tercatat</div>
-                )}
-                <div className="mt-3 pt-2.5 border-t border-stone-100 text-[9px] text-stone-400">⏱ Lag 2–4 minggu sebelum dampak konten terukur di reach &amp; engagement</div>
-              </div>
+        {/* HEATMAP K1-K7 */}
+        <div className="mx-4 md:mx-6 mb-4 bg-white rounded-xl border border-slate-200 overflow-hidden" style={{boxShadow:'0 2px 8px rgba(0,0,0,0.05)'}}>
+          <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <div className="text-[12px] font-bold text-slate-800">Heatmap Aktivitas · K1–K7 per Hari</div>
+              <div className="text-[9px] text-slate-400 mt-0.5">{weekLbl} · jam per jenis kegiatan</div>
             </div>
-          );
-        })()}
-      </div>
-
-      {/* ── D3: NETWORKING ── */}
-      <div className="px-4 md:px-6 mb-5">
-        <div className="text-[10px] font-extrabold text-stone-400 uppercase tracking-widest mb-0.5">🤝 D3 · Networking &amp; External</div>
-        <div className="text-[10px] text-stone-400 mb-3">Volume pertemuan external CEO — signal volume saja, tidak ada Y variable kausal langsung</div>
-        {(function(){
-          var extItems=[];
-          Object.keys(jadwal||{}).forEach(function(date){(jadwal[date]||[]).forEach(function(it){if(it.jenisKegiatan==='Ketemu External'){extItems.push({id:it.id,_date:date,detailKegiatan:it.detailKegiatan});}});});
-          extItems.sort(function(a,b){return b._date.localeCompare(a._date);});
-          var extByWeek=stats?stats.byJenis['Ketemu External']||{}:{};
-          var weekKeys=stats?stats.weekKeys:[];
-          var totalH=weekKeys.reduce(function(s,w){return s+(extByWeek[w]||0);},0);
-          return(
-            <div className="bg-white border border-violet-100 rounded-2xl p-4 shadow-soft">
-              <div className="flex justify-between items-center mb-3">
-                <div className="text-[10px] font-bold text-violet-600 uppercase tracking-wider">📋 Volume Ketemu External</div>
-                <div className="flex items-center gap-3">
-                  <span className="text-[10px] text-stone-400">{extItems.length} sesi</span>
-                  <span className="text-[11px] font-black text-stone-700">{Math.round(totalH*10)/10}h</span>
-                </div>
-              </div>
-              {weekKeys.length>0&&(
-                <div className="flex gap-2 mb-3">
-                  {weekKeys.map(function(w){
-                    var h=extByWeek[w]||0;
-                    var bg=h>=6?'bg-violet-500 text-white':h>=3?'bg-violet-200 text-violet-800':h>0?'bg-violet-100 text-violet-600':'bg-stone-100 text-stone-300';
-                    return(
-                      <div key={w} className="flex-1 text-center">
-                        <div className="text-[8px] text-stone-400 mb-1">{getWeekLabel(w)}</div>
-                        <div className={'rounded-lg py-1.5 text-[11px] font-black '+bg}>{h||'–'}</div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-              {extItems.length>0?(
-                <div className="space-y-1.5 max-h-28 overflow-y-auto">
-                  {extItems.slice(0,6).map(function(it){
-                    return(
-                      <div key={it.id} className="flex items-center gap-2 text-[10px]">
-                        <span className="text-stone-400 flex-shrink-0">{it._date}</span>
-                        <span className="text-stone-600 truncate">{it.detailKegiatan||'Ketemu External'}</span>
-                      </div>
-                    );
-                  })}
-                  {extItems.length>6&&<div className="text-[10px] text-stone-400 text-center pt-1">+{extItems.length-6} lainnya</div>}
-                </div>
-              ):(
-                <div className="text-[10px] text-stone-400 text-center py-2">Belum ada sesi Ketemu External tercatat</div>
-              )}
-              <div className="mt-3 pt-2.5 border-t border-stone-100 text-[9px] text-stone-400">ℹ️ D3 = volume signal saja — tidak ada target atau Y variable yang diwajibkan</div>
-            </div>
-          );
-        })()}
-      </div>
-
-      {/* ── D4: BUDAYA ORGANISASI ── */}
-      <div className="px-4 md:px-6 mb-5">
-        <div className="text-[10px] font-extrabold text-stone-400 uppercase tracking-widest mb-0.5">🌱 D4 · Budaya Organisasi</div>
-        <div className="text-[10px] text-stone-400 mb-3">Employee Engage CEO langsung — target 2×/bulan (KPI #14)</div>
-        {(function(){
-          var engItems=[];
-          Object.keys(jadwal||{}).forEach(function(date){(jadwal[date]||[]).forEach(function(it){if(it.jenisKegiatan==='Employee Engage'){engItems.push({id:it.id,_date:date,detailKegiatan:it.detailKegiatan,outputKeputusan:it.outputKeputusan});}});});
-          var curItems=engItems.filter(function(it){return it._date.slice(0,7)===curMonth;});
-          curItems.sort(function(a,b){return b._date.localeCompare(a._date);});
-          var monthTarget=2;
-          var count=curItems.length;
-          var statusCol=count>=monthTarget?'text-emerald-600':count>0?'text-amber-600':'text-red-500';
-          var statusLbl=count>=monthTarget?'✅ Target tercapai':count>0?'⚠️ Belum capai target':'❌ Belum ada sesi bulan ini';
-          var barCol=count>=monthTarget?'bg-emerald-500':count>0?'bg-amber-400':'bg-red-300';
-          var barPct=Math.min(count/monthTarget*100,100);
-          return(
-            <div className="bg-white border border-rose-100 rounded-2xl p-4 shadow-soft">
-              <div className="flex justify-between items-start mb-3">
-                <div>
-                  <div className="text-[10px] font-bold text-rose-600 uppercase tracking-wider mb-0.5">🌱 Employee Engage — {curMonth}</div>
-                  <div className={'text-[10px] font-semibold '+statusCol}>{statusLbl}</div>
-                </div>
-                <div className="text-right">
-                  <div className={'text-[28px] font-black leading-none '+statusCol}>{count}</div>
-                  <div className="text-[9px] text-stone-400">dari {monthTarget}× target</div>
-                </div>
-              </div>
-              <div className="w-full h-2.5 bg-stone-100 rounded-full overflow-hidden mb-3">
-                <div className={'h-full rounded-full '+barCol} style={{width:barPct+'%'}}/>
-              </div>
-              {curItems.length>0?(
-                <div className="space-y-1.5">
-                  {curItems.map(function(it){
-                    return(
-                      <div key={it.id} className="flex items-center gap-2 text-[10px]">
-                        <span className="text-stone-400 flex-shrink-0">{it._date}</span>
-                        <span className="text-stone-600 truncate">{it.detailKegiatan||'Employee Engage'}</span>
-                        {it.outputKeputusan&&<span className="text-rose-500 flex-shrink-0 font-bold ml-auto">✓</span>}
-                      </div>
-                    );
-                  })}
-                </div>
-              ):(
-                <div className="text-[10px] text-stone-400 text-center py-2">Belum ada sesi Employee Engage bulan ini</div>
-              )}
-              <div className="mt-3 pt-2.5 border-t border-stone-100 text-[9px] text-stone-400">→ KPI #14: Keterlaksanaan Budaya Org (Speech + Bedah Buku per bulan)</div>
-            </div>
-          );
-        })()}
-      </div>
-
-      {/* ── HEATMAP JAM × HARI ── */}
-      {(function(){
-        // ambil 7 tanggal terbaru yang ada isinya
-        var allDates=Object.keys(jadwal||{}).filter(function(d){return(jadwal[d]||[]).length>0;}).sort();
-        var dates=allDates.slice(-7);
-        if(dates.length===0)return null;
-        var HOURS=[];for(var hh=5;hh<24;hh++)HOURS.push(hh);
-        var DAYS_ID=['Min','Sen','Sel','Rab','Kam','Jum','Sab'];
-        // build lookup: date+hour → item
-        function getCell(date,hour){
-          var items=jadwal[date]||[];
-          for(var i=0;i<items.length;i++){
-            var it=items[i];
-            var h1=parseInt((it.jamMulai||'00').split(':')[0]);
-            var h2=parseInt((it.jamSelesai||'00').split(':')[0]);
-            if(h1<=hour&&hour<h2)return it;
-          }
-          return null;
-        }
-        var colW=Math.floor(100/dates.length);
-        return(
-          <div className="px-4 md:px-6 mb-5">
-            <div className="text-[10px] font-extrabold text-stone-400 uppercase tracking-widest mb-0.5">🕐 Heatmap Jam × Hari</div>
-            <div className="text-[10px] text-stone-400 mb-3">{dates.length} hari terakhir · warna = fungsi dominan per jam</div>
-            <div className="bg-white border border-stone-200 rounded-2xl shadow-soft overflow-hidden">
-              <div className="overflow-x-auto">
-                <table style={{width:'100%',borderCollapse:'collapse',tableLayout:'fixed'}}>
-                  <thead>
-                    <tr style={{background:'#f8fafc',borderBottom:'1px solid #e2e8f0'}}>
-                      <th style={{width:36,padding:'6px 4px',fontSize:9,color:'#94a3b8',fontWeight:700,textAlign:'right',paddingRight:6}}></th>
-                      {dates.map(function(d){
-                        var dow=new Date(d+'T12:00:00').getDay();
-                        return(
-                          <th key={d} style={{padding:'6px 2px',fontSize:9,fontWeight:700,color:'#475569',textAlign:'center'}}>
-                            <div style={{color:'#94a3b8'}}>{DAYS_ID[dow]}</div>
-                            <div>{d.slice(8)}/{d.slice(5,7)}</div>
-                          </th>
-                        );
-                      })}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {HOURS.map(function(hour){
-                      var hasAny=dates.some(function(d){return getCell(d,hour)!==null;});
-                      if(!hasAny)return null;
-                      return(
-                        <tr key={hour} style={{borderBottom:'1px solid #f8fafc'}}>
-                          <td style={{padding:'1px 6px 1px 4px',fontSize:9,color:'#94a3b8',textAlign:'right',whiteSpace:'nowrap',fontFamily:'monospace'}}>{String(hour).padStart(2,'0')}</td>
-                          {dates.map(function(d){
-                            var item=getCell(d,hour);
-                            if(!item){
-                              return<td key={d} style={{padding:1}}><div style={{height:18,background:'#f8fafc',borderRadius:2}}/></td>;
-                            }
-                            var fn=getFunc(item);
-                            var col=FUNC_HEX[fn]||'#94a3b8';
-                            var lbl=fn.split(' ')[0].slice(0,3);
-                            return(
-                              <td key={d} style={{padding:1}}>
-                                <div
-                                  style={{height:18,background:col,borderRadius:2,display:'flex',alignItems:'center',justifyContent:'center',cursor:'default'}}
-                                  onMouseEnter={function(e){setHeatTip({x:e.clientX,y:e.clientY,fn:fn,detail:(item.detailKegiatan||'').slice(0,50),jam:item.jamMulai+'-'+item.jamSelesai,ea:item.ea||''});}}
-                                  onMouseLeave={function(){setHeatTip(null);}}
-                                >
-                                  <span style={{fontSize:7,fontWeight:700,color:'rgba(255,255,255,0.85)'}}>{lbl}</span>
-                                </div>
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              {/* Legend */}
-              <div style={{padding:'10px 14px',borderTop:'1px solid #f1f5f9',display:'flex',flexWrap:'wrap',gap:6}}>
-                {FUNC_ORDER.map(function(fn){
+            <div className="flex gap-1.5 flex-wrap">
+              {K_DEF.map(function(k){return<span key={k.id} className="text-[8px] font-bold px-1.5 py-0.5 rounded" style={{background:k.col+'22',color:k.col}}>{k.id}</span>;})}</div>
+          </div>
+          <div style={{overflowX:'auto'}}>
+            <table style={{width:'100%',borderCollapse:'collapse',minWidth:540}}>
+              <thead>
+                <tr style={{background:'#f8fafc',borderBottom:'1px solid #e2e8f0'}}>
+                  <th style={{padding:'8px 12px',textAlign:'left',fontSize:9,color:'#94a3b8',fontWeight:700,width:130}}>Kategori</th>
+                  {weekDates.map(function(d,i){return<th key={d} style={{padding:'8px 6px',textAlign:'center',fontSize:9,color:'#64748b',fontWeight:700,background:i===5?'#f8fafc':'inherit'}}>{dayLbls[i]}<br/><span style={{color:'#94a3b8',fontWeight:400}}>{d.slice(8)}/{d.slice(5,7)}</span></th>;})}</tr>
+                  <th style={{padding:'8px 10px',textAlign:'center',fontSize:9,color:'#94a3b8',fontWeight:700}}>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {K_DEF.map(function(k){
+                  var rowTotal=heatTotals[k.id]||0;
                   return(
-                    <span key={fn} style={{display:'inline-flex',alignItems:'center',gap:4,fontSize:9,color:'#475569'}}>
-                      <span style={{width:10,height:10,borderRadius:2,background:FUNC_HEX[fn],flexShrink:0,display:'inline-block'}}/>
-                      {fn}
-                    </span>
+                    <tr key={k.id} style={{borderBottom:'1px solid #f1f5f9'}}>
+                      <td style={{padding:'7px 12px',fontSize:10,fontWeight:600,color:'#334155',whiteSpace:'nowrap'}}>
+                        <span style={{display:'inline-block',width:8,height:8,borderRadius:2,background:k.col,marginRight:6,verticalAlign:'middle'}}/>
+                        {k.lbl}
+                      </td>
+                      {weekDates.map(function(d,i){
+                        var h=heatMap[k.id][d]||0;
+                        var st=cellSt(h,k.col);
+                        return<td key={d} style={{padding:'5px 4px',textAlign:'center',background:i===5?'#fafafa':'inherit'}}>
+                          <div style={{...st,borderRadius:6,padding:'5px 4px',fontSize:10,minHeight:26,display:'flex',alignItems:'center',justifyContent:'center'}}>{h?h+'h':'—'}</div>
+                        </td>;
+                      })}
+                      <td style={{padding:'7px 10px',textAlign:'center',fontWeight:700,fontSize:11,color:rowTotal?'#334155':'#94a3b8'}}>{rowTotal?rowTotal+'h':'—'}</td>
+                    </tr>
                   );
                 })}
-              </div>
-            </div>
-            {/* Tooltip */}
-            {heatTip&&(
-              <div style={{position:'fixed',left:heatTip.x+14,top:heatTip.y+14,background:'#1e293b',color:'white',fontSize:11,padding:'8px 12px',borderRadius:8,zIndex:9999,pointerEvents:'none',boxShadow:'0 4px 12px rgba(0,0,0,0.3)',maxWidth:220,lineHeight:1.5}}>
-                <div style={{fontWeight:700,marginBottom:2}}>{heatTip.fn}</div>
-                <div style={{color:'#94a3b8',fontSize:10}}>{heatTip.jam}{heatTip.ea?' · '+heatTip.ea:''}</div>
-                <div style={{color:'#cbd5e1',fontSize:10,marginTop:2}}>{heatTip.detail}</div>
-              </div>
-            )}
-          </div>
-        );
-      })()}
-
-      {/* ── HEATMAP ── */}
-      {stats?<>
-        <div className="px-4 md:px-6 mb-2">
-          <div className="text-[10px] font-extrabold text-stone-400 uppercase tracking-widest">📅 Alokasi Waktu per Minggu (Jam)</div>
-        </div>
-        <div className="mx-4 md:mx-6 bg-white rounded-2xl border border-stone-200 shadow-soft overflow-hidden mb-5">
-          <div className="overflow-x-auto">
-            <table className="w-full text-[11px]" style={{minWidth:380}}>
-              <thead><tr className="bg-stone-50 border-b border-stone-200 text-[10px] text-stone-500 uppercase"><th className="px-3 py-2.5 text-left font-bold">Jenis</th>{stats.weekKeys.map(function(w){return<th key={w} className="px-2 py-2.5 text-center font-bold">{getWeekLabel(w)}</th>;})}<th className="px-2 py-2.5 text-center font-bold">Total</th></tr></thead>
-              <tbody className="divide-y divide-stone-100">
-                {JENIS_KEGIATAN.map(function(j){var wVals=stats.weekKeys.map(function(w){return stats.byJenis[j][w]||0;});var tot2=Math.round(wVals.reduce(function(s,v){return s+v;},0)*10)/10;if(wVals.every(function(v){return!v;}))return null;return(<tr key={j} className="hover:bg-stone-50/50"><td className="px-3 py-2 font-semibold text-stone-700 whitespace-nowrap">{JENIS_SHORT[j]||j}</td>{wVals.map(function(v,i){return<td key={i} className="px-2 py-2 text-center"><div className={'h-7 rounded flex items-center justify-center font-bold '+heatCls(v)}>{v||'–'}</div></td>;})}<td className="px-2 py-2 text-center font-black text-stone-800">{tot2}h</td></tr>);})}
-                <tr className="bg-stone-100 border-t-2 border-stone-200"><td className="px-3 py-2 font-black text-stone-900">Total</td>{stats.weekKeys.map(function(w){return<td key={w} className="px-2 py-2 text-center font-black text-stone-900">{stats.totals[w]||0}h</td>;})}<td className="px-2 py-2 text-center font-black text-stone-900">{stats.totalHours}h</td></tr>
+                <tr style={{background:'#f8fafc',borderTop:'2px solid #e2e8f0'}}>
+                  <td style={{padding:'8px 12px',fontSize:10,fontWeight:700,color:'#1e293b'}}>Total/Hari</td>
+                  {weekDates.map(function(d,i){
+                    var dayTotal=Math.round(K_DEF.reduce(function(s,k){return s+(heatMap[k.id][d]||0);},0)*10)/10;
+                    return<td key={d} style={{padding:'8px 6px',textAlign:'center',fontWeight:700,fontSize:10,color:dayTotal?'#1e293b':'#94a3b8',background:i===5?'#f1f5f9':'inherit'}}>{dayTotal?dayTotal+'h':'—'}</td>;
+                  })}
+                  <td style={{padding:'8px 10px',textAlign:'center',fontWeight:800,fontSize:11,color:'#1e293b'}}>{totalJamMinggu}h</td>
+                </tr>
               </tbody>
             </table>
           </div>
         </div>
-      </>:<div className="px-4 md:px-6 py-8 text-center"><div className="text-4xl mb-3 opacity-30">📊</div><div className="text-[13px] font-bold text-stone-400">Isi output kegiatan di Jadwal untuk melihat heatmap & coverage</div></div>}
 
-    </div>
-  );
-}
+        {/* DISTRIBUSI + COVERAGE */}
+        <div className="px-4 md:px-6 mb-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
 
-function KonsistensiTab({jadwal}){
-  var [weekOff,setWeekOff]=useState(0);
-  var [expandEnt,setExpandEnt]=useState('RSP');
-
-  function getMonStr(offset){
-    var t=new Date();var dow=t.getDay();
-    var m=new Date(t);m.setDate(t.getDate()-(dow===0?6:dow-1)+offset*7);
-    return m.toISOString().slice(0,10);
-  }
-  var monStr=getMonStr(weekOff);
-  var weekDates=[];
-  for(var di=0;di<7;di++){
-    var dd=new Date(monStr+'T12:00:00');dd.setDate(dd.getDate()+di);
-    weekDates.push(dd.toISOString().slice(0,10));
-  }
-  var satStr=weekDates[5];
-  var weekLbl=(function(){
-    var m=new Date(monStr+'T12:00:00');var s=new Date(satStr+'T12:00:00');
-    return m.getDate()+'–'+s.getDate()+' '+m.toLocaleDateString('id-ID',{month:'short'});
-  })();
-
-  var weekItems=[];
-  weekDates.forEach(function(date){
-    (jadwal[date]||[]).forEach(function(it){
-      weekItems.push({id:it.id,_date:date,detailKegiatan:it.detailKegiatan||'',outputKeputusan:it.outputKeputusan||''});
-    });
-  });
-
-  function matchRitual(rit){
-    return weekItems.filter(function(it){
-      var txt=(it.detailKegiatan+' '+it.outputKeputusan).toLowerCase();
-      return rit.kw.some(function(k){return txt.indexOf(k)!==-1;});
-    });
-  }
-
-  var ENT_COL={Personal:'#94a3b8',RSP:'#f43f5e',BT:'#3b82f6',TKB:'#f59e0b',Holding:'#a855f7'};
-  var ENT_ICON={Personal:'👤',RSP:'🏠',BT:'🧵',TKB:'🧺',Holding:'🏢'};
-  var ENTS=['Personal','RSP','BT','TKB','Holding'];
-
-  var entData=ENTS.map(function(ent){
-    var defs=RITUAL_DEFS[ent]||[];
-    var totalPts=0;var achPts=0;
-    var results=defs.map(function(rit){
-      var matches=matchRitual(rit);
-      var achieved=Math.min(rit.freq,matches.length);
-      var status=matches.length===0?'miss':achieved>=rit.freq?'done':'partial';
-      totalPts+=rit.freq;achPts+=achieved;
-      return{rit:rit,matches:matches,achieved:achieved,status:status};
-    });
-    var pct=totalPts>0?Math.round(achPts/totalPts*100):null;
-    var done=results.filter(function(r){return r.status==='done';}).length;
-    var partial=results.filter(function(r){return r.status==='partial';}).length;
-    var miss=results.filter(function(r){return r.status==='miss';}).length;
-    return{ent:ent,results:results,pct:pct,done:done,partial:partial,miss:miss,total:defs.length,totalPts:totalPts,achPts:achPts};
-  });
-
-  var overallPts=entData.reduce(function(s,e){return s+e.totalPts;},0);
-  var overallAch=entData.reduce(function(s,e){return s+e.achPts;},0);
-  var overallPct=overallPts>0?Math.round(overallAch/overallPts*100):null;
-
-  function scoreCol(p){return p===null?'#94a3b8':p>=80?'#10b981':p>=60?'#f59e0b':'#f43f5e';}
-  function pctCls(p){return p===null?'text-stone-300':p>=80?'text-emerald-600':p>=60?'text-amber-600':'text-red-500';}
-
-  function renderStatusBadge(status){
-    if(status==='done')return<span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full flex-shrink-0">✅</span>;
-    if(status==='partial')return<span className="text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full flex-shrink-0">⚠️</span>;
-    return<span className="text-[9px] font-bold text-red-500 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded-full flex-shrink-0">❌</span>;
-  }
-
-  return(
-    <div className="pb-8">
-
-      {/* Week nav */}
-      <div className="px-4 md:px-6 pt-4 pb-3 flex items-center justify-between">
-        <button onClick={function(){setWeekOff(weekOff-1);}} className="px-3 py-1.5 rounded-xl border border-stone-200 bg-white text-[11px] font-bold text-stone-600 as st">← Lalu</button>
-        <div className="text-center">
-          <div className="text-[12px] font-black text-stone-800">{weekLbl}</div>
-          <div className="text-[9px] text-stone-400">{weekItems.length} aktivitas</div>
-        </div>
-        <button onClick={function(){setWeekOff(Math.min(weekOff+1,0));}} disabled={weekOff===0} className={'px-3 py-1.5 rounded-xl border border-stone-200 text-[11px] font-bold as st '+(weekOff===0?'bg-stone-50 text-stone-300 cursor-not-allowed':'bg-white text-stone-600')}>Depan →</button>
-      </div>
-
-      {/* Overall score */}
-      <div className="mx-4 md:mx-6 mb-4 bg-white border border-stone-200 rounded-2xl p-4 shadow-soft">
-        <div className="flex items-center gap-4">
-          <div className={'text-[40px] font-black leading-none '+pctCls(overallPct)}>{overallPct!==null?overallPct+'%':'–'}</div>
-          <div className="flex-1">
-            <div className="text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-1.5">Konsistensi Kuncian Jadwal · {weekLbl}</div>
-            <div className="w-full h-2 bg-stone-100 rounded-full overflow-hidden mb-2">
-              <div className="h-full rounded-full" style={{width:(overallPct||0)+'%',background:scoreCol(overallPct)}}/>
-            </div>
-            <div className="flex gap-3 flex-wrap text-[10px]">
-              <span className="text-emerald-600">✅ {entData.reduce(function(s,e){return s+e.done;},0)} ritual penuh</span>
-              <span className="text-amber-600">⚠️ {entData.reduce(function(s,e){return s+e.partial;},0)} partial</span>
-              <span className="text-red-500">❌ {entData.reduce(function(s,e){return s+e.miss;},0)} tidak dilakukan</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Entity score cards */}
-      <div className="px-4 md:px-6 mb-4 grid grid-cols-2 md:grid-cols-5 gap-2.5">
-        {entData.map(function(e){
-          var col=scoreCol(e.pct);
-          var isExp=expandEnt===e.ent;
-          return(
-            <button key={e.ent} onClick={function(){setExpandEnt(isExp?null:e.ent);}}
-              className={'rounded-2xl p-3 text-left border as transition-all w-full '+(isExp?'shadow-md':'border-stone-200 bg-white shadow-soft')}
-              style={isExp?{background:ENT_COL[e.ent]+'14',borderColor:ENT_COL[e.ent]+'55'}:{}}>
-              <div className="flex items-center gap-1.5 mb-2">
-                <span className="text-[13px]">{ENT_ICON[e.ent]}</span>
-                <span className="text-[10px] font-bold text-stone-600">{e.ent}</span>
-              </div>
-              <div className="text-[22px] font-black leading-none mb-1" style={{color:col}}>{e.pct!==null?e.pct+'%':'–'}</div>
-              <div className="text-[9px] text-stone-400 mb-2">{e.done}/{e.total} penuh</div>
-              <div className="w-full h-1.5 bg-stone-100 rounded-full overflow-hidden">
-                <div className="h-full rounded-full" style={{width:(e.pct||0)+'%',background:col}}/>
-              </div>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Expanded entity detail */}
-      {expandEnt&&(function(){
-        var eData=null;
-        for(var i=0;i<entData.length;i++){if(entData[i].ent===expandEnt){eData=entData[i];break;}}
-        if(!eData)return null;
-        var col=ENT_COL[expandEnt];
-        return(
-          <div className="mx-4 md:mx-6 bg-white border border-stone-200 rounded-2xl shadow-soft overflow-hidden">
-            <div className="px-4 py-3 border-b border-stone-100 flex items-center gap-2.5" style={{borderLeftWidth:3,borderLeftColor:col}}>
-              <span className="text-[16px]">{ENT_ICON[expandEnt]}</span>
-              <div className="flex-1">
-                <div className="text-[11px] font-extrabold text-stone-700">{expandEnt}</div>
-                <div className="text-[9px] text-stone-400">{eData.done} penuh · {eData.partial} partial · {eData.miss} tidak dilakukan</div>
-              </div>
-              <div className="text-[22px] font-black" style={{color:scoreCol(eData.pct)}}>{eData.pct!==null?eData.pct+'%':'–'}</div>
-            </div>
-            <div className="divide-y divide-stone-100">
-              {eData.results.map(function(row){
-                return(
-                  <div key={row.rit.id} className={'px-4 py-3 '+(row.status==='miss'?'bg-red-50/30':'row.status==="done"?""':'bg-amber-50/20')}>
-                    <div className="flex items-start gap-2">
-                      {renderStatusBadge(row.status)}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-[11px] font-bold text-stone-700">{row.rit.label}</span>
-                          <span className="text-[9px] text-stone-400">{row.achieved}/{row.rit.freq}×</span>
+          {/* Distribusi per Jenis */}
+          <div className="bg-white rounded-xl border border-slate-200 p-4" style={{boxShadow:'0 2px 8px rgba(0,0,0,0.05)'}}>
+            <div className="text-[12px] font-bold text-slate-800 mb-0.5">Distribusi Aktivitas (Jam)</div>
+            <div className="text-[9px] text-slate-400 mb-3">Per jenis kegiatan minggu ini</div>
+            <div className="space-y-2">
+              {(function(){
+                var rows=K_DEF.map(function(k){return{lbl:k.lbl.split('·')[1].trim(),jam:heatTotals[k.id]||0,col:k.col};}).filter(function(r){return r.jam>0;}).sort(function(a,b){return b.jam-a.jam;});
+                var maxH=rows.length?rows[0].jam:1;
+                return rows.map(function(r){
+                  var pct=Math.round(r.jam/totalJamMinggu*100);
+                  return(
+                    <div key={r.lbl} className="flex items-center gap-2">
+                      <span style={{width:90,fontSize:9,color:'#64748b',textAlign:'right',flexShrink:0}}>{r.lbl}</span>
+                      <div style={{flex:1,height:22,background:'#f1f5f9',borderRadius:6,overflow:'hidden'}}>
+                        <div style={{height:'100%',background:r.col,borderRadius:6,width:Math.round(r.jam/maxH*100)+'%',display:'flex',alignItems:'center',paddingLeft:8}}>
+                          <span style={{fontSize:10,fontWeight:700,color:'white',whiteSpace:'nowrap'}}>{r.jam}h · {pct}%</span>
                         </div>
-                        {row.matches.length>0?(
-                          <div className="mt-1 space-y-0.5">
-                            {row.matches.slice(0,3).map(function(it){
-                              return(
-                                <div key={it.id} className="flex items-center gap-2 text-[9px] text-stone-500">
-                                  <span className="font-mono text-stone-400 flex-shrink-0">{it._date.slice(5)}</span>
-                                  <span className="truncate">{it.detailKegiatan.slice(0,65)}</span>
-                                </div>
-                              );
-                            })}
-                            {row.matches.length>3&&<div className="text-[9px] text-stone-400 pl-1">+{row.matches.length-3} entri lainnya</div>}
-                          </div>
-                        ):(
-                          <div className="text-[9px] text-red-400 mt-0.5">Tidak ditemukan di jadwal minggu ini</div>
-                        )}
                       </div>
                     </div>
+                  );
+                });
+              })()}
+            </div>
+          </div>
+
+          {/* Coverage per Fungsi KPI */}
+          <div className="bg-white rounded-xl border border-slate-200 p-4" style={{boxShadow:'0 2px 8px rgba(0,0,0,0.05)'}}>
+            <div className="text-[12px] font-bold text-slate-800 mb-0.5">Coverage per Fungsi KPI CEO</div>
+            <div className="text-[9px] text-slate-400 mb-3">% aktual vs target bobot · garis = target</div>
+            <div className="space-y-3">
+              {FNMETA.map(function(fn){
+                var pct=pctFungsi[fn.id]||0;
+                var target=TB[fn.id]||0;
+                var st=fStatus(pct,target);
+                return(
+                  <div key={fn.id}>
+                    <div className="flex justify-between text-[10px] mb-1">
+                      <span className="font-semibold text-slate-700">{fn.lbl} <span className="text-slate-400 font-normal">(target {target}%)</span></span>
+                      <span className={'font-bold '+st.cls.split(' ')[0]}>{pct}%</span>
+                    </div>
+                    <div style={{position:'relative',height:14,background:'#f1f5f9',borderRadius:99,overflow:'hidden'}}>
+                      <div style={{height:'100%',background:fn.col,borderRadius:99,width:Math.min(pct,100)+'%'}}/>
+                      <div style={{position:'absolute',top:0,bottom:0,width:2,background:'#1e293b',left:Math.min(target,100)+'%'}}/>
+                    </div>
+                    <div className="text-[8px] mt-0.5" style={{color:st.cls.includes('rose')?'#f43f5e':st.cls.includes('amber')?'#f59e0b':st.cls.includes('emerald')?'#10b981':'#94a3b8'}}>{pct===0&&target>0?'Tidak ada aktivitas fungsi ini minggu ini':pct>target*1.4?'Overweight +'+Math.round(pct-target)+'pp vs target':pct<target*0.5?'Under −'+Math.round(target-pct)+'pp vs target':'Sesuai range target'}</div>
                   </div>
                 );
               })}
+              <div className="flex gap-3 text-[8px] text-slate-400 mt-1">
+                <span>▌ = garis target</span><span>Bar melampaui garis = overweight</span>
+              </div>
             </div>
           </div>
-        );
-      })()}
-
-      {weekItems.length===0&&(
-        <div className="mx-4 md:mx-6 mt-4 bg-stone-50 border border-stone-200 rounded-2xl p-8 text-center">
-          <div className="text-3xl mb-2 opacity-20">📅</div>
-          <div className="text-[12px] font-bold text-stone-400 mb-1">Tidak ada aktivitas minggu ini</div>
-          <div className="text-[10px] text-stone-400">Isi jadwal untuk melihat konsistensi ritual</div>
         </div>
-      )}
 
-    </div>
-  );
-}
-
-function PenilaianEATab({jadwal}){
-  var allItems=[];
-  Object.keys(jadwal||{}).sort().forEach(function(date){
-    (jadwal[date]||[]).forEach(function(it){
-      if(it.ea){allItems.push({id:it.id,_date:date,ea:it.ea,kategori:it.kategori||'',outputKeputusan:it.outputKeputusan||''});}
-    });
-  });
-
-  function computeEA(name){
-    var items=allItems.filter(function(it){return it.ea===name;});
-    if(items.length===0)return null;
-    var nonPersonal=items.filter(function(it){return it.kategori!=='Personal';});
-    var filled=nonPersonal.filter(function(it){return it.outputKeputusan.trim().length>20;});
-    var thin=items.filter(function(it){return it.outputKeputusan.trim().length<20;});
-    var richItems=nonPersonal.filter(function(it){return it.outputKeputusan.trim().length>0;});
-    var totalLen=richItems.reduce(function(s,it){return s+it.outputKeputusan.trim().length;},0);
-    var avgRich=richItems.length>0?Math.round(totalLen/richItems.length):0;
-    var fillRate=nonPersonal.length>0?Math.round(filled.length/nonPersonal.length*100):0;
-    var thinRate=items.length>0?Math.round(thin.length/items.length*100):0;
-    var richScore=Math.min(Math.round(avgRich/150*100),100);
-    var score=Math.round(fillRate*0.5+richScore*0.3+(100-thinRate)*0.2);
-    return{name:name,total:items.length,nonPersonal:nonPersonal.length,filled:filled.length,thin:thin.length,avgRich:avgRich,fillRate:fillRate,thinRate:thinRate,richScore:richScore,score:score};
-  }
-
-  function gradeCol(s){return s>=80?'#10b981':s>=65?'#3b82f6':s>=50?'#f59e0b':'#f43f5e';}
-  function gradeLbl(s){return s>=80?'Sangat Baik':s>=65?'Baik':s>=50?'Cukup':'Perlu Perbaikan';}
-
-  function renderRing(score,col){
-    var sz=72;var r=(sz-10)/2;var c=2*Math.PI*r;var off=c*(1-score/100);
-    return(
-      <svg width={sz} height={sz} viewBox={'0 0 '+sz+' '+sz}>
-        <circle cx={sz/2} cy={sz/2} r={r} fill="none" stroke="#f1f5f9" strokeWidth="8"/>
-        <circle cx={sz/2} cy={sz/2} r={r} fill="none" stroke={col} strokeWidth="8" strokeLinecap="round"
-          strokeDasharray={c} strokeDashoffset={off} transform={'rotate(-90 '+sz/2+' '+sz/2+')'}/>
-        <text x={sz/2} y={sz/2+7} textAnchor="middle" fontFamily="sans-serif" fontSize="20" fontWeight="700" fill="#1e293b">{score}</text>
-      </svg>
-    );
-  }
-
-  function renderMetricBar(label,val,note){
-    var col=val>=80?'#10b981':val>=60?'#f59e0b':'#f43f5e';
-    return(
-      <div className="mb-3">
-        <div className="flex justify-between text-[11px] mb-1">
-          <span className="text-stone-600 font-medium">{label}</span>
-          <span className="font-black" style={{color:col}}>{val}/100</span>
-        </div>
-        <div className="w-full h-2 bg-stone-100 rounded-full overflow-hidden">
-          <div className="h-full rounded-full" style={{width:val+'%',background:col}}/>
-        </div>
-        {note&&<div className="text-[9px] text-stone-400 mt-0.5 pl-2 border-l-2 border-stone-200 leading-relaxed">{note}</div>}
-      </div>
-    );
-  }
-
-  var eaData=EA_LIST.map(computeEA).filter(function(d){return d!==null;});
-
-  if(eaData.length===0){
-    return(
-      <div className="px-4 py-12 text-center">
-        <div className="text-4xl mb-3 opacity-20">👤</div>
-        <div className="text-[13px] font-bold text-stone-400 mb-1">Belum ada data EA</div>
-        <div className="text-[11px] text-stone-400 max-w-xs mx-auto leading-relaxed">Isi field "EA yang Input" di setiap aktivitas Jadwal untuk mulai mengukur kinerja EA</div>
-      </div>
-    );
-  }
-
-  return(
-    <div className="pb-8">
-      <div className="px-4 md:px-6 pt-4 pb-2">
-        <div className="text-[10px] text-stone-400 leading-relaxed">Skor = Fill Rate ×0.5 + Richness ×0.3 + (100−Thin) ×0.2 · Personal dikecualikan dari Fill &amp; Richness</div>
-      </div>
-
-      {/* Score cards */}
-      <div className="px-4 md:px-6 mt-3 space-y-4">
-        {eaData.map(function(m){
-          var col=gradeCol(m.score);
-          var lbl=gradeLbl(m.score);
-          var eaClr=EA_COLOR[m.name]||'bg-stone-100 text-stone-600';
-          return(
-            <div key={m.name} className="bg-white border border-stone-200 rounded-2xl shadow-soft overflow-hidden">
-              <div className="flex items-center gap-4 p-4 border-b border-stone-100">
-                {renderRing(m.score,col)}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1 flex-wrap">
-                    <span className={'px-2.5 py-0.5 rounded-full text-[10px] font-bold '+eaClr}>{m.name}</span>
-                    <span className="text-[11px] font-bold" style={{color:col}}>{lbl}</span>
-                  </div>
-                  <div className="text-[10px] text-stone-400">{m.total} entri total · {m.nonPersonal} kegiatan kerja</div>
-                </div>
-              </div>
-              <div className="p-4">
-                {renderMetricBar(
-                  'Output Fill Rate (bobot 50%)',
-                  m.fillRate,
-                  m.filled+' dari '+m.nonPersonal+' kegiatan kerja berisi output bermakna (>20 char)'
-                )}
-                {renderMetricBar(
-                  'Output Richness (bobot 30%)',
-                  m.richScore,
-                  'Rata-rata '+m.avgRich+' char per output · benchmark 150 char = skor 100'
-                )}
-                {renderMetricBar(
-                  'Non-Thin Rate (bobot 20%)',
-                  100-m.thinRate,
-                  m.thin+' dari '+m.total+' entri berisi kurang dari 20 karakter atau kosong'
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Comparison table — hanya tampil kalau 2+ EA ada data */}
-      {eaData.length>=2&&(
-        <div className="mx-4 md:mx-6 mt-4 bg-white border border-stone-200 rounded-2xl shadow-soft overflow-hidden">
-          <div className="px-4 py-3 border-b border-stone-100 text-[10px] font-extrabold text-stone-400 uppercase tracking-widest">Perbandingan EA</div>
-          <div className="overflow-x-auto">
-            <table style={{width:'100%',borderCollapse:'collapse',fontSize:11}}>
-              <thead>
-                <tr style={{background:'#f8fafc',borderBottom:'1px solid #e2e8f0'}}>
-                  <th style={{padding:'8px 12px',textAlign:'left',fontSize:9,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em'}}>Indikator</th>
-                  {eaData.map(function(m){return<th key={m.name} style={{padding:'8px 12px',textAlign:'center',fontSize:9,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em'}}>{m.name}</th>;})}
-                  <th style={{padding:'8px 12px',textAlign:'left',fontSize:9,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em'}}>Interpretasi</th>
-                </tr>
-              </thead>
+        {/* TEMUAN KRITIS */}
+        <div className="mx-4 md:mx-6 mb-4 bg-white rounded-xl border border-slate-200 overflow-hidden" style={{boxShadow:'0 2px 8px rgba(0,0,0,0.05)'}}>
+          <div className="px-4 py-3 border-b border-slate-100">
+            <div className="text-[12px] font-bold text-slate-800">Temuan Kritis per Fungsi KPI</div>
+            <div className="text-[9px] text-slate-400 mt-0.5">Berdasarkan alokasi waktu aktual vs target</div>
+          </div>
+          <div style={{overflowX:'auto'}}>
+            <table style={{width:'100%',borderCollapse:'collapse'}}>
+              <thead><tr style={{background:'#f8fafc',borderBottom:'1px solid #e2e8f0'}}>
+                <th style={{padding:'8px 14px',textAlign:'left',fontSize:9,color:'#94a3b8',fontWeight:700,width:130}}>FUNGSI</th>
+                <th style={{padding:'8px 14px',textAlign:'center',fontSize:9,color:'#94a3b8',fontWeight:700,width:80}}>AKTUAL</th>
+                <th style={{padding:'8px 14px',textAlign:'center',fontSize:9,color:'#94a3b8',fontWeight:700,width:70}}>TARGET</th>
+                <th style={{padding:'8px 14px',textAlign:'center',fontSize:9,color:'#94a3b8',fontWeight:700,width:100}}>STATUS</th>
+                <th style={{padding:'8px 14px',textAlign:'left',fontSize:9,color:'#94a3b8',fontWeight:700}}>CATATAN</th>
+              </tr></thead>
               <tbody>
-                {[
-                  {lbl:'Total Entri',key:'total',fmt:function(v){return v+'×';},note:function(d){var mx=d.reduce(function(a,b){return a.total>=b.total?a:b;});return mx.name+' lebih banyak entri';}},
-                  {lbl:'Fill Rate',key:'fillRate',fmt:function(v){return v+'%';},note:function(d){var mx=d.reduce(function(a,b){return a.fillRate>=b.fillRate?a:b;});return mx.name+' lebih lengkap outputnya';}},
-                  {lbl:'Avg Output',key:'avgRich',fmt:function(v){return v+' char';},note:function(d){var mx=d.reduce(function(a,b){return a.avgRich>=b.avgRich?a:b;});return mx.name+' lebih rinci outputnya';}},
-                  {lbl:'Thin Entry',key:'thinRate',fmt:function(v){return v+'%';},note:function(d){var mn=d.reduce(function(a,b){return a.thinRate<=b.thinRate?a:b;});return mn.name+' lebih sedikit entry tipis';}},
-                  {lbl:'Skor Akhir',key:'score',fmt:function(v){return v+'/100';},note:function(d){if(d.length<2)return'—';return'Selisih '+Math.abs(d[0].score-d[1].score)+' poin';}},
-                ].map(function(row){
+                {FNMETA.map(function(fn){
+                  var pct=pctFungsi[fn.id]||0;var target=TB[fn.id]||0;
+                  var st=fStatus(pct,target);
+                  var jam=jamFungsi[fn.id]||0;
+                  var note=pct===0&&target>0?'Tidak ada aktivitas tercatat untuk fungsi ini minggu ini':pct>target*1.4?'Overweight '+Math.round(pct-target)+'pp — pertimbangkan realokasi ke fungsi under':pct<target*0.5?'Under '+Math.round(target-pct)+'pp — perlu penambahan aktivitas fungsi ini':'Dalam range target ±15pp';
                   return(
-                    <tr key={row.lbl} style={{borderBottom:'1px solid #f1f5f9'}}>
-                      <td style={{padding:'9px 12px',color:'#475569',fontWeight:500}}>{row.lbl}</td>
-                      {eaData.map(function(m){
-                        var v=m[row.key];
-                        var scoreVal=row.key==='score'?v:row.key==='thinRate'?(100-v):v;
-                        var col=scoreVal>=80?'#10b981':scoreVal>=60?'#f59e0b':'#f43f5e';
-                        return<td key={m.name} style={{padding:'9px 12px',textAlign:'center',fontWeight:700,color:row.key==='score'?col:'#1e293b'}}>{row.fmt(v)}</td>;
-                      })}
-                      <td style={{padding:'9px 12px',color:'#64748b',fontSize:10}}>{row.note(eaData)}</td>
+                    <tr key={fn.id} style={{borderBottom:'1px solid #f1f5f9'}}>
+                      <td style={{padding:'10px 14px',fontWeight:600,fontSize:11,color:'#334155'}}>{fn.lbl}</td>
+                      <td style={{padding:'10px 14px',textAlign:'center',fontWeight:700,fontSize:11,color:fn.col}}>{pct}% <span style={{fontWeight:400,fontSize:9,color:'#94a3b8'}}>({jam}h)</span></td>
+                      <td style={{padding:'10px 14px',textAlign:'center',fontSize:10,color:'#64748b'}}>{target}%</td>
+                      <td style={{padding:'10px 14px',textAlign:'center'}}>
+                        <span className={'text-[9px] font-bold px-2 py-0.5 rounded-full border '+st.cls}>{st.lbl}</span>
+                      </td>
+                      <td style={{padding:'10px 14px',fontSize:10,color:'#64748b',lineHeight:1.4}}>{note}</td>
                     </tr>
                   );
                 })}
@@ -5129,169 +4482,86 @@ function PenilaianEATab({jadwal}){
             </table>
           </div>
         </div>
-      )}
-    </div>
-  );
-}
 
-function LogAktivitasTab({jadwal}){
-  const [fEa,setFEa]=useState('all');
-  const [fKat,setFKat]=useState('all');
-  const [fJenis,setFJenis]=useState('all');
-  const [fOrder,setFOrder]=useState('desc');
+        {/* D2 + D4 MINI */}
+        <div className="px-4 md:px-6 mb-4 grid grid-cols-1 md:grid-cols-3 gap-4">
 
-  // flatten semua jadwal items
-  var allItems=[];
-  Object.keys(jadwal||{}).sort().forEach(function(date){
-    (jadwal[date]||[]).forEach(function(it){
-      allItems.push({
-        id:it.id,date:date,jamMulai:it.jamMulai||'',jamSelesai:it.jamSelesai||'',
-        kategori:it.kategori||'',jenisKegiatan:it.jenisKegiatan||'',
-        detailKegiatan:it.detailKegiatan||'',outputKeputusan:it.outputKeputusan||'',
-        ea:it.ea||'',relateMilestone:it.relateMilestone||''
-      });
-    });
-  });
+          {/* D2 Branding */}
+          <div className="bg-white rounded-xl border border-slate-200 p-4" style={{boxShadow:'0 2px 8px rgba(0,0,0,0.05)'}}>
+            <span className="inline-block text-[9px] font-bold text-white bg-emerald-500 px-2 py-0.5 rounded mb-2">D2 BRANDING</span>
+            <div className="text-[12px] font-bold text-slate-800 mb-3">Jam Produksi Konten</div>
+            <div className="flex items-baseline gap-2 mb-3">
+              <span className="text-[32px] font-extrabold text-emerald-600">{kontenJam}h</span>
+              <span className="text-[10px] text-slate-400">K4 Bikin Konten</span>
+            </div>
+            <div className="space-y-1 text-[10px]">
+              {weekDates.map(function(d,i){var h=heatMap['K4'][d]||0;return h?<div key={d} className="flex justify-between"><span className="text-slate-500">{dayLbls[i]} {d.slice(8)}/{d.slice(5,7)}</span><span className="font-bold text-emerald-600">{h}h</span></div>:null;})}
+              {!kontenJam&&<div className="text-slate-300 text-center py-2">Tidak ada konten minggu ini</div>}
+            </div>
+          </div>
 
-  // sort
-  allItems.sort(function(a,b){
-    var cmp=a.date.localeCompare(b.date)||a.jamMulai.localeCompare(b.jamMulai);
-    return fOrder==='desc'?-cmp:cmp;
-  });
+          {/* D3 Networking */}
+          <div className="bg-white rounded-xl border border-slate-200 p-4" style={{boxShadow:'0 2px 8px rgba(0,0,0,0.05)'}}>
+            <span className="inline-block text-[9px] font-bold text-white bg-purple-500 px-2 py-0.5 rounded mb-2">D3 NETWORKING</span>
+            <div className="text-[12px] font-bold text-slate-800 mb-3">Ketemu External</div>
+            <div className="flex items-baseline gap-2 mb-3">
+              <span className="text-[32px] font-extrabold text-purple-600">{extJam}h</span>
+              <span className="text-[10px] text-slate-400">K6 External</span>
+            </div>
+            <div className="space-y-1 text-[10px]">
+              {weekDates.map(function(d,i){var h=heatMap['K6'][d]||0;return h?<div key={d} className="flex justify-between"><span className="text-slate-500">{dayLbls[i]} {d.slice(8)}/{d.slice(5,7)}</span><span className="font-bold text-purple-600">{h}h</span></div>:null;})}
+              {!extJam&&<div className="text-slate-300 text-center py-2">Tidak ada external minggu ini</div>}
+            </div>
+          </div>
 
-  // filter
-  var filtered=allItems.filter(function(it){
-    if(fEa!=='all'&&it.ea!==fEa)return false;
-    if(fKat!=='all'&&it.kategori!==fKat)return false;
-    if(fJenis!=='all'&&it.jenisKegiatan!==fJenis)return false;
-    return true;
-  });
+          {/* D4 Budaya */}
+          <div className="bg-white rounded-xl border border-slate-200 p-4" style={{boxShadow:'0 2px 8px rgba(0,0,0,0.05)'}}>
+            <span className="inline-block text-[9px] font-bold text-white bg-rose-500 px-2 py-0.5 rounded mb-2">D4 BUDAYA</span>
+            <div className="text-[12px] font-bold text-slate-800 mb-3">Employee Engage</div>
+            <div className="flex items-baseline gap-2 mb-3">
+              <span className="text-[32px] font-extrabold text-rose-600">{engageCount}</span>
+              <span className="text-[10px] text-slate-400">sesi · target ≥1/minggu</span>
+            </div>
+            <div className="space-y-1 text-[10px]">
+              {weekDates.map(function(d,i){
+                var items=(weekJadwal[d]||[]).filter(function(it){return it.jenisKegiatan&&it.jenisKegiatan.indexOf('Engage')!==-1;});
+                return items.length?<div key={d} className="flex justify-between"><span className="text-slate-500">{dayLbls[i]} {d.slice(8)}/{d.slice(5,7)}</span><span className="font-bold text-rose-600">{items.length}× sesi</span></div>:null;
+              })}
+              {!engageCount&&<div className="text-rose-400 text-center py-2 text-[9px] font-bold">Tidak ada Employee Engage minggu ini ⚠️</div>}
+            </div>
+          </div>
+        </div>
 
-  // unique values for filter options
-  var allKat=[...new Set(allItems.map(function(it){return it.kategori;}))].filter(Boolean).sort();
-  var allJenis=[...new Set(allItems.map(function(it){return it.jenisKegiatan;}))].filter(Boolean).sort();
-
-  var KAT_HEX={RSP:'#f43f5e',BT:'#3b82f6',TKB:'#f59e0b',Personal:'#94a3b8',Eksternal:'#10b981',Holding:'#a855f7'};
-
-  function renderFilterBtn(val,cur,set,label,color){
-    var active=cur===val;
-    return(
-      <button key={val} onClick={function(){set(active?'all':val);}}
-        className={'px-2.5 py-1 rounded-lg text-[10px] font-bold border st as whitespace-nowrap '+(active?'bg-stone-800 text-white border-stone-800 shadow-sm':'bg-white text-stone-500 border-stone-200')}>
-        {label}
-      </button>
-    );
-  }
-
-  return(
-    <div className="pb-8">
-      {/* ── FILTER BAR ── */}
-      <div className="px-4 md:px-6 pt-4 mb-4 space-y-2">
-        {/* EA filter */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1">
-          <span className="text-[9px] font-extrabold text-stone-400 uppercase tracking-widest flex-shrink-0 w-14">EA</span>
-          <div className="flex gap-1.5">
-            {renderFilterBtn('all',fEa,setFEa,'Semua',null)}
-            {EA_LIST.map(function(name){
-              return renderFilterBtn(name,fEa,setFEa,name,null);
+        {/* D5 PROPORSI */}
+        <div className="mx-4 md:mx-6 mb-4 bg-slate-800 rounded-xl p-4 text-white">
+          <div className="text-[9px] font-bold tracking-widest text-slate-400 uppercase mb-3">D5 · Kedisiplinan Waktu & Proporsi — {weekLbl}</div>
+          <div className="h-3 rounded-full overflow-hidden flex gap-0.5 mb-4">
+            {FNMETA.map(function(fn){return<div key={fn.id} style={{width:Math.max(pctFungsi[fn.id]||0,1)+'%',background:fn.col,borderRadius:99}}/>;})}</div>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            {FNMETA.map(function(fn){
+              var pct=pctFungsi[fn.id]||0;var target=TB[fn.id]||0;var st=fStatus(pct,target);
+              return(
+                <div key={fn.id}>
+                  <div className="text-[9px] text-slate-400 mb-0.5">{fn.lbl}</div>
+                  <div className="text-[20px] font-extrabold" style={{color:fn.col}}>{pct}%</div>
+                  <div className="text-[8px] text-slate-500">target {target}%</div>
+                  <div style={{marginTop:4,height:3,background:'#374151',borderRadius:99,position:'relative',overflow:'visible'}}>
+                    <div style={{height:'100%',background:fn.col,borderRadius:99,width:Math.min(pct,100)+'%'}}/>
+                    <div style={{position:'absolute',top:-2,bottom:-2,width:2,background:'white',opacity:0.6,left:Math.min(target,100)+'%'}}/>
+                  </div>
+                  <div className={'text-[8px] mt-1 font-bold '+st.cls.split(' ')[0]}>{st.lbl}</div>
+                </div>
+              );
             })}
           </div>
         </div>
-        {/* Entitas filter */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1">
-          <span className="text-[9px] font-extrabold text-stone-400 uppercase tracking-widest flex-shrink-0 w-14">Entitas</span>
-          <div className="flex gap-1.5">
-            {renderFilterBtn('all',fKat,setFKat,'Semua',null)}
-            {allKat.map(function(k){return renderFilterBtn(k,fKat,setFKat,k,null);})}
-          </div>
-        </div>
-        {/* Jenis filter */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1">
-          <span className="text-[9px] font-extrabold text-stone-400 uppercase tracking-widest flex-shrink-0 w-14">Jenis</span>
-          <div className="flex gap-1.5">
-            {renderFilterBtn('all',fJenis,setFJenis,'Semua',null)}
-            {allJenis.map(function(j){return renderFilterBtn(j,fJenis,setFJenis,JENIS_SHORT[j]||j,null);})}
-          </div>
-        </div>
-        {/* Sort + count */}
-        <div className="flex items-center justify-between pt-1">
-          <span className="text-[10px] text-stone-400">{filtered.length} dari {allItems.length} aktivitas</span>
-          <button onClick={function(){setFOrder(fOrder==='desc'?'asc':'desc');}}
-            className="text-[10px] font-bold text-stone-500 border border-stone-200 px-2.5 py-1 rounded-lg bg-white st as">
-            {fOrder==='desc'?'↓ Terbaru':'↑ Terlama'}
-          </button>
-        </div>
-      </div>
 
-      {/* ── TABLE ── */}
-      {filtered.length===0?(
-        <div className="mx-4 md:mx-6 bg-stone-50 border border-stone-200 rounded-2xl p-8 text-center">
-          <div className="text-3xl mb-2 opacity-20">📋</div>
-          <div className="text-[12px] font-bold text-stone-400">Tidak ada aktivitas yang cocok dengan filter</div>
         </div>
-      ):(
-        <div className="mx-4 md:mx-6 bg-white rounded-2xl border border-stone-200 shadow-soft overflow-hidden">
-          <div className="overflow-x-auto">
-            <table style={{width:'100%',borderCollapse:'collapse',fontSize:11}}>
-              <thead>
-                <tr style={{background:'#f8fafc',borderBottom:'2px solid #1e293b'}}>
-                  <th style={{padding:'8px 12px',textAlign:'left',fontSize:9,letterSpacing:'0.1em',textTransform:'uppercase',color:'#94a3b8',fontWeight:700,whiteSpace:'nowrap'}}>Tanggal</th>
-                  <th style={{padding:'8px 12px',textAlign:'left',fontSize:9,letterSpacing:'0.1em',textTransform:'uppercase',color:'#94a3b8',fontWeight:700,whiteSpace:'nowrap'}}>Jam</th>
-                  <th style={{padding:'8px 12px',textAlign:'left',fontSize:9,letterSpacing:'0.1em',textTransform:'uppercase',color:'#94a3b8',fontWeight:700}}>Entitas</th>
-                  <th style={{padding:'8px 12px',textAlign:'left',fontSize:9,letterSpacing:'0.1em',textTransform:'uppercase',color:'#94a3b8',fontWeight:700}}>Jenis</th>
-                  <th style={{padding:'8px 12px',textAlign:'left',fontSize:9,letterSpacing:'0.1em',textTransform:'uppercase',color:'#94a3b8',fontWeight:700}}>Aktivitas</th>
-                  <th style={{padding:'8px 12px',textAlign:'left',fontSize:9,letterSpacing:'0.1em',textTransform:'uppercase',color:'#94a3b8',fontWeight:700}}>Output</th>
-                  <th style={{padding:'8px 12px',textAlign:'left',fontSize:9,letterSpacing:'0.1em',textTransform:'uppercase',color:'#94a3b8',fontWeight:700}}>EA</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map(function(it,i){
-                  var katCol=KAT_HEX[it.kategori]||'#94a3b8';
-                  var jColor=JENIS_COLOR[it.jenisKegiatan]||'bg-stone-100 text-stone-600';
-                  var eaColor=EA_COLOR[it.ea]||'';
-                  var rowBg=i%2===0?'#ffffff':'#f8fafc';
-                  var hasOut=it.outputKeputusan&&it.outputKeputusan.trim();
-                  return(
-                    <tr key={it.id} style={{background:rowBg,borderBottom:'1px solid #f1f5f9'}}>
-                      <td style={{padding:'9px 12px',whiteSpace:'nowrap',color:'#475569',fontWeight:500}}>{it.date.slice(5)}</td>
-                      <td style={{padding:'9px 12px',whiteSpace:'nowrap',color:'#64748b',fontFamily:'monospace',fontSize:10}}>{it.jamMulai||'--'}{it.jamMulai&&it.jamSelesai?'–':''}{it.jamSelesai||''}</td>
-                      <td style={{padding:'9px 12px'}}>
-                        <span style={{display:'inline-block',padding:'2px 8px',borderRadius:20,fontSize:10,fontWeight:700,color:'white',background:katCol}}>{it.kategori||'–'}</span>
-                      </td>
-                      <td style={{padding:'9px 12px'}}>
-                        <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold ${jColor}`}>{JENIS_SHORT[it.jenisKegiatan]||it.jenisKegiatan||'–'}</span>
-                      </td>
-                      <td style={{padding:'9px 12px',color:'#1e293b',maxWidth:240}}>
-                        <div style={{fontWeight:600,lineHeight:1.4}}>{it.detailKegiatan||'–'}</div>
-                      </td>
-                      <td style={{padding:'9px 12px',color:'#64748b',maxWidth:200}}>
-                        {hasOut?(
-                          <div style={{fontSize:10,lineHeight:1.4,display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden'}}>{it.outputKeputusan}</div>
-                        ):(
-                          <span style={{color:'#cbd5e1',fontSize:10}}>–</span>
-                        )}
-                      </td>
-                      <td style={{padding:'9px 12px'}}>
-                        {it.ea?(
-                          <span className={`inline-block px-2 py-0.5 rounded text-[9px] font-bold ${eaColor||'bg-stone-100 text-stone-500'}`}>{it.ea}</span>
-                        ):(
-                          <span style={{color:'#cbd5e1',fontSize:10}}>–</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          <div style={{padding:'10px 16px',borderTop:'1px solid #f1f5f9',display:'flex',justifyContent:'space-between',fontSize:11,color:'#94a3b8'}}>
-            <span>{filtered.length} aktivitas ditampilkan</span>
-            <span>{allItems.filter(function(it){return it.outputKeputusan&&it.outputKeputusan.trim();}).length} dari {allItems.length} sudah ada output</span>
-          </div>
-        </div>
-      )}
+      }
     </div>
   );
+}
+
 }
 
 function computeAnalisaFiltered(jadwal,entity){
