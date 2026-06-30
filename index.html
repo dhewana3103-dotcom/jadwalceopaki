@@ -4892,282 +4892,40 @@ function AnalisaJadwal({backlog,jadwal}){
     });
   }
 
+
   return(
-    <div className="pb-10" style={{fontFamily:'Inter,sans-serif',background:'#f8fafc',minHeight:'100vh'}}>
-
-      {/* WEEK NAV */}
-      <div className="px-4 md:px-6 pt-4 pb-3 flex items-center justify-between border-b border-slate-200 bg-white">
-        <button onClick={function(){setWeekOff(weekOff-1);}} className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-[11px] font-bold text-slate-600 as st">← Lalu</button>
-        <div className="text-center">
-          <div className="text-[13px] font-extrabold text-slate-900">{weekOff===0?'Minggu Ini':weekOff===-1?'Minggu Lalu':Math.abs(weekOff)+' Minggu Lalu'}</div>
-          <div className="text-[10px] text-slate-400">{weekLbl} · {totalAktivitas} aktivitas · {totalJamMinggu}h produktif</div>
+    <div className="pb-10">
+      <div className="px-4 md:px-6 pt-4 pb-3 border-b border-slate-200 flex items-center justify-between">
+        <div>
+          <div className="text-[13px] font-bold text-slate-800">Analisa + Rekomendasi</div>
+          <div className="text-[10px] text-slate-400 mt-0.5">AI baca jadwal &amp; backlog minggu ini → flag masalah + rekomendasi</div>
         </div>
-        <button onClick={function(){setWeekOff(Math.min(weekOff+1,0));}} disabled={weekOff===0} className={'px-3 py-1.5 rounded-xl border border-slate-200 text-[11px] font-bold as st '+(weekOff===0?'bg-slate-50 text-slate-300 cursor-not-allowed':'bg-white text-slate-600')}>Depan →</button>
+        <button onClick={run} disabled={loading} className={'px-4 py-2 rounded-xl text-[11px] font-bold as st '+(loading?'bg-slate-200 text-slate-400 cursor-not-allowed':'bg-slate-900 text-white')}>
+          {loading?'Menganalisa...':'🤖 Analisa Sekarang'}
+        </button>
       </div>
-
-      {/* ENTITY FILTER */}
-      <div className="px-4 md:px-6 pt-3 pb-2 bg-white border-b border-slate-100">
-        <div className="flex gap-1.5 flex-wrap">
-          {[['all','🏢 Semua'],['RSP','🏠 RSP'],['BT','🧵 BT'],['TKB','🏗 TKB'],['Personal','👤 Personal']].map(function(opt){
-            var isA=entityFilter===opt[0];
-            return<button key={opt[0]} onClick={function(){setEntityFilter(opt[0]);}} className={'px-3 py-1 rounded-full text-[10px] font-bold as '+(isA?'bg-slate-900 text-white':'bg-slate-100 text-slate-500')}>{opt[1]}</button>;
-          })}
-        </div>
+      <div className="px-4 md:px-6 pt-4">
+        {err&&<div className="mb-3 px-4 py-3 bg-rose-50 border border-rose-200 rounded-xl text-[11px] text-rose-600 font-medium">{err}</div>}
+        {!result&&!loading&&!err&&(
+          <div className="text-center py-12">
+            <div className="text-4xl mb-3 opacity-20">🤖</div>
+            <div className="text-[13px] font-bold text-slate-400 mb-1">Belum ada analisa</div>
+            <div className="text-[10px] text-slate-400">Klik "Analisa Sekarang" untuk mendapat temuan dan rekomendasi jadwal minggu ini</div>
+          </div>
+        )}
+        {loading&&(
+          <div className="text-center py-12">
+            <div className="text-3xl mb-3 animate-pulse">🤖</div>
+            <div className="text-[12px] font-bold text-slate-500">Membaca jadwal dan backlog...</div>
+            <div className="text-[10px] text-slate-400 mt-1">Biasanya 5-10 detik</div>
+          </div>
+        )}
+        {result&&!loading&&<div>{renderResult()}</div>}
       </div>
-
-      {totalAktivitas===0
-        ?<div className="mx-4 mt-8 bg-white rounded-xl border border-slate-200 p-10 text-center"><div className="text-4xl mb-3 opacity-20">📅</div><div className="text-[13px] font-bold text-slate-400">Tidak ada aktivitas minggu ini</div><div className="text-[10px] text-slate-300 mt-1">Isi jadwal untuk melihat analisa</div></div>
-        :<div>
-
-        {/* SUMMARY CARDS */}
-        <div className="px-4 md:px-6 pt-4 grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-          {(function(){
-            var cards=[
-              {lbl:'Total Produktif',val:totalJamMinggu+'h',sub:totalAktivitas+' aktivitas',col:'#3b82f6',status:null},
-              {lbl:'Finansial vs Target',val:pctFungsi['finansial']+'%',sub:'Target '+TB.finansial+'%',col:'#f43f5e',status:fStatus(pctFungsi['finansial'],TB.finansial)},
-              {lbl:'Jam Konten (K4)',val:kontenJam+'h',sub:'External: '+extJam+'h',col:'#10b981',status:null},
-              {lbl:'Budaya (K7)',val:engageCount+'×',sub:'Employee Engage sesi',col:'#a855f7',status:null},
-            ];
-            return cards.map(function(c,i){
-              return(
-                <div key={i} className="bg-white rounded-xl border border-slate-200 p-4 relative overflow-hidden" style={{boxShadow:'0 2px 8px rgba(0,0,0,0.05)'}}>
-                  <div className="absolute top-0 right-0 w-1 h-full" style={{background:c.col}}/>
-                  <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">{c.lbl}</div>
-                  <div className="text-[26px] font-extrabold leading-none mb-1" style={{color:c.col}}>{c.val}</div>
-                  <div className="text-[9px] text-slate-400">{c.sub}</div>
-                  {c.status&&<span className={'mt-2 inline-block text-[9px] font-bold px-2 py-0.5 rounded-full border '+c.status.cls}>{c.status.lbl}</span>}
-                </div>
-              );
-            });
-          })()}
-        </div>
-
-        {/* HEATMAP K1-K7 */}
-        <div className="mx-4 md:mx-6 mb-4 bg-white rounded-xl border border-slate-200 overflow-hidden" style={{boxShadow:'0 2px 8px rgba(0,0,0,0.05)'}}>
-          <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2">
-            <div>
-              <div className="text-[12px] font-bold text-slate-800">Heatmap Aktivitas · K1–K7 per Hari</div>
-              <div className="text-[9px] text-slate-400 mt-0.5">{weekLbl} · jam per jenis kegiatan</div>
-            </div>
-            <div className="flex gap-1.5 flex-wrap">
-              {K_DEF.map(function(k){return<span key={k.id} className="text-[8px] font-bold px-1.5 py-0.5 rounded" style={{background:k.col+'22',color:k.col}}>{k.id}</span>;})}</div>
-          </div>
-          <div style={{overflowX:'auto'}}>
-            <table style={{width:'100%',borderCollapse:'collapse',minWidth:540}}>
-              <thead>
-                <tr style={{background:'#f8fafc',borderBottom:'1px solid #e2e8f0'}}>
-                  <th style={{padding:'8px 12px',textAlign:'left',fontSize:9,color:'#94a3b8',fontWeight:700,width:130}}>Kategori</th>
-                  {weekDates.map(function(d,i){return<th key={d} style={{padding:'8px 6px',textAlign:'center',fontSize:9,color:'#64748b',fontWeight:700,background:i===5?'#f8fafc':'inherit'}}>{dayLbls[i]}<br/><span style={{color:'#94a3b8',fontWeight:400}}>{d.slice(8)}/{d.slice(5,7)}</span></th>;})}
-                  <th style={{padding:'8px 10px',textAlign:'center',fontSize:9,color:'#94a3b8',fontWeight:700}}>Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {K_DEF.map(function(k){
-                  var rowTotal=heatTotals[k.id]||0;
-                  return(
-                    <tr key={k.id} style={{borderBottom:'1px solid #f1f5f9'}}>
-                      <td style={{padding:'7px 12px',fontSize:10,fontWeight:600,color:'#334155',whiteSpace:'nowrap'}}>
-                        <span style={{display:'inline-block',width:8,height:8,borderRadius:2,background:k.col,marginRight:6,verticalAlign:'middle'}}/>
-                        {k.lbl}
-                      </td>
-                      {weekDates.map(function(d,i){
-                        var h=heatMap[k.id][d]||0;
-                        var st=cellSt(h,k.col);
-                        return<td key={d} style={{padding:'5px 4px',textAlign:'center',background:i===5?'#fafafa':'inherit'}}>
-                          <div style={{...st,borderRadius:6,padding:'5px 4px',fontSize:10,minHeight:26,display:'flex',alignItems:'center',justifyContent:'center'}}>{h?h+'h':'—'}</div>
-                        </td>;
-                      })}
-                      <td style={{padding:'7px 10px',textAlign:'center',fontWeight:700,fontSize:11,color:rowTotal?'#334155':'#94a3b8'}}>{rowTotal?rowTotal+'h':'—'}</td>
-                    </tr>
-                  );
-                })}
-                <tr style={{background:'#f8fafc',borderTop:'2px solid #e2e8f0'}}>
-                  <td style={{padding:'8px 12px',fontSize:10,fontWeight:700,color:'#1e293b'}}>Total/Hari</td>
-                  {weekDates.map(function(d,i){
-                    var dayTotal=Math.round(K_DEF.reduce(function(s,k){return s+(heatMap[k.id][d]||0);},0)*10)/10;
-                    return<td key={d} style={{padding:'8px 6px',textAlign:'center',fontWeight:700,fontSize:10,color:dayTotal?'#1e293b':'#94a3b8',background:i===5?'#f1f5f9':'inherit'}}>{dayTotal?dayTotal+'h':'—'}</td>;
-                  })}
-                  <td style={{padding:'8px 10px',textAlign:'center',fontWeight:800,fontSize:11,color:'#1e293b'}}>{totalJamMinggu}h</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* DISTRIBUSI + COVERAGE */}
-        <div className="px-4 md:px-6 mb-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
-
-          {/* Distribusi per Jenis */}
-          <div className="bg-white rounded-xl border border-slate-200 p-4" style={{boxShadow:'0 2px 8px rgba(0,0,0,0.05)'}}>
-            <div className="text-[12px] font-bold text-slate-800 mb-0.5">Distribusi Aktivitas (Jam)</div>
-            <div className="text-[9px] text-slate-400 mb-3">Per jenis kegiatan minggu ini</div>
-            <div className="space-y-2">
-              {(function(){
-                var rows=K_DEF.map(function(k){return{lbl:k.lbl.split('·')[1].trim(),jam:heatTotals[k.id]||0,col:k.col};}).filter(function(r){return r.jam>0;}).sort(function(a,b){return b.jam-a.jam;});
-                var maxH=rows.length?rows[0].jam:1;
-                return rows.map(function(r){
-                  var pct=Math.round(r.jam/totalJamMinggu*100);
-                  return(
-                    <div key={r.lbl} className="flex items-center gap-2">
-                      <span style={{width:90,fontSize:9,color:'#64748b',textAlign:'right',flexShrink:0}}>{r.lbl}</span>
-                      <div style={{flex:1,height:22,background:'#f1f5f9',borderRadius:6,overflow:'hidden'}}>
-                        <div style={{height:'100%',background:r.col,borderRadius:6,width:Math.round(r.jam/maxH*100)+'%',display:'flex',alignItems:'center',paddingLeft:8}}>
-                          <span style={{fontSize:10,fontWeight:700,color:'white',whiteSpace:'nowrap'}}>{r.jam}h · {pct}%</span>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                });
-              })()}
-            </div>
-          </div>
-
-          {/* Coverage per Fungsi KPI */}
-          <div className="bg-white rounded-xl border border-slate-200 p-4" style={{boxShadow:'0 2px 8px rgba(0,0,0,0.05)'}}>
-            <div className="text-[12px] font-bold text-slate-800 mb-0.5">Coverage per Fungsi KPI CEO</div>
-            <div className="text-[9px] text-slate-400 mb-3">% aktual vs target bobot · garis = target</div>
-            <div className="space-y-3">
-              {FNMETA.map(function(fn){
-                var pct=pctFungsi[fn.id]||0;
-                var target=TB[fn.id]||0;
-                var st=fStatus(pct,target);
-                return(
-                  <div key={fn.id}>
-                    <div className="flex justify-between text-[10px] mb-1">
-                      <span className="font-semibold text-slate-700">{fn.lbl} <span className="text-slate-400 font-normal">(target {target}%)</span></span>
-                      <span className={'font-bold '+st.cls.split(' ')[0]}>{pct}%</span>
-                    </div>
-                    <div style={{position:'relative',height:14,background:'#f1f5f9',borderRadius:99,overflow:'hidden'}}>
-                      <div style={{height:'100%',background:fn.col,borderRadius:99,width:Math.min(pct,100)+'%'}}/>
-                      <div style={{position:'absolute',top:0,bottom:0,width:2,background:'#1e293b',left:Math.min(target,100)+'%'}}/>
-                    </div>
-                    <div className="text-[8px] mt-0.5" style={{color:st.cls.includes('rose')?'#f43f5e':st.cls.includes('amber')?'#f59e0b':st.cls.includes('emerald')?'#10b981':'#94a3b8'}}>{pct===0&&target>0?'Tidak ada aktivitas fungsi ini minggu ini':pct>target*1.4?'Overweight +'+Math.round(pct-target)+'pp vs target':pct<target*0.5?'Under −'+Math.round(target-pct)+'pp vs target':'Sesuai range target'}</div>
-                  </div>
-                );
-              })}
-              <div className="flex gap-3 text-[8px] text-slate-400 mt-1">
-                <span>▌ = garis target</span><span>Bar melampaui garis = overweight</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* TEMUAN KRITIS */}
-        <div className="mx-4 md:mx-6 mb-4 bg-white rounded-xl border border-slate-200 overflow-hidden" style={{boxShadow:'0 2px 8px rgba(0,0,0,0.05)'}}>
-          <div className="px-4 py-3 border-b border-slate-100">
-            <div className="text-[12px] font-bold text-slate-800">Temuan Kritis per Fungsi KPI</div>
-            <div className="text-[9px] text-slate-400 mt-0.5">Berdasarkan alokasi waktu aktual vs target</div>
-          </div>
-          <div style={{overflowX:'auto'}}>
-            <table style={{width:'100%',borderCollapse:'collapse'}}>
-              <thead><tr style={{background:'#f8fafc',borderBottom:'1px solid #e2e8f0'}}>
-                <th style={{padding:'8px 14px',textAlign:'left',fontSize:9,color:'#94a3b8',fontWeight:700,width:130}}>FUNGSI</th>
-                <th style={{padding:'8px 14px',textAlign:'center',fontSize:9,color:'#94a3b8',fontWeight:700,width:80}}>AKTUAL</th>
-                <th style={{padding:'8px 14px',textAlign:'center',fontSize:9,color:'#94a3b8',fontWeight:700,width:70}}>TARGET</th>
-                <th style={{padding:'8px 14px',textAlign:'center',fontSize:9,color:'#94a3b8',fontWeight:700,width:100}}>STATUS</th>
-                <th style={{padding:'8px 14px',textAlign:'left',fontSize:9,color:'#94a3b8',fontWeight:700}}>CATATAN</th>
-              </tr></thead>
-              <tbody>
-                {FNMETA.map(function(fn){
-                  var pct=pctFungsi[fn.id]||0;var target=TB[fn.id]||0;
-                  var st=fStatus(pct,target);
-                  var jam=jamFungsi[fn.id]||0;
-                  var note=pct===0&&target>0?'Tidak ada aktivitas tercatat untuk fungsi ini minggu ini':pct>target*1.4?'Overweight '+Math.round(pct-target)+'pp — pertimbangkan realokasi ke fungsi under':pct<target*0.5?'Under '+Math.round(target-pct)+'pp — perlu penambahan aktivitas fungsi ini':'Dalam range target ±15pp';
-                  return(
-                    <tr key={fn.id} style={{borderBottom:'1px solid #f1f5f9'}}>
-                      <td style={{padding:'10px 14px',fontWeight:600,fontSize:11,color:'#334155'}}>{fn.lbl}</td>
-                      <td style={{padding:'10px 14px',textAlign:'center',fontWeight:700,fontSize:11,color:fn.col}}>{pct}% <span style={{fontWeight:400,fontSize:9,color:'#94a3b8'}}>({jam}h)</span></td>
-                      <td style={{padding:'10px 14px',textAlign:'center',fontSize:10,color:'#64748b'}}>{target}%</td>
-                      <td style={{padding:'10px 14px',textAlign:'center'}}>
-                        <span className={'text-[9px] font-bold px-2 py-0.5 rounded-full border '+st.cls}>{st.lbl}</span>
-                      </td>
-                      <td style={{padding:'10px 14px',fontSize:10,color:'#64748b',lineHeight:1.4}}>{note}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* D2 + D4 MINI */}
-        <div className="px-4 md:px-6 mb-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-
-          {/* D2 Branding */}
-          <div className="bg-white rounded-xl border border-slate-200 p-4" style={{boxShadow:'0 2px 8px rgba(0,0,0,0.05)'}}>
-            <span className="inline-block text-[9px] font-bold text-white bg-emerald-500 px-2 py-0.5 rounded mb-2">D2 BRANDING</span>
-            <div className="text-[12px] font-bold text-slate-800 mb-3">Jam Produksi Konten</div>
-            <div className="flex items-baseline gap-2 mb-3">
-              <span className="text-[32px] font-extrabold text-emerald-600">{kontenJam}h</span>
-              <span className="text-[10px] text-slate-400">K4 Bikin Konten</span>
-            </div>
-            <div className="space-y-1 text-[10px]">
-              {weekDates.map(function(d,i){var h=heatMap['K4'][d]||0;return h?<div key={d} className="flex justify-between"><span className="text-slate-500">{dayLbls[i]} {d.slice(8)}/{d.slice(5,7)}</span><span className="font-bold text-emerald-600">{h}h</span></div>:null;})}
-              {!kontenJam&&<div className="text-slate-300 text-center py-2">Tidak ada konten minggu ini</div>}
-            </div>
-          </div>
-
-          {/* D3 Networking */}
-          <div className="bg-white rounded-xl border border-slate-200 p-4" style={{boxShadow:'0 2px 8px rgba(0,0,0,0.05)'}}>
-            <span className="inline-block text-[9px] font-bold text-white bg-purple-500 px-2 py-0.5 rounded mb-2">D3 NETWORKING</span>
-            <div className="text-[12px] font-bold text-slate-800 mb-3">Ketemu External</div>
-            <div className="flex items-baseline gap-2 mb-3">
-              <span className="text-[32px] font-extrabold text-purple-600">{extJam}h</span>
-              <span className="text-[10px] text-slate-400">K6 External</span>
-            </div>
-            <div className="space-y-1 text-[10px]">
-              {weekDates.map(function(d,i){var h=heatMap['K6'][d]||0;return h?<div key={d} className="flex justify-between"><span className="text-slate-500">{dayLbls[i]} {d.slice(8)}/{d.slice(5,7)}</span><span className="font-bold text-purple-600">{h}h</span></div>:null;})}
-              {!extJam&&<div className="text-slate-300 text-center py-2">Tidak ada external minggu ini</div>}
-            </div>
-          </div>
-
-          {/* D4 Budaya */}
-          <div className="bg-white rounded-xl border border-slate-200 p-4" style={{boxShadow:'0 2px 8px rgba(0,0,0,0.05)'}}>
-            <span className="inline-block text-[9px] font-bold text-white bg-rose-500 px-2 py-0.5 rounded mb-2">D4 BUDAYA</span>
-            <div className="text-[12px] font-bold text-slate-800 mb-3">Employee Engage</div>
-            <div className="flex items-baseline gap-2 mb-3">
-              <span className="text-[32px] font-extrabold text-rose-600">{engageCount}</span>
-              <span className="text-[10px] text-slate-400">sesi · target ≥1/minggu</span>
-            </div>
-            <div className="space-y-1 text-[10px]">
-              {weekDates.map(function(d,i){
-                var items=(weekJadwal[d]||[]).filter(function(it){return it.jenisKegiatan&&it.jenisKegiatan.indexOf('Engage')!==-1;});
-                return items.length?<div key={d} className="flex justify-between"><span className="text-slate-500">{dayLbls[i]} {d.slice(8)}/{d.slice(5,7)}</span><span className="font-bold text-rose-600">{items.length}× sesi</span></div>:null;
-              })}
-              {!engageCount&&<div className="text-rose-400 text-center py-2 text-[9px] font-bold">Tidak ada Employee Engage minggu ini ⚠️</div>}
-            </div>
-          </div>
-        </div>
-
-        {/* D5 PROPORSI */}
-        <div className="mx-4 md:mx-6 mb-4 bg-slate-800 rounded-xl p-4 text-white">
-          <div className="text-[9px] font-bold tracking-widest text-slate-400 uppercase mb-3">D5 · Kedisiplinan Waktu & Proporsi — {weekLbl}</div>
-          <div className="h-3 rounded-full overflow-hidden flex gap-0.5 mb-4">
-            {FNMETA.map(function(fn){return<div key={fn.id} style={{width:Math.max(pctFungsi[fn.id]||0,1)+'%',background:fn.col,borderRadius:99}}/>;})}</div>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-            {FNMETA.map(function(fn){
-              var pct=pctFungsi[fn.id]||0;var target=TB[fn.id]||0;var st=fStatus(pct,target);
-              return(
-                <div key={fn.id}>
-                  <div className="text-[9px] text-slate-400 mb-0.5">{fn.lbl}</div>
-                  <div className="text-[20px] font-extrabold" style={{color:fn.col}}>{pct}%</div>
-                  <div className="text-[8px] text-slate-500">target {target}%</div>
-                  <div style={{marginTop:4,height:3,background:'#374151',borderRadius:99,position:'relative',overflow:'visible'}}>
-                    <div style={{height:'100%',background:fn.col,borderRadius:99,width:Math.min(pct,100)+'%'}}/>
-                    <div style={{position:'absolute',top:-2,bottom:-2,width:2,background:'white',opacity:0.6,left:Math.min(target,100)+'%'}}/>
-                  </div>
-                  <div className={'text-[8px] mt-1 font-bold '+st.cls.split(' ')[0]}>{st.lbl}</div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        </div>
-      }
     </div>
   );
 }
+
 
 function MoMList({mom,onDelete,onUpdateMom,onAddKeputusan}){
   const [expId,setExpId]=useState(null);
