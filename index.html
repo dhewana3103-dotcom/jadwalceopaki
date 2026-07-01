@@ -967,6 +967,7 @@ function KamarPATab({backlog,onUpdateBacklog,onAddJadwal}){
                     {k&&<KC id={k.id} sm/>}
                   </div>
                   <div className="text-[10px] font-bold text-stone-400">{item.id} · {item.konteks}</div>
+                  {(item.outputKonteks||item.notes)&&<div className="text-[9px] text-stone-400 mt-0.5 leading-relaxed">{item.outputKonteks||item.notes}</div>}
                 </div>
                 <PriBadge p={item.prioritas}/>
               </div>
@@ -3038,6 +3039,7 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
   const [outTexts,setOutTexts]=useState({});
   const [outEvidence,setOutEvidence]=useState({});
   const [outActionItems,setOutActionItems]=useState({});
+  function getActionItems(item){return outActionItems[item.id]!==undefined?outActionItems[item.id]:(item.outputActionItems||[]);}
   const [savedId,setSavedId]=useState(null); // flash feedback after save
 
   useEffect(function(){
@@ -3050,7 +3052,7 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
   function saveOutput(item){
     var txt=outTexts[item.id]||'';if(!txt.trim())return;
     var evidence=outEvidence[item.id]||'';
-    var actionItems=(outActionItems[item.id]||[]).filter(function(ai){return(ai.aksi||'').trim();});
+    var actionItems=(getActionItems(item)).filter(function(ai){return(ai.aksi||'').trim();});
     onUpdateJadwal(today,item.id,{outputKeputusan:txt,outputEvidence:evidence,outputActionItems:actionItems});
     // Route action items per pilihan
     var momItems=actionItems.filter(function(ai){return ai.route==='pdca_mom';});
@@ -3059,25 +3061,27 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
     // route:'none' → skip, tidak dikirim kemana-mana
     // PDCA MoM → masuk MoM batch
     if(momItems.length>0&&onAddMomBatch){
-      onAddMomBatch([{id:'MOM-'+genId(),tanggal:today,meetingName:item.detailKegiatan.slice(0,60),gcalDesc:'',sumber:'output-'+item.id,items:momItems.map(function(ai){return{id:'MI-'+genId(),konteks:item.detailKegiatan.slice(0,40),action:ai.aksi,jenis:'Immediately',pic:ai.pic||'',deadline:ai.deadline||null,ekspektasi:'',status:'pending',hasil:''};}) }]);
+      onAddMomBatch([{id:'MOM-'+genId(),tanggal:today,meetingName:item.detailKegiatan.slice(0,60),gcalDesc:'',sumber:'output-'+item.id,items:momItems.map(function(ai){
+        return{id:'MI-'+genId(),konteks:item.detailKegiatan.slice(0,40),action:ai.aksi,jenis:'Immediately',pic:ai.pic||'',deadline:ai.deadline||null,ekspektasi:txt.slice(0,200),status:'pending',hasil:''};
+      })}]);
     }
     // Kamar PA → backlog dengan hideFromBacklogList:true
     if(paItems.length>0&&onAddBacklog){
       onAddBacklog(paItems.map(function(ai){
-        return{id:'BL-'+genId(),isi:ai.aksi,pic:ai.pic||'',deadline:ai.deadline||'',konteks:item.detailKegiatan.slice(0,60),sumber:'output-jadwal',status:'baru',fungsiKPI:item.relateMilestone||'',hideFromBacklogList:true,needFeedback:false,pdcaFlag:false,tanggal:today};
+        return{id:'BL-'+genId(),isi:ai.aksi,pic:ai.pic||'',deadline:ai.deadline||'',konteks:item.detailKegiatan.slice(0,60),outputKonteks:txt.slice(0,300),sumber:'output-jadwal',status:'baru',fungsiKPI:item.relateMilestone||'',hideFromBacklogList:true,needFeedback:false,pdcaFlag:false,tanggal:today};
       }));
     }
     // Backlog biasa
     if(blItems.length>0&&onAddBacklog){
       onAddBacklog(blItems.map(function(ai){
-        return{id:'BL-'+genId(),isi:ai.aksi,pic:ai.pic||'',deadline:ai.deadline||'',konteks:item.detailKegiatan.slice(0,60),sumber:'output-jadwal',status:'baru',fungsiKPI:item.relateMilestone||'',hideFromBacklogList:false,needFeedback:false,pdcaFlag:false,tanggal:today};
+        return{id:'BL-'+genId(),isi:ai.aksi,pic:ai.pic||'',deadline:ai.deadline||'',konteks:item.detailKegiatan.slice(0,60),outputKonteks:txt.slice(0,300),sumber:'output-jadwal',status:'baru',fungsiKPI:item.relateMilestone||'',hideFromBacklogList:false,needFeedback:false,pdcaFlag:false,tanggal:today};
       }));
     }
-    setExpandId(null);
     setSavedId(item.id+'-output');setTimeout(function(){setSavedId(null);},2000);
-    setOutTexts(function(p){var n={...p};n[item.id]='';return n;});
-    setOutEvidence(function(p){var n={...p};n[item.id]='';return n;});
-    setOutActionItems(function(p){var n={...p};n[item.id]=[];return n;});
+    // Delete key (bukan set ke '') supaya form reopen tetap tampil data tersimpan via item.outputKeputusan
+    setOutTexts(function(p){var n=Object.assign({},p);delete n[item.id];return n;});
+    setOutEvidence(function(p){var n=Object.assign({},p);delete n[item.id];return n;});
+    setOutActionItems(function(p){var n=Object.assign({},p);delete n[item.id];return n;});
   }
 
   function getBlokItems(blokId){return dayItems.filter(function(it){return getBlokFromTime(it.jamMulai)===blokId;});}
@@ -3305,10 +3309,10 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
                     <div className="text-[9px] font-bold text-stone-400 uppercase">Action item <span className="font-normal normal-case text-stone-300">(opsional — siapa, ngapain, kapan)</span></div>
                     <button className="text-[9px] font-bold text-blue-500 as" onClick={function(){setOutActionItems(function(p){var n={...p};n[item.id]=[...(n[item.id]||[]),{pic:'',aksi:'',deadline:'',route:isMeeting?'pdca_mom':'backlog'}];return n;});}}>+ Tambah</button>
                   </div>
-                  {(outActionItems[item.id]||[]).length===0
+                  {(getActionItems(item)).length===0
                     ?<div className="px-3 py-2 rounded-xl border border-dashed border-stone-200 text-center text-[9px] text-stone-300">Tap "+ Tambah" kalau ada tindak lanjut</div>
                     :<div className="space-y-2">
-                      {(outActionItems[item.id]||[]).map(function(ai,idx){return(
+                      {(getActionItems(item)).map(function(ai,idx){return(
                         <div key={idx} className="flex gap-1.5 items-start p-2.5 bg-stone-50 rounded-xl border border-stone-200">
                           <div className="flex-1 space-y-1.5">
                             <input className="w-full px-2 py-1.5 rounded-lg border border-stone-200 bg-white text-[10px] focus:outline-none focus:ring-1 focus:ring-blue-300" placeholder="Siapa (PIC)..." value={ai.pic} onChange={function(e){var v=e.target.value;setOutActionItems(function(p){var n={...p};var arr=n[item.id].slice();arr[idx]={...arr[idx],pic:v};n[item.id]=arr;return n;});}}/>
@@ -3345,8 +3349,8 @@ function JadwalHarian({backlog,jadwal,onAddJadwal,onRemoveJadwal,onUpdateJadwal,
                     <div className="text-[9px] font-bold text-stone-400 uppercase">Action item <span className="font-normal normal-case text-stone-300">(opsional)</span></div>
                     <button className="text-[9px] font-bold text-blue-500 as" onClick={function(){setOutActionItems(function(p){var n={...p};n[item.id]=[...(n[item.id]||[]),{pic:'',aksi:'',deadline:'',route:'none'}];return n;});}}>+ Tambah</button>
                   </div>
-                  {(outActionItems[item.id]||[]).length>0&&<div className="space-y-2">
-                    {(outActionItems[item.id]||[]).map(function(ai,idx){return(
+                  {(getActionItems(item)).length>0&&<div className="space-y-2">
+                    {(getActionItems(item)).map(function(ai,idx){return(
                       <div key={idx} className="flex gap-1.5 items-start p-2.5 bg-stone-50 rounded-xl border border-stone-200">
                         <div className="flex-1 space-y-1.5">
                           <input className="w-full px-2 py-1.5 rounded-lg border border-stone-200 bg-white text-[10px] focus:outline-none" placeholder="Tindak lanjut..." value={ai.aksi} onChange={function(e){var v=e.target.value;setOutActionItems(function(p){var n={...p};var arr=n[item.id].slice();arr[idx]={...arr[idx],aksi:v};n[item.id]=arr;return n;});}}/>
