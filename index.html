@@ -904,6 +904,7 @@ function resolve(item,type){if(type==='mom'){updateMomItem(item._momEntryId,item
 // ── KAMAR PA ──────────────────────────────────────────────────
 function KamarPATab({backlog,onUpdateBacklog,onAddJadwal}){
   const [forms,setForms]=useState({});
+  const [catatanPA,setCatatanPA]=useState({});
   const queue = backlog.filter(it => (it.status === 'baru' || it.status === 'postponed') && !it.needFeedback && !it.pdcaFlag);
 
   function updateForm(id,field,val){setForms(function(p){var n={...p};n[id]={...(p[id]||{}),[field]:val};return n;});}
@@ -968,6 +969,14 @@ function KamarPATab({backlog,onUpdateBacklog,onAddJadwal}){
                   </div>
                   <div className="text-[10px] font-bold text-stone-400">{item.id} · {item.konteks}</div>
                   {(item.outputKonteks||item.notes)&&<div className="text-[9px] text-stone-400 mt-0.5 leading-relaxed">{item.outputKonteks||item.notes}</div>}
+                  <textarea
+                    value={catatanPA[item.id]||item.catatanPA||''}
+                    onChange={function(e){var v=e.target.value;setCatatanPA(function(p){var n=Object.assign({},p);n[item.id]=v;return n;});}}
+                    onBlur={function(e){var v=e.target.value;onUpdateBacklog(item.id,{catatanPA:v});}}
+                    placeholder="Catatan PA..."
+                    rows={1}
+                    className="mt-1.5 w-full px-2 py-1.5 rounded-lg border border-stone-200 text-[10px] text-stone-600 focus:outline-none focus:ring-1 focus:ring-stone-400 resize-none bg-stone-50"
+                  />
                 </div>
                 <PriBadge p={item.prioritas}/>
               </div>
@@ -2628,8 +2637,16 @@ function DumpInput({onAdd,onDone}){
   const [imgMime,setImgMime]=useState(null);
   const fileRef=useRef();
 
-  function handleImg(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onloadend=()=>{setImgSrc(r.result);setImgMime(f.type);setImgB64(r.result.replace('data:','').replace(/^.+,/,''));};r.readAsDataURL(f);}
+  function handleImg(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onloadend=function(){setImgSrc(r.result);setImgMime(f.type);setImgB64(r.result.replace('data:','').replace(/^.+,/,''));};r.readAsDataURL(f);}
   function removeImg(){setImgSrc(null);setImgB64(null);setImgMime(null);if(fileRef.current)fileRef.current.value='';}
+
+  function updatePreviewItem(idx,field,val){
+    setPreview(function(p){var n=p.slice();n[idx]=Object.assign({},n[idx]);n[idx][field]=val;return n;});
+  }
+  function removePreviewItem(idx){setPreview(function(p){return p.filter(function(_,i){return i!==idx;});});}
+  function addManualItem(){
+    setPreview(function(p){return p.concat([{konteks:'',isi:'',action:'',fungsiKPI:'operasional',kategori:'Meeting Review Ops',blokWaktu:'sore-review',prioritas:'sedang',pic:null,deadline:null,notes:''}]);});
+  }
 
   async function extract(){
     setErr('');setPreview([]);
@@ -2638,88 +2655,108 @@ function DumpInput({onAdd,onDone}){
     try{
       const userContent=[];
       if(imgB64)userContent.push({type:'image',source:{type:'base64',media_type:imgMime,data:imgB64}});
-      userContent.push({type:'text',text:`Kamu adalah AI assistant untuk CEO GTD OS di PT Raja Sukses Properindo (developer properti syariah).
+      var cleanText=(text||'(lihat gambar)').replace(/"/g,"'").replace(/\\/g,'').slice(0,1500);
+      userContent.push({type:'text',text:'Extract backlog items dari dump CEO RSP ini. Tiap item: konteks(max40), isi(max120), action(max80), fungsiKPI(finansial/branding/riset/operasional/people), prioritas(tinggi/sedang/rendah).\n\nDump: '+cleanText+'\n\nReturn ONLY JSON array: [{"konteks":"...","isi":"...","action":"...","fungsiKPI":"...","prioritas":"..."}]'});
 
-Extract item-item backlog dari input berikut. Setiap item harus:
-- konteks: topik/tema singkat (max 50 karakter)
-- isi: issue/situasi/feedback yang perlu direspons CEO (max 150 karakter)
-- action: apa yang perlu dilakukan CEO (max 100 karakter)
-- fungsiKPI: salah satu dari [finansial, branding, riset, operasional, people]
-- kategori: salah satu dari [Deepwork Strategic, Meeting Strategic, Meeting Review Ops, Ketemu External, Bikin Konten, Genba, Employee Engage]
-- blokWaktu: salah satu dari [pagi-dalam, pagi-aktif, siang-dinamis, sore-review, malam-keputusan]
-- prioritas: salah satu dari [tinggi, sedang, rendah]
-
-Input:
-${text||'(lihat gambar)'}
-
-Return HANYA JSON array valid, tidak ada teks lain, tidak ada markdown fences:
-[{"konteks":"...","isi":"...","action":"...","fungsiKPI":"...","kategori":"...","blokWaktu":"...","prioritas":"..."}]`});
-
-      const raw=await callAI([{role:'user',content:userContent}],1500);
-      const clean=raw.replace(/```json|```/g,'').trim();
-      const parsed=JSON.parse(clean);
-      setPreview(parsed.map(p=>({...p,pic:null,deadline:null,notes:''})));
-    }catch(e){
-      setErr('Gagal extract: '+e.message+'. Coba lagi atau periksa koneksi.');
-    }
+      const raw=await callAI([{role:'user',content:userContent}],2000);
+      var clean=raw.replace(/```json|```/g,'').trim();
+      var parsed=null;
+      try{parsed=JSON.parse(clean);}catch(e1){
+        var attempts=[
+          function(){var i=clean.lastIndexOf('}]');return i>0?clean.slice(0,i+2):null;},
+          function(){var i=clean.lastIndexOf(']');return i>0?clean.slice(0,i+1):null;},
+          function(){var i=clean.lastIndexOf('}');return i>0?'['+clean.slice(1,i+1)+']':null;},
+        ];
+        for(var ai2=0;ai2<attempts.length;ai2++){var s=attempts[ai2]();if(s){try{parsed=JSON.parse(s);break;}catch(e2){continue;}}}
+      }
+      if(!parsed||!parsed.length)throw new Error('AI tidak bisa extract item. Coba tulis lebih spesifik.');
+      setPreview(parsed.map(function(p){return{konteks:p.konteks||'',isi:p.isi||'',action:p.action||'',fungsiKPI:p.fungsiKPI||'operasional',kategori:p.kategori||'Meeting Review Ops',blokWaktu:p.blokWaktu||'sore-review',prioritas:p.prioritas||'sedang',pic:null,deadline:null,notes:''};} ));
+    }catch(e){setErr('Gagal extract: '+e.message);}
     setLoading(false);
   }
 
   function addAll(){
-    onAdd(preview.map(p=>({id:'BL-'+genId(),sumber,tanggal:todayStr(),...p,status:'baru'})));
+    if(!preview.length)return;
+    var valid=preview.filter(function(p){return(p.isi||p.konteks||p.action).trim();});
+    if(!valid.length){setErr('Semua item kosong.');return;}
+    onAdd(valid.map(function(p){return{id:'BL-'+genId(),sumber:sumber,tanggal:todayStr(),konteks:p.konteks,isi:p.isi,action:p.action,fungsiKPI:p.fungsiKPI,kategori:p.kategori,blokWaktu:p.blokWaktu,prioritas:p.prioritas,pic:p.pic,deadline:p.deadline,notes:p.notes,status:'baru'};}));
     setText('');setPreview([]);removeImg();if(onDone)onDone();
   }
 
+  var FUNGSI_OPTS=['finansial','branding','riset','operasional','people'];
+  var PRI_COL={tinggi:'text-red-600 bg-red-50 border-red-200',sedang:'text-amber-600 bg-amber-50 border-amber-200',rendah:'text-stone-500 bg-stone-50 border-stone-200'};
+
   return(
     <div className="p-4 pb-10 afi">
-      <div className="bg-white rounded-3xl border border-stone-200 shadow-soft p-5 mb-6">
+      <div className="bg-white rounded-3xl border border-stone-200 shadow-soft p-5 mb-4">
         <div className="flex justify-between items-center mb-4">
-          <div className="text-[14px] font-extrabold text-stone-800 flex items-center gap-2"><span>🧠</span> Brain Dump</div>
+          <div className="text-[14px] font-extrabold text-stone-800 flex items-center gap-2"><span>🧠</span> Brain Dump → Backlog</div>
           <div className="flex bg-stone-100 p-1 rounded-xl border border-stone-200">
-            {['CEO','PA','PDCA'].map(s=><button key={s} className={`px-3 py-1.5 rounded-lg text-[10px] font-bold st ${sumber===s?'bg-white shadow-sm text-stone-900 border border-stone-200/60':'text-stone-500'}`} onClick={()=>setSumber(s)}>{s}</button>)}
+            {['CEO','PA','PDCA'].map(function(s){return<button key={s} className={'px-3 py-1.5 rounded-lg text-[10px] font-bold st '+(sumber===s?'bg-white shadow-sm text-stone-900 border border-stone-200/60':'text-stone-500')} onClick={function(){setSumber(s);}}>{s}</button>;})}
           </div>
         </div>
-        <textarea className="w-full min-h-[130px] p-4 rounded-2xl border border-stone-200 bg-stone-50 text-[13px] text-stone-800 focus:outline-none focus:ring-2 focus:ring-stone-400 st resize-y placeholder-stone-400 leading-relaxed shadow-inner mb-4" value={text} onChange={e=>setText(e.target.value)} placeholder={"Tumpahkan pikiran, arahan, laporan, atau masalah...\n\nContoh:\nCashflow Bekasi negatif perlu keputusan CEO segera. Konten Q2 belum ada blueprint. Rekrutmen posisi kritis mandek."}/>
-        {imgSrc&&<div className="mb-4 relative inline-block"><img src={imgSrc} alt="" className="h-20 w-auto rounded-xl border border-stone-200 shadow-sm object-cover"/><button onClick={removeImg} className="absolute -top-2 -right-2 bg-stone-900 text-white w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold shadow-md">✕</button></div>}
-        <div className="flex gap-2 mb-4">
+        <textarea className="w-full min-h-[120px] p-4 rounded-2xl border border-stone-200 bg-stone-50 text-[13px] text-stone-800 focus:outline-none focus:ring-2 focus:ring-stone-400 st resize-y placeholder-stone-400 leading-relaxed shadow-inner mb-3" value={text} onChange={function(e){setText(e.target.value);}} placeholder={"Tumpahkan pikiran, arahan, laporan, atau masalah...\n\nBisa beberapa poin sekaligus:\n- Cashflow Bekasi negatif\n- Konten Q2 belum ada blueprint\n- Rekrutmen posisi kritis mandek"}/>
+        {imgSrc&&<div className="mb-3 relative inline-block"><img src={imgSrc} alt="" className="h-20 w-auto rounded-xl border border-stone-200 shadow-sm object-cover"/><button onClick={removeImg} className="absolute -top-2 -right-2 bg-stone-900 text-white w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold shadow-md">✕</button></div>}
+        <div className="flex gap-2">
           <input type="file" accept="image/*" ref={fileRef} onChange={handleImg} className="hidden"/>
-          <button className="flex-1 py-2.5 px-4 rounded-xl border border-stone-200 bg-white text-[11px] font-bold text-stone-700 as st flex items-center justify-center gap-2" onClick={()=>fileRef.current&&fileRef.current.click()}><span>📎</span> Lampirkan Screenshot / MOM</button>
+          <button className="py-2 px-3 rounded-xl border border-stone-200 bg-white text-[11px] font-bold text-stone-700 as st" onClick={function(){if(fileRef.current)fileRef.current.click();}}>📎 Screenshot</button>
+          <button onClick={extract} disabled={loading} className={'flex-1 py-2.5 rounded-xl text-[11px] font-bold as st '+(loading?'bg-stone-200 text-stone-400':'bg-stone-900 text-white')}>{loading?'Mengekstrak...':'✨ Extract Poin-Poin dengan AI'}</button>
         </div>
-        {err&&<div className="p-3 rounded-xl bg-red-50 border border-red-100 text-[11px] text-red-600 mb-4">⚠️ {err}</div>}
-        <div className="flex items-start gap-2.5 p-3 rounded-xl bg-blue-50 border border-blue-100 mb-4">
-          <span className="text-blue-400 text-sm mt-0.5">✨</span>
-          <div className="text-[10px] text-blue-700 leading-relaxed"><strong className="font-bold">AI akan extract</strong> — Konteks · Isi/Issue · Action · Fungsi KPI · Kategori · Blok Waktu · Prioritas. Preview dulu sebelum simpan.</div>
-        </div>
-        <button className={`w-full py-4 rounded-2xl text-[12px] font-extrabold flex justify-center items-center gap-2 st as ${loading||(!text.trim()&&!imgB64)?'bg-stone-200 text-stone-400 cursor-not-allowed':'bg-stone-900 text-white shadow-float'}`} onClick={extract} disabled={loading||(!text.trim()&&!imgB64)}>
-          {loading?<><span className="w-4 h-4 border-2 border-stone-400 border-t-white rounded-full animate-spin"/><span>AI menganalisis...</span></>:<span>✨ Ekstrak ke Backlog via AI</span>}
-        </button>
+        {err&&<div className="mt-3 p-3 rounded-xl bg-red-50 border border-red-100 text-[11px] text-red-600">⚠️ {err}</div>}
       </div>
 
       {preview.length>0&&(
-        <div className="afi">
-          <div className="flex items-center justify-between mb-3 px-1">
-            <div className="text-[12px] font-bold text-stone-700">{preview.length} item ditemukan — cek sebelum simpan</div>
-            <button className="text-[10px] text-stone-400 font-semibold hover:text-stone-600" onClick={()=>setPreview([])}>✕ Reset</button>
+        <div className="bg-white rounded-3xl border border-stone-200 shadow-soft p-5 mb-4">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <div className="text-[13px] font-extrabold text-stone-800">Preview — {preview.length} item</div>
+              <div className="text-[10px] text-stone-400 mt-0.5">Edit sebelum simpan. Klik ✕ untuk hapus.</div>
+            </div>
+            <button onClick={addManualItem} className="px-3 py-1.5 rounded-xl border border-stone-200 bg-white text-[10px] font-bold text-stone-600 as st">+ Tambah Manual</button>
           </div>
-          <div className="space-y-3 mb-4">
-            {preview.map((item,i)=>{const k=KPI5.find(x=>x.id===item.fungsiKPI);return(
-              <div key={i} className="bg-white rounded-2xl border border-stone-200 shadow-sm overflow-hidden relative">
-                <div className={`absolute left-0 top-0 bottom-0 w-1 ${k?k.bg:'bg-stone-200'}`}/>
-                <div className="p-3.5 pl-4">
-                  <div className={`text-[9px] font-extrabold uppercase tracking-widest mb-1 ${k?k.color:'text-stone-400'}`}>{item.konteks}</div>
-                  <div className="text-[12px] font-bold text-stone-800 leading-snug mb-2">{item.isi}</div>
-                  {item.action&&<div className="flex items-start gap-1.5 bg-amber-50 rounded-lg p-2 border border-amber-100 mb-2.5"><span className="text-amber-500 text-xs mt-0.5">⚡</span><div className="text-[10px] font-semibold text-amber-800">{item.action}</div></div>}
-                  <div className="flex gap-1.5 flex-wrap"><KC id={item.fungsiKPI} sm/><BC id={item.blokWaktu}/><PriBadge p={item.prioritas}/></div>
+          <div className="space-y-3">
+            {preview.map(function(p,idx){return(
+              <div key={idx} className="border border-stone-200 rounded-2xl p-4 relative">
+                <button onClick={function(){removePreviewItem(idx);}} className="absolute top-3 right-3 text-stone-300 hover:text-red-400 text-[12px] font-bold">✕</button>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 pr-6">
+                  <div>
+                    <div className="text-[8px] font-bold text-stone-400 uppercase mb-0.5">Konteks <span className="text-stone-300">(max 40)</span></div>
+                    <input value={p.konteks} onChange={function(e){updatePreviewItem(idx,'konteks',e.target.value.slice(0,40));}} placeholder="Topik singkat..." className="w-full px-2 py-1.5 rounded-lg border border-stone-200 text-[11px] focus:outline-none focus:ring-1 focus:ring-stone-400"/>
+                  </div>
+                  <div>
+                    <div className="text-[8px] font-bold text-stone-400 uppercase mb-0.5">Fungsi KPI</div>
+                    <select value={p.fungsiKPI} onChange={function(e){updatePreviewItem(idx,'fungsiKPI',e.target.value);}} className="w-full px-2 py-1.5 rounded-lg border border-stone-200 text-[11px] focus:outline-none">
+                      {FUNGSI_OPTS.map(function(f){return<option key={f} value={f}>{f}</option>;})}
+                    </select>
+                  </div>
+                  <div className="md:col-span-2">
+                    <div className="text-[8px] font-bold text-stone-400 uppercase mb-0.5">Isi / Issue <span className="text-stone-300">(max 120)</span></div>
+                    <input value={p.isi} onChange={function(e){updatePreviewItem(idx,'isi',e.target.value.slice(0,120));}} placeholder="Issue atau situasi yang perlu direspons..." className="w-full px-2 py-1.5 rounded-lg border border-stone-200 text-[11px] focus:outline-none focus:ring-1 focus:ring-stone-400"/>
+                  </div>
+                  <div className="md:col-span-2">
+                    <div className="text-[8px] font-bold text-stone-400 uppercase mb-0.5">Action <span className="text-stone-300">(max 80)</span></div>
+                    <input value={p.action} onChange={function(e){updatePreviewItem(idx,'action',e.target.value.slice(0,80));}} placeholder="Apa yang perlu dilakukan CEO..." className="w-full px-2 py-1.5 rounded-lg border border-stone-200 text-[11px] focus:outline-none focus:ring-1 focus:ring-stone-400"/>
+                  </div>
+                  <div>
+                    <div className="text-[8px] font-bold text-stone-400 uppercase mb-0.5">Prioritas</div>
+                    <div className="flex gap-1.5">
+                      {['tinggi','sedang','rendah'].map(function(pr){return<button key={pr} onClick={function(){updatePreviewItem(idx,'prioritas',pr);}} className={'px-2 py-1 rounded-lg text-[9px] font-bold border as '+(p.prioritas===pr?PRI_COL[pr]:'bg-white text-stone-400 border-stone-200')}>{pr}</button>;})}
+                    </div>
+                  </div>
                 </div>
               </div>
             );})}
           </div>
-          <button className="w-full py-3.5 rounded-2xl bg-emerald-600 text-white text-[12px] font-bold shadow-md as st" onClick={addAll}>✓ Simpan {preview.length} item ke Backlog</button>
+          <div className="mt-4 flex gap-2">
+            <button onClick={function(){setPreview([]);}} className="px-4 py-2.5 rounded-xl border border-stone-200 bg-white text-[11px] font-bold text-stone-500 as st">Batal</button>
+            <button onClick={addAll} className="flex-1 py-2.5 rounded-xl bg-stone-900 text-white text-[11px] font-bold as st">✅ Simpan {preview.length} Item ke Backlog</button>
+          </div>
         </div>
       )}
     </div>
   );
 }
+
 
 // ── DASHBOARD ─────────────────────────────────────────────────
 function Dashboard({weekly,kpiCorp,dashMonth,onChangeMonth,booking,backlog,jadwal}){
